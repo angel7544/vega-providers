@@ -116,7 +116,7 @@ export const getStream = async ({
     }
 
     // CF workers
-    [1, 2].forEach(async (type) => {
+    for (const type of [1, 2]) {
         try {
             const cfWorkersLink = driveLink.replace("/file", "/wfile") + `?type=${type}`;
             const cfWorkersRes = await axios.get(cfWorkersLink, { headers });
@@ -132,7 +132,7 @@ export const getStream = async ({
                 }
             });
         } catch (e) {}
-    });
+    }
 
     console.log("ServerLinks", ServerLinks);
     return ServerLinks;

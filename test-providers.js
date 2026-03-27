@@ -198,10 +198,11 @@ class ProviderTester {
       console.log(`   ✅ Got ${posts.length} posts`);
 
       // Pick random posts to test
-      const postsToTest = pickRandom(
+      let postsToTest = pickRandom(
         posts,
         Math.min(this.postsToTest, posts.length),
       );
+      if (!Array.isArray(postsToTest)) postsToTest = [postsToTest];
       console.log(
         `   🎲 Selected ${postsToTest.length} random posts for meta testing`,
       );

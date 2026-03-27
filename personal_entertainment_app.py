@@ -178,11 +178,11 @@ class PersonalEntertainmentApp(ctk.CTk):
         for index, item in enumerate(data):
             row = index // 4
             col = index % 4
-            card = ctk.CTkFrame(self.media_scroll, width=220, height=360)
+            card = ctk.CTkFrame(self.media_scroll, width=540, height=480)
             card.grid(row=row, column=col, padx=10, pady=10)
             card.grid_propagate(False)
             
-            poster_label = ctk.CTkLabel(card, text="Loading...", width=200, height=240, fg_color="#333", corner_radius=8)
+            poster_label = ctk.CTkLabel(card, text="Loading...", width=1200, height=240, fg_color="#333", corner_radius=8)
             poster_label.pack(pady=10)
             
             def load_img(url, lbl=poster_label):
