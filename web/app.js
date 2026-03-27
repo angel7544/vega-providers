@@ -1,10 +1,10 @@
 const API_BASE = window.location.origin;
-const REMOTE_BASE = "https://raw.githubusercontent.com/Zenda-Cross/vega-providers/refs/heads/main";
+const MANIFEST_URL = "https://raw.githubusercontent.com/Zenda-Cross/vega-providers/refs/heads/main/manifest.json";
 
 let currentProvider = "";
 let currentMeta = null;
 let player = null;
-let providersMap = {}; // store provider info
+let providersMap = {};
 
 lucide.createIcons();
 
@@ -18,53 +18,48 @@ const catalogContainer = document.getElementById('catalogContainer');
 
 
 // ============================
-// 🔥 LOAD PROVIDERS (LOCAL + REMOTE)
+// 🔥 LOAD PROVIDERS (GITHUB)
 // ============================
 async function loadProviders() {
     try {
         setStatus("Loading providers...", "#f59e0b");
 
-        // Local
-        const localResp = await fetch(`${API_BASE}/manifest.json`);
-        const local = await localResp.json();
-
-        // Remote (example JSON list)
-        let remote = [];
-        try {
-            const remoteResp = await fetch(`${REMOTE_BASE}/modflix.json`);
-            const data = await remoteResp.json();
-
-            // normalize into manifest format
-            remote = data.map(p => ({
-                ...p,
-                source: "remote"
-            }));
-        } catch (e) {
-            console.warn("Remote providers failed");
-        }
-
-        const merged = [...local, ...remote];
+        const resp = await fetch(MANIFEST_URL);
+        const providers = await resp.json();
 
         providerSelect.innerHTML = "";
         providersMap = {};
 
-        merged.filter(p => !p.disabled).forEach(p => {
-            providersMap[p.value] = p;
+        // ✅ ALL PROVIDERS OPTION
+        const allOpt = document.createElement('option');
+        allOpt.value = "__all__";
+        allOpt.textContent = "All Providers 🌐";
+        providerSelect.appendChild(allOpt);
 
-            const opt = document.createElement('option');
-            opt.value = p.value;
-            opt.textContent = p.display_name + (p.source === "remote" ? " 🌐" : "");
-            providerSelect.appendChild(opt);
-        });
+        providers
+            .filter(p => !p.disabled)
+            .forEach(p => {
+                providersMap[p.value] = p;
 
-        currentProvider = providerSelect.value;
+                const opt = document.createElement('option');
+                opt.value = p.value;
+                opt.textContent = p.display_name + " 🌐";
+                providerSelect.appendChild(opt);
+            });
+
+        currentProvider = "__all__"; // default
 
         providerSelect.onchange = async (e) => {
             currentProvider = e.target.value;
-            await loadCatalog();
+
+            if (currentProvider !== "__all__") {
+                await loadCatalog();
+            } else {
+                contentGrid.innerHTML = "<p>Select category or search</p>";
+                catalogContainer.innerHTML = "";
+            }
         };
 
-        await loadCatalog();
         setStatus("Online");
 
     } catch (err) {
@@ -75,7 +70,7 @@ async function loadProviders() {
 
 
 // ============================
-// 🔥 LOAD CATALOG (catalog.ts)
+// 🔥 LOAD CATALOG
 // ============================
 async function loadCatalog() {
     try {
@@ -87,14 +82,14 @@ async function loadCatalog() {
         renderCatalog(data.catalog || [], data.genres || []);
 
     } catch (err) {
-        console.error("Catalog error", err);
+        console.error(err);
         catalogContainer.innerHTML = "Failed to load catalog";
     }
 }
 
 
 // ============================
-// 🔥 RENDER CATALOG UI
+// 🔥 RENDER CATALOG
 // ============================
 function renderCatalog(catalog, genres) {
     catalogContainer.innerHTML = "";
@@ -125,10 +120,10 @@ function renderCatalog(catalog, genres) {
 
 
 // ============================
-// 🔥 FETCH POSTS
+// 🔥 FETCH DATA (ALL MODE)
 // ============================
 async function fetchData(filter, search = false) {
-    setStatus("Fetching data...", "#f59e0b");
+    setStatus("Fetching...", "#f59e0b");
     contentGrid.innerHTML = "";
 
     for (let i = 0; i < 8; i++) {
@@ -144,19 +139,56 @@ async function fetchData(filter, search = false) {
             ? { searchQuery: filter, page: 1 }
             : { filter, page: 1 };
 
-        const resp = await fetch(`${API_BASE}/fetch`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                provider: currentProvider,
-                functionName: func,
-                params
-            })
-        });
+        let results = [];
 
-        const data = await resp.json();
-        renderGrid(data);
-        setStatus("Online");
+        if (currentProvider === "__all__") {
+            const providers = Object.keys(providersMap);
+
+            const promises = providers.map(p =>
+                fetch(`${API_BASE}/fetch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        provider: p,
+                        functionName: func,
+                        params
+                    })
+                })
+                .then(res => res.json())
+                .then(data => data.map(item => ({
+                    ...item,
+                    __provider: p
+                })))
+                .catch(() => [])
+            );
+
+            const allData = await Promise.all(promises);
+            results = allData.flat();
+
+            // ✅ remove duplicates
+            const unique = new Map();
+            results.forEach(item => {
+                const key = item.title?.toLowerCase();
+                if (key && !unique.has(key)) unique.set(key, item);
+            });
+            results = Array.from(unique.values());
+
+        } else {
+            const resp = await fetch(`${API_BASE}/fetch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    provider: currentProvider,
+                    functionName: func,
+                    params
+                })
+            });
+
+            results = await resp.json();
+        }
+
+        renderGrid(results);
+        setStatus(`Loaded ${results.length} items`);
 
     } catch (err) {
         console.error(err);
@@ -179,13 +211,23 @@ function renderGrid(items) {
     items.forEach(item => {
         const card = document.createElement('div');
         card.className = 'media-card';
-        card.onclick = () => showDetails(item.link);
+
+        card.onclick = () => {
+            if (item.__provider) {
+                currentProvider = item.__provider;
+                providerSelect.value = item.__provider;
+            }
+            showDetails(item.link);
+        };
 
         card.innerHTML = `
             <img src="${item.image}" class="media-poster">
             <div class="media-info">
                 <div class="media-title">${item.title}</div>
-                <div class="media-type">${item.type || 'Media'}</div>
+                <div class="media-type">
+                    ${item.type || 'Media'}
+                    ${item.__provider ? `<span style="color:#a855f7"> • ${item.__provider}</span>` : ""}
+                </div>
             </div>
         `;
 
