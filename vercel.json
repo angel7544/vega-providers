@@ -1,27 +1,10 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/index.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "web/**",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "dist/**",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "manifest.json",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "artplayer.js",
-      "use": "@vercel/static"
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "dist/**"
     }
-  ],
+  },
   "routes": [
     {
       "src": "/manifest.json",
