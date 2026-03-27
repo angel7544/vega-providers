@@ -1,23 +1,12 @@
 {
   "version": 2,
+  "outputDirectory": "web",
   "functions": {
     "api/index.js": {
       "includeFiles": "dist/**"
     }
   },
   "routes": [
-    {
-      "src": "/manifest.json",
-      "dest": "/manifest.json"
-    },
-    {
-      "src": "/artplayer.js",
-      "dest": "/artplayer.js"
-    },
-    {
-      "src": "/dist/(.*)",
-      "dest": "/dist/$1"
-    },
     {
       "src": "/fetch",
       "dest": "/api/index.js"
@@ -40,7 +29,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/web/$1"
+      "dest": "/$1"
     }
   ]
 }
