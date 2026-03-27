@@ -1,5 +1,5 @@
 const API_BASE = window.location.origin;
-const MANIFEST_URL = "https://raw.githubusercontent.com/Zenda-Cross/vega-providers/refs/heads/main/modflix.json";
+const MANIFEST_URL = `${API_BASE}/manifest.json`;
 
 let currentProvider = "";
 let currentMeta = null;

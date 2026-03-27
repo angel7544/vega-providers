@@ -1,0 +1,1082 @@
+{
+  "1cinevood": {
+    "error": "TIMEOUT_15S",
+    "summary": {
+      "failed": 1,
+      "passed": 0,
+      "skipped": 0
+    }
+  },
+  "4khdhub": {
+    "provider": "4khdhub",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 18
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": true,
+      "data": {
+        "count": 3,
+        "type": "movie"
+      },
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "animetsu": {
+    "error": "TIMEOUT_15S",
+    "summary": {
+      "failed": 1,
+      "passed": 0,
+      "skipped": 0
+    }
+  },
+  "autoEmbed": {
+    "provider": "autoEmbed",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 48
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": true,
+      "data": {
+        "count": 33,
+        "type": "movie"
+      },
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "drive": {
+    "provider": "drive",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 24
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": true,
+      "data": {
+        "count": 2
+      },
+      "error": null,
+      "skipped": false
+    },
+    "stream": {
+      "success": true,
+      "data": {
+        "count": 2,
+        "type": "series"
+      },
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "filmyfly": {
+    "provider": "filmyfly",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 3
+      },
+      "error": null
+    },
+    "posts": {
+      "success": false,
+      "data": null,
+      "error": "getPosts returned empty or invalid result"
+    },
+    "meta": {
+      "success": false,
+      "data": null,
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 1,
+      "failed": 1,
+      "skipped": 0
+    }
+  },
+  "flixhq": {
+    "provider": "flixhq",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 3
+      },
+      "error": null
+    },
+    "posts": {
+      "success": false,
+      "data": null,
+      "error": "getPosts returned empty or invalid result"
+    },
+    "meta": {
+      "success": false,
+      "data": null,
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 1,
+      "failed": 1,
+      "skipped": 0
+    }
+  },
+  "guardahd": {
+    "provider": "guardahd",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 2
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 48
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "hdhub4u": {
+    "provider": "hdhub4u",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": false,
+      "data": null,
+      "error": "getPosts returned empty or invalid result"
+    },
+    "meta": {
+      "success": false,
+      "data": null,
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 1,
+      "failed": 1,
+      "skipped": 0
+    }
+  },
+  "hiAnime": {
+    "provider": "hiAnime",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": false,
+      "data": null,
+      "error": "getPosts returned empty or invalid result"
+    },
+    "meta": {
+      "success": false,
+      "data": null,
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 1,
+      "failed": 1,
+      "skipped": 0
+    }
+  },
+  "Joya9tv": {
+    "provider": "Joya9tv",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 2
+      },
+      "error": null
+    },
+    "posts": {
+      "success": false,
+      "data": null,
+      "error": "getPosts returned empty or invalid result"
+    },
+    "meta": {
+      "success": false,
+      "data": null,
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 1,
+      "failed": 1,
+      "skipped": 0
+    }
+  },
+  "katmovies": {
+    "provider": "katmovies",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": false,
+      "data": null,
+      "error": "getPosts returned empty or invalid result"
+    },
+    "meta": {
+      "success": false,
+      "data": null,
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 1,
+      "failed": 1,
+      "skipped": 0
+    }
+  },
+  "kissKh": {
+    "provider": "kissKh",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 10
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "kmMovies": {
+    "provider": "kmMovies",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 3
+      },
+      "error": null
+    },
+    "posts": {
+      "success": false,
+      "data": null,
+      "error": "getPosts returned empty or invalid result"
+    },
+    "meta": {
+      "success": false,
+      "data": null,
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 1,
+      "failed": 1,
+      "skipped": 0
+    }
+  },
+  "luxMovies": {
+    "provider": "luxMovies",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 18
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": true,
+      "data": {
+        "count": 9
+      },
+      "error": null,
+      "skipped": false
+    },
+    "stream": {
+      "success": true,
+      "data": {
+        "count": 2,
+        "type": "series"
+      },
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "mod": {
+    "provider": "mod",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 20
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": true,
+      "data": {
+        "count": 6
+      },
+      "error": null,
+      "skipped": false
+    },
+    "stream": {
+      "success": true,
+      "data": {
+        "count": 2,
+        "type": "series"
+      },
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "movies4u": {
+    "provider": "movies4u",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 2
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 30
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "summary": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 2
+    }
+  },
+  "moviezwap": {
+    "provider": "moviezwap",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 21
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": true,
+      "data": {
+        "count": 1
+      },
+      "error": null,
+      "skipped": false
+    },
+    "stream": {
+      "success": true,
+      "data": {
+        "count": 1,
+        "type": "series"
+      },
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "multi": {
+    "provider": "multi",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 30
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "primewire": {
+    "provider": "primewire",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 3
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 24
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "protonMovies": {
+    "provider": "protonMovies",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 40
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "ridoMovies": {
+    "error": "TIMEOUT_15S",
+    "summary": {
+      "failed": 1,
+      "passed": 0,
+      "skipped": 0
+    }
+  },
+  "ringz": {
+    "provider": "ringz",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 3
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 205
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": true,
+      "data": {
+        "count": 1,
+        "type": "movie"
+      },
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "showbox": {
+    "error": "TIMEOUT_15S",
+    "summary": {
+      "failed": 1,
+      "passed": 0,
+      "skipped": 0
+    }
+  },
+  "tokyoInsider": {
+    "provider": "tokyoInsider",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 2
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 25
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "topmovies": {
+    "provider": "topmovies",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 20
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": true,
+      "data": {
+        "count": 2,
+        "type": "movie"
+      },
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "uhd": {
+    "provider": "uhd",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 12
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": true,
+      "data": {
+        "count": 1,
+        "type": "movie"
+      },
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "vega": {
+    "provider": "vega",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 4
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 18
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": false,
+      "data": null,
+      "error": null,
+      "skipped": true
+    },
+    "stream": {
+      "success": true,
+      "data": {
+        "count": 2,
+        "type": "movie"
+      },
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 1
+    }
+  },
+  "world4u": {
+    "error": "TIMEOUT_15S",
+    "summary": {
+      "failed": 1,
+      "passed": 0,
+      "skipped": 0
+    }
+  },
+  "zeefliz": {
+    "provider": "zeefliz",
+    "catalog": {
+      "success": true,
+      "data": {
+        "catalogCount": 2
+      },
+      "error": null
+    },
+    "posts": {
+      "success": true,
+      "data": {
+        "count": 20
+      },
+      "error": null
+    },
+    "meta": {
+      "success": true,
+      "data": {
+        "testedCount": 1
+      },
+      "error": null
+    },
+    "episodes": {
+      "success": true,
+      "data": {
+        "count": 8
+      },
+      "error": null,
+      "skipped": false
+    },
+    "stream": {
+      "success": true,
+      "data": {
+        "count": 3,
+        "type": "series"
+      },
+      "error": null,
+      "skipped": false
+    },
+    "summary": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0
+    }
+  }
+}
