@@ -34,13 +34,13 @@ export const getPosts = async ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> => {
-  const { getBaseUrl } = providerContext;
-  const baseUrl = await getBaseUrl("lux");
+  const { getBaseUrl, axios, cheerio } = providerContext;
+  const baseUrl = await getBaseUrl("Vega");
 
   console.log("vegaGetPosts baseUrl:", providerValue, baseUrl);
   const url = `${baseUrl}/${filter}/page/${page}/`;
-  console.log("lux url:", url);
-  return posts(url, signal, providerContext);
+  console.log("vegaGetPosts url:", url);
+  return posts(baseUrl, url, signal, headers, axios, cheerio);
 };
 
 export const getSearchPosts = async ({
@@ -56,58 +56,96 @@ export const getSearchPosts = async ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> => {
-  const { getBaseUrl } = providerContext;
-  const baseUrl = await getBaseUrl("lux");
+  const { getBaseUrl, axios, cheerio } = providerContext;
+  const baseUrl = await getBaseUrl("Vega");
 
   console.log("vegaGetPosts baseUrl:", providerValue, baseUrl);
-  const url =
-    page === 1
-      ? `https://c.8man.workers.dev/?url=${baseUrl}/?s=${searchQuery}`
-      : `https://c.8man.workers.dev/?url=${baseUrl}/page/${page}/?s=${searchQuery}`;
-  console.log("lux url:", url);
+  const url = `${baseUrl}/search.php?q=${searchQuery}&page=${page}`;
+  console.log("vegaGetPosts url:", url);
 
-  return posts(url, signal, providerContext);
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        ...headers,
+        Referer: baseUrl,
+      },
+      signal,
+    });
+
+    const data = response.data;
+    const posts: Post[] = [];
+
+    if (data?.hits) {
+      data.hits.forEach((hit: any) => {
+        const doc = hit.document;
+        const post = {
+          title: doc.post_title.replace("Download", "").trim(),
+          link: doc.permalink.startsWith("http")
+            ? doc.permalink
+            : `${baseUrl}${doc.permalink}`,
+          image: doc.post_thumbnail,
+        };
+        posts.push(post);
+      });
+    }
+    return posts;
+  } catch (error) {
+    console.error("vegaGetSearchPosts error:", error);
+    return [];
+  }
 };
 
 async function posts(
+  baseUrl: string,
   url: string,
   signal: AbortSignal,
-  providerContext: ProviderContext
+  headers: Record<string, string> = {},
+  axios: ProviderContext["axios"],
+  cheerio: ProviderContext["cheerio"],
 ): Promise<Post[]> {
   try {
-    const { axios, cheerio } = providerContext;
     const urlRes = await fetch(url, {
       headers: {
         ...headers,
-        Referer: url,
+        Referer: baseUrl,
       },
       signal,
     });
     const $ = cheerio.load(await urlRes.text());
     const posts: Post[] = [];
-    $(".blog-items")
-      ?.children("article")
+    $(".blog-items,.post-list,#archive-container,.movies-grid")
+      ?.children("article,.entry-list-item,a")
       ?.each((index, element) => {
         const post = {
-          title:
+          title: (
             $(element)
-              ?.find("a")
-              ?.attr("title")
+              ?.find(".entry-title,.poster-title")
+              ?.text()
               ?.replace("Download", "")
               ?.match(/^(.*?)\s*\((\d{4})\)|^(.*?)\s*\((Season \d+)\)/)?.[0] ||
             $(element)?.find("a")?.attr("title")?.replace("Download", "") ||
-            "",
+            $(element)
+              ?.find(".post-title,.poster-title")
+              .text()
+              ?.replace("Download", "") ||
+            ""
+          ).trim(),
 
-          link: $(element)?.find("a")?.attr("href") || "",
+          link:
+            $(element)?.find("a")?.attr("href") ||
+            $(element)?.attr("href") ||
+            "",
           image:
             $(element).find("a").find("img").attr("data-lazy-src") ||
             $(element).find("a").find("img").attr("data-src") ||
             $(element).find("a").find("img").attr("src") ||
+            $(element).find("img").attr("src") ||
             "",
         };
         if (post.image.startsWith("//")) {
           post.image = "https:" + post.image;
         }
+        console.log("vegaGetPosts post:", post);
         posts.push(post);
       });
 
