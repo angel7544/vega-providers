@@ -19,7 +19,8 @@
     "watch:dev": "nodemon --watch providers --ext ts --exec \"npm run build\" & npm run dev",
     "dev:auto": "concurrently \"nodemon --watch providers --ext ts --exec \\\"npm run build:dev\\\"\" \"npm run dev\"",
     "auto": "node auto-dev.js",
-    "start": "npm run build && npm run dev"
+    "start": "npm run build && npm run dev",
+    "vercel-build": "npm run build"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.35",
