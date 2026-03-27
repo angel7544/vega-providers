@@ -472,27 +472,39 @@ class PersonalEntertainmentApp(ctk.CTk):
         if not title: return
         def task():
             try:
-                import urllib.parse, re
-                q = urllib.parse.quote_plus(title.lower())
-                search_url = f"https://www.imdb.com/find/?q={q}&ref_=hm_nv_srb_sm"
-                resp = requests.get(search_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, timeout=5)
+                import urllib.parse
+                # 1. Get IMDb ID from IMDb Suggestion API
+                first_letter = title.lower()[0] if title else 'a'
+                q_safe = urllib.parse.quote(title.lower())
+                sug_url = f"https://v3.sg.media-imdb.com/suggestion/x/{first_letter}/{q_safe}.json"
                 
-                matches = re.findall(r'href="/title/(tt\d+)/', resp.text)
-                if not matches: return
-                imdb_id = matches[0]
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+                sug_resp = requests.get(sug_url, headers=headers, timeout=5)
                 
-                page_resp = requests.get(f"https://www.imdb.com/title/{imdb_id}/", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64 AppleWebKit/537.36)"}, timeout=5)
-                ld_match = re.search(r'<script type="application/ld\+json">(.*?)</script>', page_resp.text, re.DOTALL)
+                imdb_id = None
+                if sug_resp.status_code == 200:
+                    data = sug_resp.json()
+                    if "d" in data and len(data["d"]) > 0:
+                        imdb_id = data["d"][0]["id"]
+                
+                if not imdb_id:
+                    self.after(0, lambda: self.update_imdb_ui("N/A", "N/A"))
+                    return
+                    
+                # 2. Get Rating from Cinemeta API
+                tipo = "series" if self.current_item_type == "series" else "movie"
+                meta_url = f"https://v3-cinemeta.strem.io/meta/{tipo}/{imdb_id}.json"
+                meta_resp = requests.get(meta_url, headers=headers, timeout=5)
+                
                 rating = "N/A"
                 votes = ""
-                if ld_match:
-                    ld_data = json.loads(ld_match.group(1))
-                    if isinstance(ld_data, list): ld_data = ld_data[0]
-                    agg = ld_data.get("aggregateRating", {})
-                    rating = str(agg.get("ratingValue", "N/A"))
-                    vcount = agg.get("ratingCount", "N/A")
-                    if vcount != "N/A" and vcount:
-                        votes = f"{int(vcount):,}"
+                if meta_resp.status_code == 200:
+                    meta_data = meta_resp.json().get("meta", {})
+                    rating = str(meta_data.get("imdbRating", "N/A"))
+                    if rating != "N/A" and not rating: rating = "N/A"
+                    # Cinemeta usually doesn't provide vote count
+                    votes = ""
+                
                 self.after(0, lambda: self.update_imdb_ui(rating, votes))
             except Exception as e:
                 print(f"IMDb Scrape error: {e}")
