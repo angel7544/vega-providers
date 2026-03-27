@@ -1,10 +1,11 @@
 const API_BASE = window.location.origin;
+const REMOTE_BASE = "https://raw.githubusercontent.com/Zenda-Cross/vega-providers/refs/heads/main";
 
 let currentProvider = "";
 let currentMeta = null;
 let player = null;
+let providersMap = {}; // store provider info
 
-// Init icons
 lucide.createIcons();
 
 // Elements
@@ -15,24 +16,44 @@ const statusText = document.querySelector('#statusIndicator span');
 const modalOverlay = document.getElementById('modalOverlay');
 const catalogContainer = document.getElementById('catalogContainer');
 
-// ---------------- STATUS ----------------
-function setStatus(text, color = "#10b981") {
-    statusText.textContent = text;
-    statusText.style.color = color;
-}
 
-// ---------------- PROVIDERS ----------------
+// ============================
+// 🔥 LOAD PROVIDERS (LOCAL + REMOTE)
+// ============================
 async function loadProviders() {
     try {
-        const resp = await fetch(`${API_BASE}/manifest.json`);
-        const manifest = await resp.json();
+        setStatus("Loading providers...", "#f59e0b");
+
+        // Local
+        const localResp = await fetch(`${API_BASE}/manifest.json`);
+        const local = await localResp.json();
+
+        // Remote (example JSON list)
+        let remote = [];
+        try {
+            const remoteResp = await fetch(`${REMOTE_BASE}/modflix.json`);
+            const data = await remoteResp.json();
+
+            // normalize into manifest format
+            remote = data.map(p => ({
+                ...p,
+                source: "remote"
+            }));
+        } catch (e) {
+            console.warn("Remote providers failed");
+        }
+
+        const merged = [...local, ...remote];
 
         providerSelect.innerHTML = "";
+        providersMap = {};
 
-        manifest.filter(p => !p.disabled).forEach(p => {
+        merged.filter(p => !p.disabled).forEach(p => {
+            providersMap[p.value] = p;
+
             const opt = document.createElement('option');
             opt.value = p.value;
-            opt.textContent = p.display_name;
+            opt.textContent = p.display_name + (p.source === "remote" ? " 🌐" : "");
             providerSelect.appendChild(opt);
         });
 
@@ -44,6 +65,7 @@ async function loadProviders() {
         };
 
         await loadCatalog();
+        setStatus("Online");
 
     } catch (err) {
         console.error(err);
@@ -51,53 +73,48 @@ async function loadProviders() {
     }
 }
 
-function toggleSidebar() {
-    const sidebar = document.getElementById("sidebar");
-    const main = document.getElementById("main");
 
-    sidebar.classList.toggle("collapsed");
-    main.classList.toggle("expanded");
-}
-// ---------------- CATALOG ----------------
+// ============================
+// 🔥 LOAD CATALOG (catalog.ts)
+// ============================
 async function loadCatalog() {
     try {
-        setStatus("Loading catalog...", "#f59e0b");
+        catalogContainer.innerHTML = "Loading...";
 
         const resp = await fetch(`${API_BASE}/catalog?provider=${currentProvider}`);
         const data = await resp.json();
 
-        renderCatalog(data.catalog, data.genres || []);
-        setStatus("Online");
+        renderCatalog(data.catalog || [], data.genres || []);
 
     } catch (err) {
-        console.error(err);
-        setStatus("Catalog failed", "#ef4444");
+        console.error("Catalog error", err);
+        catalogContainer.innerHTML = "Failed to load catalog";
     }
 }
 
+
+// ============================
+// 🔥 RENDER CATALOG UI
+// ============================
 function renderCatalog(catalog, genres) {
     catalogContainer.innerHTML = "";
 
-    // Main sections
     catalog.forEach(section => {
-        const btn = document.createElement('button');
+        const btn = document.createElement("button");
         btn.className = "btn btn-primary";
         btn.textContent = section.title;
-
         btn.onclick = () => fetchData(section.filter);
         catalogContainer.appendChild(btn);
     });
 
-    // Genres
     if (genres.length) {
-        const wrap = document.createElement('div');
+        const wrap = document.createElement("div");
         wrap.style.marginTop = "10px";
 
         genres.forEach(g => {
-            const btn = document.createElement('button');
+            const btn = document.createElement("button");
             btn.className = "btn btn-secondary";
             btn.textContent = g.title;
-
             btn.onclick = () => fetchData(g.filter);
             wrap.appendChild(btn);
         });
@@ -106,9 +123,12 @@ function renderCatalog(catalog, genres) {
     }
 }
 
-// ---------------- FETCH POSTS ----------------
+
+// ============================
+// 🔥 FETCH POSTS
+// ============================
 async function fetchData(filter, search = false) {
-    setStatus("Fetching...", "#f59e0b");
+    setStatus("Fetching data...", "#f59e0b");
     contentGrid.innerHTML = "";
 
     for (let i = 0; i < 8; i++) {
@@ -136,7 +156,6 @@ async function fetchData(filter, search = false) {
 
         const data = await resp.json();
         renderGrid(data);
-
         setStatus("Online");
 
     } catch (err) {
@@ -145,12 +164,15 @@ async function fetchData(filter, search = false) {
     }
 }
 
-// ---------------- GRID ----------------
+
+// ============================
+// 🔥 GRID
+// ============================
 function renderGrid(items) {
     contentGrid.innerHTML = "";
 
     if (!items?.length) {
-        contentGrid.innerHTML = `<p style="grid-column:1/-1;text-align:center;">No results</p>`;
+        contentGrid.innerHTML = "<p>No results</p>";
         return;
     }
 
@@ -160,8 +182,7 @@ function renderGrid(items) {
         card.onclick = () => showDetails(item.link);
 
         card.innerHTML = `
-            <img src="${item.image || ''}" class="media-poster"
-            onerror="this.src='https://via.placeholder.com/300x450?text=No+Poster'">
+            <img src="${item.image}" class="media-poster">
             <div class="media-info">
                 <div class="media-title">${item.title}</div>
                 <div class="media-type">${item.type || 'Media'}</div>
@@ -172,163 +193,77 @@ function renderGrid(items) {
     });
 }
 
-// ---------------- META ----------------
+
+// ============================
+// 🔥 META
+// ============================
 async function showDetails(link) {
     modalOverlay.style.display = "flex";
-    document.body.style.overflow = "hidden";
 
-    setStatus("Loading meta...", "#f59e0b");
+    const resp = await fetch(`${API_BASE}/fetch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            provider: currentProvider,
+            functionName: "getMeta",
+            params: { link }
+        })
+    });
 
-    document.getElementById('linksContainer').innerHTML = "Loading...";
-    document.getElementById('playerArea').style.display = "none";
+    currentMeta = await resp.json();
 
-    if (player) {
-        player.dispose();
-        player = null;
-    }
-
-    try {
-        const resp = await fetch(`${API_BASE}/fetch`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                provider: currentProvider,
-                functionName: "getMeta",
-                params: { link }
-            })
-        });
-
-        currentMeta = await resp.json();
-
-        document.getElementById('detailPoster').src = currentMeta.image;
-        document.getElementById('detailTitle').textContent = currentMeta.title;
-        document.getElementById('detailSynopsis').textContent = currentMeta.synopsis || "";
-
-        renderLinks(currentMeta);
-        setStatus("Online");
-
-    } catch (err) {
-        console.error(err);
-        setStatus("Meta failed", "#ef4444");
-    }
+    document.getElementById('detailTitle').textContent = currentMeta.title;
+    renderLinks(currentMeta);
 }
 
-// ---------------- LINKS ----------------
+
+// ============================
+// 🔥 LINKS
+// ============================
 function renderLinks(meta) {
     const container = document.getElementById('linksContainer');
     container.innerHTML = "";
 
-    if (!meta.linkList?.length) {
-        container.innerHTML = "No links";
-        return;
-    }
+    meta.linkList?.forEach(group => {
+        const btn = document.createElement('button');
+        btn.textContent = group.title || "Play";
 
-    const isSeries = meta.type === "series";
-
-    meta.linkList.forEach(group => {
-        const el = document.createElement('div');
-        el.className = 'link-group';
-
-        el.innerHTML = `<h3>${group.title || "Links"} ${group.quality ? `[${group.quality}]` : ""}</h3>`;
-
-        const row = document.createElement('div');
-        row.className = 'button-row';
-
-        if (isSeries && group.episodesLink) {
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-secondary';
-            btn.textContent = "Episodes";
+        if (group.episodesLink) {
             btn.onclick = () => fetchEpisodes(group.episodesLink);
-            row.appendChild(btn);
-
         } else {
-            group.directLinks?.forEach(d => {
-
-                const play = document.createElement('button');
-                play.className = 'btn btn-primary';
-                play.textContent = "Watch";
-                play.onclick = () => playStream(d.link, d.title);
-                row.appendChild(play);
-
-                const vlc = document.createElement('button');
-                vlc.className = 'btn btn-secondary';
-                vlc.textContent = "VLC";
-                vlc.onclick = () => playInVLC(d.link);
-                row.appendChild(vlc);
-            });
+            btn.onclick = () => playStream(group.directLinks[0].link);
         }
 
-        el.appendChild(row);
-        container.appendChild(el);
+        container.appendChild(btn);
     });
 }
 
-// ---------------- EPISODES ----------------
-async function fetchEpisodes(url) {
-    setStatus("Episodes...", "#f59e0b");
 
-    const container = document.getElementById('linksContainer');
-    container.innerHTML = "Loading...";
+// ============================
+// 🔥 STREAM
+// ============================
+async function playStream(link) {
+    const resp = await fetch(`${API_BASE}/fetch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            provider: currentProvider,
+            functionName: "getStream",
+            params: { link, type: currentMeta.type }
+        })
+    });
 
-    try {
-        const resp = await fetch(`${API_BASE}/fetch`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                provider: currentProvider,
-                functionName: "getEpisodes",
-                params: { url }
-            })
-        });
+    const streams = await resp.json();
 
-        const eps = await resp.json();
-
-        container.innerHTML = "<h3>Episodes</h3>";
-
-        eps.forEach(ep => {
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-secondary';
-            btn.textContent = ep.title;
-            btn.onclick = () => playStream(ep.link, ep.title);
-            container.appendChild(btn);
-        });
-
-        setStatus("Online");
-
-    } catch {
-        setStatus("Episode error", "#ef4444");
+    if (streams?.length) {
+        initPlayer(streams[0]);
     }
 }
 
-// ---------------- STREAM ----------------
-async function playStream(link, title) {
-    setStatus("Extracting...", "#f59e0b");
 
-    try {
-        const resp = await fetch(`${API_BASE}/fetch`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                provider: currentProvider,
-                functionName: "getStream",
-                params: { link, type: currentMeta.type }
-            })
-        });
-
-        const streams = await resp.json();
-
-        if (streams?.length) {
-            const s = streams[0];
-            initPlayer(s.link, s.type);
-            setStatus("Online");
-        }
-
-    } catch {
-        setStatus("Stream error", "#ef4444");
-    }
-}
-
-// ---------------- PLAYER ----------------
+// ============================
+// 🔥 PLAYER
+// ============================
 function getVideoType(url) {
     if (url.includes(".m3u8")) return "application/x-mpegURL";
     if (url.endsWith(".mpd")) return "application/dash+xml";
@@ -336,12 +271,10 @@ function getVideoType(url) {
     return "video/mp4";
 }
 
-function initPlayer(url, type) {
+function initPlayer(stream) {
     document.getElementById('playerArea').style.display = "block";
 
-    document.getElementById('playerArea').innerHTML = `
-        <video id="vjs-player" class="video-js vjs-big-play-centered" controls></video>
-    `;
+    const type = stream.type || getVideoType(stream.link);
 
     if (player) player.dispose();
 
@@ -350,56 +283,56 @@ function initPlayer(url, type) {
         controls: true,
         fluid: true,
         sources: [{
-            src: url,
-            type: type || getVideoType(url)
+            src: stream.link,
+            type
         }]
     });
 }
 
-// ---------------- VLC ----------------
-async function playInVLC(link) {
-    try {
-        const resp = await fetch(`${API_BASE}/fetch`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                provider: currentProvider,
-                functionName: "getStream",
-                params: { link, type: currentMeta.type }
-            })
-        });
 
-        const streams = await resp.json();
+// ============================
+// 🔥 EPISODES
+// ============================
+async function fetchEpisodes(url) {
+    const resp = await fetch(`${API_BASE}/fetch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            provider: currentProvider,
+            functionName: "getEpisodes",
+            params: { url }
+        })
+    });
 
-        if (streams?.length) {
-            await fetch(`${API_BASE}/vlc`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: streams[0].link })
-            });
-        }
+    const episodes = await resp.json();
 
-    } catch {
-        setStatus("VLC error", "#ef4444");
-    }
+    const container = document.getElementById('linksContainer');
+    container.innerHTML = "";
+
+    episodes.forEach(ep => {
+        const btn = document.createElement('button');
+        btn.textContent = ep.title;
+        btn.onclick = () => playStream(ep.link);
+        container.appendChild(btn);
+    });
 }
 
-// ---------------- SEARCH ----------------
+
+// ============================
+// 🔥 UTIL
+// ============================
+function setStatus(text, color = "#10b981") {
+    statusText.textContent = text;
+    statusText.style.color = color;
+}
+
 function search() {
     const q = searchInput.value;
     if (q) fetchData(q, true);
 }
 
-// ---------------- MODAL ----------------
-function closeModal() {
-    modalOverlay.style.display = "none";
-    document.body.style.overflow = "auto";
 
-    if (player) {
-        player.dispose();
-        player = null;
-    }
-}
-
-// START
+// ============================
+// 🚀 START
+// ============================
 loadProviders();
