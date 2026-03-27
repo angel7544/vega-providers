@@ -3,10 +3,14 @@
   "outputDirectory": "web",
   "functions": {
     "api/index.js": {
-      "includeFiles": "dist/**"
+      "includeFiles": "dist/**|manifest.json"
     }
   },
   "routes": [
+    {
+      "src": "/manifest.json",
+      "dest": "/api/index.js"
+    },
     {
       "src": "/fetch",
       "dest": "/api/index.js"
