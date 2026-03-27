@@ -1,5 +1,5 @@
 const API_BASE = window.location.origin;
-const MANIFEST_URL = "https://raw.githubusercontent.com/Zenda-Cross/vega-providers/refs/heads/main/manifest.json";
+const MANIFEST_URL = "https://raw.githubusercontent.com/Zenda-Cross/vega-providers/refs/heads/main/modflix.json";
 
 let currentProvider = "";
 let currentMeta = null;
@@ -12,13 +12,13 @@ lucide.createIcons();
 const providerSelect = document.getElementById('providerSelect');
 const contentGrid = document.getElementById('contentGrid');
 const searchInput = document.getElementById('searchInput');
-const statusText = document.querySelector('#statusIndicator span');
-const modalOverlay = document.getElementById('modalOverlay');
+const statusText = document.querySelector('#statusText');
 const catalogContainer = document.getElementById('catalogContainer');
+const modalOverlay = document.getElementById('modalOverlay');
 
 
 // ============================
-// 🔥 LOAD PROVIDERS (GITHUB)
+// 🔥 LOAD PROVIDERS
 // ============================
 async function loadProviders() {
     try {
@@ -30,36 +30,40 @@ async function loadProviders() {
         providerSelect.innerHTML = "";
         providersMap = {};
 
-        // ✅ ALL PROVIDERS OPTION
+        // 🌐 ALL PROVIDERS OPTION
         const allOpt = document.createElement('option');
         allOpt.value = "__all__";
         allOpt.textContent = "All Providers 🌐";
         providerSelect.appendChild(allOpt);
 
-        providers
-            .filter(p => !p.disabled)
-            .forEach(p => {
-                providersMap[p.value] = p;
+        providers.forEach(p => {
+            providersMap[p.value] = p;
 
-                const opt = document.createElement('option');
-                opt.value = p.value;
-                opt.textContent = p.display_name + " 🌐";
-                providerSelect.appendChild(opt);
-            });
+            const opt = document.createElement('option');
+            opt.value = p.value;
+            opt.textContent = p.display_name + " 🌐";
+            providerSelect.appendChild(opt);
+        });
 
-        currentProvider = "__all__"; // default
+        currentProvider = "__all__";
 
         providerSelect.onchange = async (e) => {
             currentProvider = e.target.value;
 
-            if (currentProvider !== "__all__") {
-                await loadCatalog();
+            if (currentProvider === "__all__") {
+                catalogContainer.innerHTML = `
+                    <div style="padding:10px;color:#a855f7;">
+                        🌐 Aggregating from all providers
+                    </div>
+                `;
+                fetchData("");
             } else {
-                contentGrid.innerHTML = "<p>Select category or search</p>";
-                catalogContainer.innerHTML = "";
+                await loadCatalog();
             }
         };
 
+        // default load
+        fetchData("");
         setStatus("Online");
 
     } catch (err) {
@@ -70,20 +74,34 @@ async function loadProviders() {
 
 
 // ============================
-// 🔥 LOAD CATALOG
+// 🔥 SAFE CATALOG LOADER
 // ============================
 async function loadCatalog() {
     try {
         catalogContainer.innerHTML = "Loading...";
 
         const resp = await fetch(`${API_BASE}/catalog?provider=${currentProvider}`);
+
+        if (!resp.ok) throw new Error("Catalog failed");
+
         const data = await resp.json();
 
-        renderCatalog(data.catalog || [], data.genres || []);
+        if (!data.catalog || !Array.isArray(data.catalog)) {
+            throw new Error("Invalid catalog");
+        }
+
+        renderCatalog(data.catalog, data.genres || []);
 
     } catch (err) {
-        console.error(err);
-        catalogContainer.innerHTML = "Failed to load catalog";
+        console.warn("Catalog not supported:", currentProvider);
+
+        catalogContainer.innerHTML = `
+            <div style="color:#f59e0b; padding:10px;">
+                ⚠️ Catalog not available. Showing results.
+            </div>
+        `;
+
+        fetchData("");
     }
 }
 
@@ -104,7 +122,6 @@ function renderCatalog(catalog, genres) {
 
     if (genres.length) {
         const wrap = document.createElement("div");
-        wrap.style.marginTop = "10px";
 
         genres.forEach(g => {
             const btn = document.createElement("button");
@@ -125,13 +142,6 @@ function renderCatalog(catalog, genres) {
 async function fetchData(filter, search = false) {
     setStatus("Fetching...", "#f59e0b");
     contentGrid.innerHTML = "";
-
-    for (let i = 0; i < 8; i++) {
-        const skel = document.createElement('div');
-        skel.className = 'media-card skeleton';
-        skel.style.height = "350px";
-        contentGrid.appendChild(skel);
-    }
 
     try {
         const func = search ? "getSearchPosts" : "getPosts";
@@ -154,7 +164,7 @@ async function fetchData(filter, search = false) {
                         params
                     })
                 })
-                .then(res => res.json())
+                .then(r => r.json())
                 .then(data => data.map(item => ({
                     ...item,
                     __provider: p
@@ -165,13 +175,13 @@ async function fetchData(filter, search = false) {
             const allData = await Promise.all(promises);
             results = allData.flat();
 
-            // ✅ remove duplicates
-            const unique = new Map();
-            results.forEach(item => {
-                const key = item.title?.toLowerCase();
-                if (key && !unique.has(key)) unique.set(key, item);
+            // remove duplicates
+            const map = new Map();
+            results.forEach(i => {
+                const key = i.title?.toLowerCase();
+                if (key && !map.has(key)) map.set(key, i);
             });
-            results = Array.from(unique.values());
+            results = Array.from(map.values());
 
         } else {
             const resp = await fetch(`${API_BASE}/fetch`, {
@@ -188,7 +198,7 @@ async function fetchData(filter, search = false) {
         }
 
         renderGrid(results);
-        setStatus(`Loaded ${results.length} items`);
+        setStatus(`Loaded ${results.length}`);
 
     } catch (err) {
         console.error(err);
@@ -241,6 +251,7 @@ function renderGrid(items) {
 // ============================
 async function showDetails(link) {
     modalOverlay.style.display = "flex";
+    document.body.style.overflow = "hidden";
 
     const resp = await fetch(`${API_BASE}/fetch`, {
         method: 'POST',
