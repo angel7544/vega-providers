@@ -28,91 +28,82 @@ export const getStream = async ({
 }): Promise<Stream[]> => {
   try {
     const { axios, cheerio } = providerContext;
-    let downloadLink = await modExtractor(url, providerContext);
+    if (!url) return [];
 
-    // console.log(downloadLink.data);
-
-    const ddl = downloadLink?.data?.match(/content="0;url=(.*?)"/)?.[1] || url;
+    let downloadLinkRes = await modExtractor(url, providerContext);
+    const ddl = downloadLinkRes?.data?.match(/content="0;url=(.*?)"/)?.[1] || url;
 
     console.log("ddl", ddl);
-    // console.log(ddl);
-    const driveLink = await isDriveLink(ddl);
+    const driveLink = await isDriveLink(ddl, axios);
     const ServerLinks: Stream[] = [];
+
+    if (!driveLink) return [];
 
     const driveRes = await axios.get(driveLink, { headers });
     const driveHtml = driveRes.data;
     const $drive = cheerio.load(driveHtml);
 
-    //instant link
+    // instant link
     try {
       const seed = $drive(".btn-danger").attr("href") || "";
-      const instantToken = seed.split("=")[1];
-      //   console.log('InstantToken', instantToken);
-      const InstantFromData = new FormData();
-      InstantFromData.append("keys", instantToken);
-      const videoSeedUrl = seed.split("/").slice(0, 3).join("/") + "/api";
-      //   console.log('videoSeedUrl', videoSeedUrl);
-      const instantLinkRes = await fetch(videoSeedUrl, {
-        method: "POST",
-        body: InstantFromData,
-        headers: {
-          "x-token": videoSeedUrl,
-        },
-      });
-      const instantLinkData = await instantLinkRes.json();
-      //   console.log('instantLinkData', instantLinkData);
-      if (instantLinkData.error === false) {
-        const instantLink = instantLinkData.url;
-        ServerLinks.push({
-          server: "Gdrive-Instant",
-          link: instantLink,
-          type: "mkv",
+      if (seed) {
+        const instantToken = seed.split("=")[1];
+        const videoSeedUrl = seed.split("/").slice(0, 3).join("/") + "/api";
+        
+        // Use URLSearchParams for form data in Node.js
+        const params = new URLSearchParams();
+        params.append("keys", instantToken);
+
+        const instantLinkRes = await axios.post(videoSeedUrl, params, {
+          headers: {
+            "x-token": videoSeedUrl,
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
         });
-      } else {
-        console.log("Instant link not found", instantLinkData);
+        
+        const instantLinkData = instantLinkRes.data;
+        if (instantLinkData && instantLinkData.error === false) {
+          ServerLinks.push({
+            server: "Gdrive-Instant",
+            link: instantLinkData.url,
+            type: "mkv",
+          });
+        }
       }
     } catch (err) {
-      console.log("Instant link not found", err);
+      console.log("Instant link 1 error", err);
     }
 
-    //*******
-    //instant link 2
-    //*******
+    // instant link 2
     try {
       const seed = $drive(".btn-danger").attr("href") || "";
-      const newLinkRes = await fetch(seed, {
-        method: "HEAD",
-        headers,
-        redirect: "manual",
-      });
-      let newLink = seed;
-      if (newLinkRes.status >= 300 && newLinkRes.status < 400) {
-        newLink = newLinkRes.headers.get("location") || seed;
-      } else if (newLinkRes.url && newLinkRes.url !== seed) {
-        // Fallback: check if URL changed (redirect was followed)
-        newLink = newLinkRes.url || newLinkRes.url;
-      } else {
-        newLink = newLinkRes.headers.get("location") || seed;
+      if (seed) {
+        const newLinkRes = await axios.head(seed, {
+          headers,
+          maxRedirects: 0,
+          validateStatus: (status) => status >= 200 && status < 400,
+        });
+        
+        let newLink = newLinkRes.headers.location || seed;
+        const streamUrl = newLink.split("?url=")[1] || newLink;
+        if (streamUrl) {
+            ServerLinks.push({
+                server: "Gdrive-Instant-2",
+                link: streamUrl,
+                type: "mkv",
+            });
+        }
       }
-      console.log("Gdrive-Instant-2 link", newLink?.split("?url=")[1]);
-      ServerLinks.push({
-        server: "Gdrive-Instant-2",
-        link: newLink?.split("?url=")[1] || newLink,
-        type: "mkv",
-      });
     } catch (err) {
-      console.log("Instant link not found", err);
+      console.log("Instant link 2 error", err);
     }
 
     // resume link
     try {
       const resumeDrive = driveLink.replace("/file", "/zfile");
-      //   console.log('resumeDrive', resumeDrive);
       const resumeDriveRes = await axios.get(resumeDrive, { headers });
-      const resumeDriveHtml = resumeDriveRes.data;
-      const $resumeDrive = cheerio.load(resumeDriveHtml);
+      const $resumeDrive = cheerio.load(resumeDriveRes.data);
       const resumeLink = $resumeDrive(".btn-success").attr("href");
-      //   console.log('resumeLink', resumeLink);
       if (resumeLink) {
         ServerLinks.push({
           server: "ResumeCloud",
@@ -124,64 +115,24 @@ export const getStream = async ({
       console.log("Resume link not found");
     }
 
-    // Base page worker
-    try {
-      const baseWorkerStream = $drive(".btn-success");
-      baseWorkerStream.each((i, el) => {
-        const link = (el as any).attribs?.href;
-        if (link) {
-          ServerLinks.push({
-            server: "Resume Worker " + (i + 1),
-            link: link,
-            type: "mkv",
-          });
-        }
-      });
-    } catch (err) {
-      console.log("Base page worker link not found", err);
-    }
-
-    // CF workers type 1
-    try {
-      const cfWorkersLink = driveLink.replace("/file", "/wfile") + "?type=1";
-      const cfWorkersRes = await axios.get(cfWorkersLink, { headers });
-      const cfWorkersHtml = cfWorkersRes.data;
-      const $cfWorkers = cheerio.load(cfWorkersHtml);
-      const cfWorkersStream = $cfWorkers(".btn-success");
-      cfWorkersStream.each((i, el) => {
-        const link = (el as any).attribs?.href;
-        if (link) {
-          ServerLinks.push({
-            server: "Cf Worker 1." + i,
-            link: link,
-            type: "mkv",
-          });
-        }
-      });
-    } catch (err) {
-      console.log("CF workers link not found", err);
-    }
-
-    // CF workers type 2
-    try {
-      const cfWorkersLink = driveLink.replace("/file", "/wfile") + "?type=2";
-      const cfWorkersRes = await axios.get(cfWorkersLink, { headers });
-      const cfWorkersHtml = cfWorkersRes.data;
-      const $cfWorkers = cheerio.load(cfWorkersHtml);
-      const cfWorkersStream = $cfWorkers(".btn-success");
-      cfWorkersStream.each((i, el) => {
-        const link = (el as any).attribs?.href;
-        if (link) {
-          ServerLinks.push({
-            server: "Cf Worker 2." + i,
-            link: link,
-            type: "mkv",
-          });
-        }
-      });
-    } catch (err) {
-      console.log("CF workers link not found", err);
-    }
+    // CF workers
+    [1, 2].forEach(async (type) => {
+        try {
+            const cfWorkersLink = driveLink.replace("/file", "/wfile") + `?type=${type}`;
+            const cfWorkersRes = await axios.get(cfWorkersLink, { headers });
+            const $cfWorkers = cheerio.load(cfWorkersRes.data);
+            $cfWorkers(".btn-success").each((i, el) => {
+                const link = $cfWorkers(el).attr("href");
+                if (link) {
+                    ServerLinks.push({
+                        server: `Cf Worker ${type}.${i}`,
+                        link: link,
+                        type: "mkv",
+                    });
+                }
+            });
+        } catch (e) {}
+    });
 
     console.log("ServerLinks", ServerLinks);
     return ServerLinks;
@@ -191,17 +142,21 @@ export const getStream = async ({
   }
 };
 
-const isDriveLink = async (ddl: string) => {
+const isDriveLink = async (ddl: string, axios: any) => {
+  if (!ddl) return "";
   if (ddl.includes("drive")) {
-    const driveLeach = await fetch(ddl);
-    const driveLeachData = await driveLeach.text();
-    const pathMatch = driveLeachData.match(
-      /window\.location\.replace\("([^"]+)"\)/
-    );
-    const path = pathMatch?.[1];
-    const mainUrl = ddl.split("/")[2];
-    console.log(`driveUrl = https://${mainUrl}${path}`);
-    return `https://${mainUrl}${path}`;
+    try {
+        const driveLeach = await axios.get(ddl);
+        const driveLeachData = driveLeach.data;
+        const pathMatch = driveLeachData.match(/window\.location\.replace\("([^"]+)"\)/);
+        const path = pathMatch?.[1];
+        if (!path) return ddl;
+        
+        const urlObj = new URL(ddl);
+        return `${urlObj.protocol}//${urlObj.hostname}${path}`;
+    } catch (e) {
+        return ddl;
+    }
   } else {
     return ddl;
   }
@@ -211,46 +166,46 @@ async function modExtractor(url: string, providerContext: ProviderContext) {
   const { axios, cheerio } = providerContext;
   try {
     const wpHttp = url.split("sid=")[1];
-    var bodyFormData0 = new FormData();
-    bodyFormData0.append("_wp_http", wpHttp);
-    const res = await fetch(url.split("?")[0], {
-      method: "POST",
-      body: bodyFormData0,
+    if (!wpHttp) return { data: "" };
+
+    const params0 = new URLSearchParams();
+    params0.append("_wp_http", wpHttp);
+
+    const targetUrl = url.split("?")[0];
+    const res = await axios.post(targetUrl, params0, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" }
     });
-    const data = await res.text();
-    // console.log('', data);
-    const html = data;
-    const $ = cheerio.load(html);
+    
+    const $ = cheerio.load(res.data);
+    const wpHttp2 = $("input[name='_wp_http2']").val();
+    if (!wpHttp2) return res;
 
-    // find input with name="_wp_http2"
-    const wpHttp2 = $("input").attr("name", "_wp_http2").val();
+    const params = new URLSearchParams();
+    params.append("_wp_http2", wpHttp2 as string);
+    
+    const formUrl = $("form").attr("action") || targetUrl;
 
-    // console.log('wpHttp2', wpHttp2);
-
-    // form data
-    var bodyFormData = new FormData();
-    bodyFormData.append("_wp_http2", wpHttp2);
-    const formUrl1 = $("form").attr("action");
-    const formUrl = formUrl1 || url.split("?")[0];
-
-    const res2 = await fetch(formUrl, {
-      method: "POST",
-      body: bodyFormData,
+    const res2 = await axios.post(formUrl, params, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" }
     });
-    const html2: any = await res2.text();
-    const link = html2.match(/setAttribute\("href",\s*"(.*?)"/)[1];
-    console.log(link);
-    const cookie = link.split("=")[1];
-    console.log("cookie", cookie);
+    
+    const html2 = res2.data;
+    const linkMatch = html2.match(/setAttribute\("href",\s*"(.*?)"/);
+    if (!linkMatch) return res2;
+    
+    const link = linkMatch[1];
+    const cookieName = link.split("=")[1];
 
     const downloadLink = await axios.get(link, {
       headers: {
         Referer: formUrl,
-        Cookie: `${cookie}=${wpHttp2}`,
+        Cookie: `${cookieName}=${wpHttp2}`,
       },
     });
     return downloadLink;
   } catch (err) {
     console.log("modGetStream error", err);
+    return { data: "" };
   }
 }
+

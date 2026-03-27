@@ -47,7 +47,7 @@ async function buildProvider(providerName) {
         format: "cjs",
         target: "es2015",
         write: false,
-        external: [],
+        external: ["react-native", "react-native-aes-crypto"],
         minify: false,
         keepNames: true,
         treeShaking: true,
@@ -168,7 +168,7 @@ async function buildUtilityFiles() {
         format: "cjs",
         target: "es2015",
         write: false,
-        external: [],
+        external: ["react-native", "react-native-aes-crypto"],
         minify: false,
         keepNames: true,
         treeShaking: true,
@@ -197,9 +197,24 @@ async function buildAll() {
   // Clear dist directory
   const distDir = path.join(__dirname, "dist");
   if (fs.existsSync(distDir)) {
-    fs.rmSync(distDir, { recursive: true, force: true });
+    try {
+      // On Windows, deleting the directory can fail if it's being used by the server
+      // We'll try to delete contents instead
+      const files = fs.readdirSync(distDir);
+      for (const file of files) {
+        const filePath = path.join(distDir, file);
+        try {
+          fs.rmSync(filePath, { recursive: true, force: true });
+        } catch (e) {
+          console.warn(`Could not delete ${file}: ${e.message}`);
+        }
+      }
+    } catch (error) {
+      console.warn(`Could not clear dist directory: ${error.message}`);
+    }
+  } else {
+    fs.mkdirSync(distDir, { recursive: true });
   }
-  fs.mkdirSync(distDir, { recursive: true });
 
   // Build utility files first
   await buildUtilityFiles();

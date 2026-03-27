@@ -1,1 +1,210 @@
-"use strict";var __defProp=Object.defineProperty,__getOwnPropDesc=Object.getOwnPropertyDescriptor,__getOwnPropNames=Object.getOwnPropertyNames,__hasOwnProp=Object.prototype.hasOwnProperty,__name=(target,value)=>__defProp(target,"name",{value:value,configurable:!0}),__export=(target,all)=>{for(var name in all)__defProp(target,name,{get:all[name],enumerable:!0})},__copyProps=(to,from,except,desc)=>{if(from&&"object"==typeof from||"function"==typeof from)for(let key of __getOwnPropNames(from))__hasOwnProp.call(to,key)||key===except||__defProp(to,key,{get:()=>from[key],enumerable:!(desc=__getOwnPropDesc(from,key))||desc.enumerable});return to},__toCommonJS=mod=>__copyProps(__defProp({},"__esModule",{value:!0}),mod),__async=(__this,__arguments,generator)=>new Promise((resolve,reject)=>{var fulfilled=value=>{try{step(generator.next(value))}catch(e){reject(e)}},rejected=value=>{try{step(generator.throw(value))}catch(e){reject(e)}},step=x=>x.done?resolve(x.value):Promise.resolve(x.value).then(fulfilled,rejected);step((generator=generator.apply(__this,__arguments)).next())}),stream_exports={};__export(stream_exports,{getStream:()=>getStream});var hubcloudDecode=__name(function(value){return void 0===value?"":atob(value.toString())},"hubcloudDecode");function hubcloudExtractor(link,signal,axios,cheerio,headers){return __async(this,null,function*(){var _a,_b,_c,_d,_e,_f;try{headers.Cookie="ext_name=ojplmecpdpgccookcobabopnaifgidhf; xla=s4t; cf_clearance=woQrFGXtLfmEMBEiGUsVHrUBMT8s3cmguIzmMjmvpkg-1770053679-1.2.1.1-xBrQdciOJsweUF6F2T_OtH6jmyanN_TduQ0yslc_XqjU6RcHSxI7.YOKv6ry7oYo64868HYoULnVyww536H2eVI3R2e4wKzsky6abjPdfQPxqpUaXjxfJ02o6jl3_Vkwr4uiaU7Wy596Vdst3y78HXvVmKdIohhtPvp.vZ9_L7wvWdce0GRixjh_6JiqWmWMws46hwEt3hboaS1e1e4EoWCvj5b0M_jVwvSxBOAW5emFzvT3QrnRh4nyYmKDERnY",console.log("hubcloudExtractor",link),console.log("headers",headers);const baseUrl=link.split("/").slice(0,3).join("/"),streamLinks=[],vLinkText=(yield axios(`${link}`,{headers:headers,signal:signal})).data,$vLink=cheerio.load(vLinkText),vLinkRedirect=vLinkText.match(/var\s+url\s*=\s*'([^']+)';/)||[];let vcloudLink=hubcloudDecode(null==(_b=null==(_a=vLinkRedirect[1])?void 0:_a.split("r="))?void 0:_b[1])||vLinkRedirect[1]||$vLink(".fa-file-download.fa-lg").parent().attr("href")||link;console.log("vcloudLink",vcloudLink),(null==vcloudLink?void 0:vcloudLink.startsWith("/"))&&(vcloudLink=`${baseUrl}${vcloudLink}`,console.log("New vcloudLink",vcloudLink));const vcloudRes=yield fetch(vcloudLink,{headers:headers,signal:signal,redirect:"follow"}),$=cheerio.load(yield vcloudRes.text()),linkClass=$(".btn-success.btn-lg.h6,.btn-danger,.btn-secondary");for(const element of linkClass){let link2=$(element).attr("href")||"";switch(!0){case null==link2?void 0:link2.includes("pixeld"):if(!(null==link2?void 0:link2.includes("api"))){const token=link2.split("/").pop(),baseUrl2=link2.split("/").slice(0,-2).join("/");link2=`${baseUrl2}/api/file/${token}?download`}streamLinks.push({server:"Pixeldrain",link:link2,type:"mkv"});break;case(null==link2?void 0:link2.includes(".dev"))&&!(null==link2?void 0:link2.includes("/?id=")):streamLinks.push({server:"Cf Worker",link:link2,type:"mkv"});break;case(null==link2?void 0:link2.includes("hubcloud"))||(null==link2?void 0:link2.includes("/?id=")):try{const newLinkRes=yield fetch(link2,{method:"HEAD",headers:headers,signal:signal,redirect:"manual"});let newLink=link2;if(newLink=newLinkRes.status>=300&&newLinkRes.status<400?newLinkRes.headers.get("location")||link2:newLinkRes.url&&newLinkRes.url!==link2?newLinkRes.url:newLinkRes.headers.get("location")||link2,newLink.includes("googleusercontent"))newLink=newLink.split("?link=")[1];else{const newLinkRes2=yield fetch(newLink,{method:"HEAD",headers:headers,signal:signal,redirect:"manual"});newLink=newLinkRes2.status>=300&&newLinkRes2.status<400?(null==(_c=newLinkRes2.headers.get("location"))?void 0:_c.split("?link=")[1])||newLink:newLinkRes2.url&&newLinkRes2.url!==newLink?newLinkRes2.url.split("?link=")[1]||newLinkRes2.url:(null==(_d=newLinkRes2.headers.get("location"))?void 0:_d.split("?link=")[1])||newLink}streamLinks.push({server:"hubcloud",link:newLink,type:"mkv"})}catch(error){console.log("hubcloudExtractor error in hubcloud link: ",error)}break;case null==link2?void 0:link2.includes("cloudflarestorage"):streamLinks.push({server:"CfStorage",link:link2,type:"mkv"});break;case(null==link2?void 0:link2.includes("fastdl"))||(null==link2?void 0:link2.includes("fsl.")):streamLinks.push({server:"FastDl",link:link2,type:"mkv"});break;case link2.includes("hubcdn")&&!link2.includes("/?id="):streamLinks.push({server:"HubCdn",link:link2,type:"mkv"});break;default:if((null==link2?void 0:link2.includes(".mkv"))||(null==link2?void 0:link2.includes("?token="))){const serverName=(null==(_f=null==(_e=link2.match(/^(?:https?:\/\/)?(?:www\.)?([^\/]+)/i))?void 0:_e[1])?void 0:_f.replace(/\./g," "))||"Unknown";streamLinks.push({server:serverName,link:link2,type:"mkv"})}}}return console.log("streamLinks",streamLinks),streamLinks}catch(error){return console.log("hubcloudExtractor error: ",(null==error?void 0:error.message)||error),[]}})}function getStream(_0){return __async(this,arguments,function*({link:link,type:type,signal:signal,providerContext:providerContext}){const{axios:axios,cheerio:cheerio,commonHeaders:commonHeaders}=providerContext;try{return yield hubcloudExtractor(link,signal,axios,cheerio,commonHeaders)}catch(error){return console.log("getStream error: ",error),error.message.includes("Aborted"),[]}})}__name(hubcloudExtractor,"hubcloudExtractor"),__name(getStream,"getStream"),exports.getStream=getStream;
+"use strict";
+var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var __async = (__this, __arguments, generator) => {
+  return new Promise((resolve, reject) => {
+    var fulfilled = (value) => {
+      try {
+        step(generator.next(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var rejected = (value) => {
+      try {
+        step(generator.throw(value));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    var step = (x) => x.done ? resolve(x.value) : Promise.resolve(x.value).then(fulfilled, rejected);
+    step((generator = generator.apply(__this, __arguments)).next());
+  });
+};
+
+// providers/1cinevood/stream.ts
+var stream_exports = {};
+__export(stream_exports, {
+  getStream: () => getStream
+});
+
+
+// providers/extractors/hubcloud.ts
+var hubcloudDecode = /* @__PURE__ */ __name(function(value) {
+  if (value === void 0) {
+    return "";
+  }
+  return atob(value.toString());
+}, "hubcloudDecode");
+function hubcloudExtractor(link, signal, axios, cheerio, headers) {
+  return __async(this, null, function* () {
+    var _a, _b, _c, _d;
+    try {
+      const localHeaders = __spreadProps(__spreadValues({}, headers), {
+        Cookie: "ext_name=ojplmecpdpgccookcobabopnaifgidhf; xla=s4t; cf_clearance=woQrFGXtLfmEMBEiGUsVHrUBMT8s3cmguIzmMjmvpkg-1770053679-1.2.1.1-xBrQdciOJsweUF6F2T_OtH6jmyanN_TduQ0yslc_XqjU6RcHSxI7.YOKv6ry7oYo64868HYoULnVyww536H2eVI3R2e4wKzsky6abjPdfQPxqpUaXjxfJ02o6jl3_Vkwr4uiaU7Wy596Vdst3y78HXvVmKdIohhtPvp.vZ9_L7wvWdce0GRixjh_6JiqWmWMws46hwEt3hboaS1e1e4EoWCvj5b0M_jVwvSxBOAW5emFzvT3QrnRh4nyYmKDERnY"
+      });
+      console.log("hubcloudExtractor", link);
+      if (!link) return [];
+      const baseUrl = link.split("/").slice(0, 3).join("/");
+      const streamLinks = [];
+      const vLinkRes = yield axios(`${link}`, { headers: localHeaders, signal });
+      const vLinkText = vLinkRes.data;
+      const $vLink = cheerio.load(vLinkText);
+      const vLinkRedirect = vLinkText.match(/var\s+url\s*=\s*'([^']+)';/) || [];
+      let vcloudLink = hubcloudDecode((_b = (_a = vLinkRedirect[1]) == null ? void 0 : _a.split("r=")) == null ? void 0 : _b[1]) || vLinkRedirect[1] || $vLink(".fa-file-download.fa-lg").parent().attr("href") || link;
+      console.log("vcloudLink", vcloudLink);
+      if (!vcloudLink) return [];
+      if (vcloudLink.startsWith("/")) {
+        vcloudLink = `${baseUrl}${vcloudLink}`;
+        console.log("New vcloudLink", vcloudLink);
+      }
+      const vcloudRes = yield axios(vcloudLink, {
+        headers: localHeaders,
+        signal
+      });
+      const $ = cheerio.load(vcloudRes.data);
+      const linkClass = $(".btn-success.btn-lg.h6,.btn-danger,.btn-secondary");
+      for (const element of linkClass) {
+        const itm = $(element);
+        let itemLink = itm.attr("href") || "";
+        if (!itemLink) continue;
+        switch (true) {
+          case itemLink.includes("pixeld"):
+            if (!itemLink.includes("api")) {
+              const token = itemLink.split("/").pop();
+              const pixeldBaseUrl = itemLink.split("/").slice(0, -2).join("/");
+              itemLink = `${pixeldBaseUrl}/api/file/${token}?download`;
+            }
+            streamLinks.push({ server: "Pixeldrain", link: itemLink, type: "mkv" });
+            break;
+          case (itemLink.includes(".dev") && !itemLink.includes("/?id=")):
+            streamLinks.push({ server: "Cf Worker", link: itemLink, type: "mkv" });
+            break;
+          case (itemLink.includes("hubcloud") || itemLink.includes("/?id=")):
+            try {
+              const newLinkRes = yield axios(itemLink, {
+                method: "HEAD",
+                headers: localHeaders,
+                signal,
+                validateStatus: /* @__PURE__ */ __name((status) => status >= 200 && status < 400, "validateStatus"),
+                maxRedirects: 0
+              });
+              let newLink = newLinkRes.headers.location || itemLink;
+              if (newLink.includes("googleusercontent")) {
+                newLink = newLink.split("?link=")[1] || newLink;
+              } else {
+                const newLinkRes2 = yield axios(newLink, {
+                  method: "HEAD",
+                  headers: localHeaders,
+                  signal,
+                  validateStatus: /* @__PURE__ */ __name((status) => status >= 200 && status < 400, "validateStatus"),
+                  maxRedirects: 0
+                });
+                if (newLinkRes2.headers.location) {
+                  newLink = newLinkRes2.headers.location.split("?link=")[1] || newLinkRes2.headers.location;
+                }
+              }
+              streamLinks.push({
+                server: "hubcloud",
+                link: newLink,
+                type: "mkv"
+              });
+            } catch (error) {
+              console.log("hubcloudExtractor error in hubcloud link: ", error);
+            }
+            break;
+          case itemLink.includes("cloudflarestorage"):
+            streamLinks.push({ server: "CfStorage", link: itemLink, type: "mkv" });
+            break;
+          case (itemLink.includes("fastdl") || itemLink.includes("fsl.")):
+            streamLinks.push({ server: "FastDl", link: itemLink, type: "mkv" });
+            break;
+          case (itemLink.includes("hubcdn") && !itemLink.includes("/?id=")):
+            streamLinks.push({
+              server: "HubCdn",
+              link: itemLink,
+              type: "mkv"
+            });
+            break;
+          default:
+            if (itemLink.includes(".mkv") || itemLink.includes(".mp4") || itemLink.includes("?token=")) {
+              const serverName = ((_d = (_c = itemLink.match(/^(?:https?:\/\/)?(?:www\.)?([^\/]+)/i)) == null ? void 0 : _c[1]) == null ? void 0 : _d.replace(/\./g, " ")) || "Unknown";
+              streamLinks.push({ server: serverName, link: itemLink, type: "mkv" });
+            }
+            break;
+        }
+      }
+      console.log("streamLinks", streamLinks);
+      return streamLinks;
+    } catch (error) {
+      console.log("hubcloudExtractor error: ", (error == null ? void 0 : error.message) || error);
+      return [];
+    }
+  });
+}
+__name(hubcloudExtractor, "hubcloudExtractor");
+
+// providers/1cinevood/stream.ts
+function getStream(_0) {
+  return __async(this, arguments, function* ({
+    link,
+    type,
+    signal,
+    providerContext
+  }) {
+    const { axios, cheerio, commonHeaders } = providerContext;
+    try {
+      const hubcloudLink = yield hubcloudExtractor(
+        link,
+        signal,
+        axios,
+        cheerio,
+        commonHeaders
+      );
+      return hubcloudLink;
+    } catch (error) {
+      console.log("getStream error: ", error);
+      if (error.message.includes("Aborted")) {
+      } else {
+      }
+      return [];
+    }
+  });
+}
+__name(getStream, "getStream");
+exports.getStream = getStream;
+// Annotate the CommonJS export names for ESM import in node:
+

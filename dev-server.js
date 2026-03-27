@@ -32,6 +32,23 @@ class DevServer {
     // Serve static files from dist directory
     this.app.use("/dist", express.static(this.distDir));
 
+    // Serve web frontend
+    const webDir = path.join(__dirname, "web");
+    if (!fs.existsSync(webDir)) {
+      fs.mkdirSync(webDir, { recursive: true });
+    }
+    this.app.use("/", express.static(webDir));
+    
+    // Serve artplayer.js if needed
+    this.app.get("/artplayer.js", (req, res) => {
+      const artPath = path.join(__dirname, "artplayer.js");
+      if (fs.existsSync(artPath)) {
+        res.sendFile(artPath);
+      } else {
+        res.status(404).send("artplayer.js not found");
+      }
+    });
+
     // JSON parsing
     this.app.use(express.json());
 
@@ -74,7 +91,7 @@ class DevServer {
     this.app.post("/build", (req, res) => {
       try {
         console.log("🔨 Triggering rebuild...");
-        execSync("node build.js", { stdio: "inherit" });
+        execSync("node build-bundled.js", { stdio: "inherit" });
         res.json({ success: true, message: "Build completed" });
       } catch (error) {
         console.error("Build failed:", error);
@@ -106,6 +123,85 @@ class DevServer {
     // Health check
     this.app.get("/health", (req, res) => {
       res.json({ status: "healthy", timestamp: new Date().toISOString() });
+    });
+
+    // Execution endpoint
+    this.app.post("/fetch", async (req, res) => {
+      const { provider, functionName, params } = req.body;
+      console.log(`🔍 Executing provider function: ${provider} - ${functionName}`);
+
+      try {
+        const modulePath = path.join(this.distDir, provider);
+        let module;
+
+        if (functionName === "getPosts" || functionName === "getSearchPosts") {
+          module = require(path.join(modulePath, "posts.js"));
+        } else if (functionName === "getMeta") {
+          module = require(path.join(modulePath, "meta.js"));
+        } else if (functionName === "getEpisodes") {
+          module = require(path.join(modulePath, "episodes.js"));
+        } else if (functionName === "getStream") {
+          module = require(path.join(modulePath, "stream.js"));
+        } else {
+          return res.status(400).json({ error: `Unknown function: ${functionName}` });
+        }
+
+        if (!module[functionName]) {
+          return res.status(404).json({ error: `Function '${functionName}' not found in ${provider}` });
+        }
+
+        // Add providerContext if not present
+        const fullParams = {
+          ...params,
+          providerValue: provider,
+          providerContext: {
+            axios: require("axios"),
+            cheerio: require("cheerio"),
+            getBaseUrl: require("./dist/getBaseUrl.js").getBaseUrl,
+            commonHeaders: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            },
+            Aes: {},
+          }
+        };
+
+        const result = await module[functionName](fullParams);
+        res.json(result);
+      } catch (error) {
+        console.error("Fetch failed:", error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // VLC Launch endpoint
+    this.app.post("/vlc", (req, res) => {
+      const { url } = req.body;
+      console.log(`🧡 Launching VLC for: ${url}`);
+      
+      const vlcPaths = [
+        "vlc",
+        "C:\\Program Files\\VideoLAN\\VLC\\vlc.exe",
+        "C:\\Program Files (x86)\\VideoLAN\\VLC\\vlc.exe"
+      ];
+      
+      let started = false;
+      const { spawn } = require("child_process");
+      
+      for (const p of vlcPaths) {
+        try {
+          spawn(p, [url], { detached: true, stdio: 'ignore' }).unref();
+          started = true;
+          break;
+        } catch (e) {
+          continue;
+        }
+      }
+      
+      if (started) {
+        res.json({ success: true });
+      } else {
+        res.status(500).json({ error: "Could not find VLC" });
+      }
     });
 
     // 404 handler

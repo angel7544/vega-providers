@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbix Play - Premium Entertainment</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="logo">
+            <i data-lucide="zap"></i>
+            <span>Orbix Play</span>
+        </div>
+        <nav class="nav-links">
+            <li class="nav-item active" onclick="showHome()">
+                <i data-lucide="home"></i>
+                <span>Home</span>
+            </li>
+            <li class="nav-item" onclick="fetchTrending()">
+                <i data-lucide="trending-up"></i>
+                <span>Trending</span>
+            </li>
+            <li class="nav-item">
+                <i data-lucide="settings"></i>
+                <span>Settings</span>
+            </li>
+        </nav>
+        
+        <div class="provider-selector">
+            <p class="provider-label">Provider</p>
+            <select id="providerSelect">
+                <option value="">Loading...</option>
+            </select>
+        </div>
+    </aside>
+
+    <main class="main-container">
+        <header class="header">
+            <div class="search-box">
+                <i data-lucide="search"></i>
+                <input type="text" id="searchInput" placeholder="Search movies, series..." onkeydown="if(event.key==='Enter') search()">
+            </div>
+            <div id="statusIndicator" style="font-size: 12px; color: var(--text-secondary);">
+                Status: <span style="color: #10b981;">Online</span>
+            </div>
+        </header>
+
+        <section id="contentGrid" class="content-grid">
+            <!-- Media cards will be injected here -->
+        </section>
+    </main>
+
+    <!-- Modal for Details & Player -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div class="modal-content">
+            <div class="close-btn" onclick="closeModal()">
+                <i data-lucide="x"></i>
+            </div>
+            
+            <div class="detail-left">
+                <img id="detailPoster" src="" alt="Poster" class="detail-poster">
+                <h2 id="detailTitle" style="margin-top: 20px;"></h2>
+                <p id="detailSynopsis" class="synopsis"></p>
+            </div>
+            
+            <div class="detail-right">
+                <div id="playerArea" class="player-container" style="display: none;">
+                    <div id="artplayer" class="artplayer-app"></div>
+                </div>
+                
+                <div id="linksContainer" class="links-container">
+                    <!-- Link groups/Episodes will be injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

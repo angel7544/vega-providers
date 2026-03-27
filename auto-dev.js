@@ -73,7 +73,7 @@ class AutoDev {
   async initialBuild() {
     log.info("Running initial build...");
     try {
-      await this.runCommand("node", ["build-simple.js"]);
+      await this.runCommand("node", ["build-bundled.js"]);
       log.success("Initial build completed");
     } catch (error) {
       log.error("Initial build failed:", error.message);
