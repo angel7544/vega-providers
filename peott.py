@@ -8,6 +8,9 @@ import subprocess
 import sys
 import webbrowser
 from PIL import Image
+import urllib.parse
+import time
+import re
 
 # Configuration file for persistence
 CONFIG_FILE = "config.json"
@@ -18,6 +21,20 @@ class PersonalEntertainmentApp(ctk.CTk):
 
         self.title("Personal Entertainment Hub")
         self.geometry("1100x700")
+
+        # Load Window Title Bar Icon
+        try:
+            icon_path = "icon.ico"
+            # Prioritize bundled PyInstaller path if frozen
+            if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+                bundled_icon = os.path.join(sys._MEIPASS, "icon.ico")
+                if os.path.exists(bundled_icon):
+                    icon_path = bundled_icon
+            
+            if os.path.exists(icon_path):
+                self.iconbitmap(icon_path)
+        except Exception as e:
+            print(f"Could not load title bar icon: {e}")
 
         # Set appearance mode and color theme
         ctk.set_appearance_mode("Dark")
@@ -122,7 +139,6 @@ class PersonalEntertainmentApp(ctk.CTk):
         return img
 
     def clean_title(self, raw_title):
-        import re
         t = re.sub(r'(?i)^Download\s+', '', raw_title)
         network = ""
         if re.search(r'(?i)apple tv\+', raw_title): network = "Apple TV+"
@@ -151,22 +167,29 @@ class PersonalEntertainmentApp(ctk.CTk):
 
     def load_providers(self):
         def task():
-            try:
-                resp = requests.get(f"{self.server_url}/manifest.json")
-                if resp.status_code == 200:
-                    manifest = resp.json()
-                    self.provider_map = {p["display_name"]: p["value"] for p in manifest if not p.get("disabled")}
-                    self.providers_display = list(self.provider_map.keys())
-                    self.after(0, lambda: self.provider_menu.configure(values=self.providers_display))
-                    last_provider_display = next((k for k, v in self.provider_map.items() if v == self.current_provider_value), None)
-                    if last_provider_display:
-                        self.after(0, lambda: self.provider_menu.set(last_provider_display))
-                    elif self.providers_display:
-                        first_display = self.providers_display[0]
-                        self.current_provider_value = self.provider_map[first_display]
-                        self.after(0, lambda: self.provider_menu.set(first_display))
-            except Exception as e:
-                print(f"Error loading providers: {e}")
+            for attempt in range(15):
+                try:
+                    resp = requests.get(f"{self.server_url}/manifest.json", timeout=3)
+                    if resp.status_code == 200:
+                        manifest = resp.json()
+                        self.provider_map = {p["display_name"]: p["value"] for p in manifest if not p.get("disabled")}
+                        self.providers_display = list(self.provider_map.keys())
+                        self.after(0, lambda: self.provider_menu.configure(values=self.providers_display))
+                        last_provider_display = next((k for k, v in self.provider_map.items() if v == self.current_provider_value), None)
+                        if last_provider_display:
+                            self.after(0, lambda: self.provider_menu.set(last_provider_display))
+                        elif self.providers_display:
+                            first_display = self.providers_display[0]
+                            self.current_provider_value = self.provider_map[first_display]
+                            self.after(0, lambda: self.provider_menu.set(first_display))
+                        
+                        # Once loaded, show home page
+                        self.after(0, self.show_home)
+                        return
+                except Exception as e:
+                    print(f"Server not ready, retrying ({attempt+1}/15): {e}")
+                    time.sleep(2)
+            self.after(0, lambda: self.provider_menu.configure(values=["Server Offline"]))
         threading.Thread(target=task, daemon=True).start()
 
     def change_provider(self, choice):
@@ -472,7 +495,6 @@ class PersonalEntertainmentApp(ctk.CTk):
         if not title: return
         def task():
             try:
-                import urllib.parse
                 # 1. Get IMDb ID from IMDb Suggestion API
                 first_letter = title.lower()[0] if title else 'a'
                 q_safe = urllib.parse.quote(title.lower())
