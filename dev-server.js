@@ -204,6 +204,40 @@ class DevServer {
       }
     });
 
+    // Catalog endpoint
+    this.app.get("/catalog", (req, res) => {
+      const { provider } = req.query;
+
+      if (!provider) {
+        return res.status(400).json({ error: "provider is required" });
+      }
+
+      try {
+        const modulePath = path.join(this.distDir, provider, "catalog.js");
+
+        if (!fs.existsSync(modulePath)) {
+          return res.json({
+            catalog: [{ title: "All", filter: "" }],
+            genres: [],
+          });
+        }
+
+        delete require.cache[require.resolve(modulePath)];
+        const catalogModule = require(modulePath);
+
+        const catalog = catalogModule.catalog?.length
+          ? catalogModule.catalog
+          : [{ title: "All", filter: "" }];
+
+        const genres = catalogModule.genres || [];
+
+        res.json({ catalog, genres });
+      } catch (error) {
+        console.error(`[catalog error] ${provider}:`, error.message);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     // 404 handler
     this.app.use((req, res) => {
       res.status(404).json({
@@ -214,6 +248,7 @@ class DevServer {
           "POST /build",
           "GET /status",
           "GET /providers",
+          "GET /catalog",
           "GET /health",
         ],
       });
