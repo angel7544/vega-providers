@@ -773,49 +773,22 @@ class PersonalEntertainmentApp(ctk.CTk):
         threading.Thread(target=task, daemon=True).start()
 
     def play_video_now(self, url):
-        self.status_label.configure(text="Status: Launching player...", text_color="cyan")
+        self.status_label.configure(text="Status: Launching VLC player...", text_color="cyan")
         
-        # FFmpeg/FFprobe detection and MKV probing
-        audio_tracks = []
-        is_mkv = ".mkv" in url.lower() or "mkv" in self.current_meta.get("quality", "").lower()
-        
-        if is_mkv:
-            try:
-                # Check local first, then system
-                base = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-                ffprobe_bin = "ffprobe"
-                local_ffprobe = os.path.join(base, "ffprobe.exe")
-                if os.path.exists(local_ffprobe):
-                    ffprobe_bin = local_ffprobe
-                
-                # Probe for audio tracks
-                cmd = [
-                    ffprobe_bin, "-v", "error", "-show_entries", "stream=index,codec_name:stream_tags=language,title",
-                    "-select_streams", "a", "-of", "json", url
-                ]
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
-                    probe_data = json.loads(result.stdout)
-                    for stream in probe_data.get("streams", []):
-                        tags = stream.get("tags", {})
-                        label = tags.get("title") or tags.get("language") or f"Track {len(audio_tracks) + 1}"
-                        audio_tracks.append({"index": stream["index"], "label": label, "codec": stream["codec_name"]})
-            except Exception as e:
-                print(f"FFprobe failed or not found: {e}")
-
         try:
-            # Flatten audio tracks to a string if needed or pass as json
-            audio_tracks_json = json.dumps(audio_tracks)
-            
+            title = self.current_meta.get("title", "Video Player")
             if getattr(sys, 'frozen', False):
-                subprocess.Popen([sys.executable, "player_window", url, self.current_meta.get("title", "Video Player"), audio_tracks_json])
+                # In frozen state, launcher handles 'player_window' subcommand
+                subprocess.Popen([sys.executable, "player_window", url, title])
             else:
                 curr_dir = os.path.dirname(os.path.abspath(__file__))
                 player_script = os.path.join(curr_dir, "player_window.py")
-                subprocess.Popen([sys.executable, player_script, url, self.current_meta.get("title", "Video Player"), audio_tracks_json])
-            self.after(2000, lambda: self.status_label.configure(text="Status: Playing", text_color="green"))
+                subprocess.Popen([sys.executable, player_script, url, title])
+            
+            self.after(1000, lambda: self.status_label.configure(text="Status: Online", text_color="green"))
         except Exception as e:
-            print(f"Launch failed: {e}")
+            print(f"Player launch failed: {e}")
+            self.after(0, lambda: self.status_label.configure(text="Status: Player Error", text_color="red"))
             self.after(0, lambda: self.status_label.configure(text="Status: Launch failed", text_color="red"))
 
     def close_detail_view(self):

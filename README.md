@@ -1,6 +1,28 @@
 # Vega App Provider Extensions
 
-# Provider
+Vega Providers (Vega Hub) is a high-performance, portable media aggregator for Windows. It combines a sophisticated Python GUI with a Node.js backend to provide a seamless streaming experience across hundreds of providers.
+
+## 🚀 Desktop Application Features
+
+### 🎬 Native VLC Multimedia Engine
+The application is powered by a custom **64-bit VLC Native Player**, offering:
+*   **Superior Codec Support**: Native playback for MKV, HLS (m3u8), MP4, and more.
+*   **Dual/Multi-Audio Support**: Switch audio tracks directly in the player UI—no external proxies required.
+*   **Hardware Acceleration**: Smooth 4K and HDR playback with minimal CPU usage.
+*   **Advanced Controls**: Precision seeking (Space, Arrow keys), volume management, and fullscreen mode.
+
+### 📦 Architecture & Portability
+*   **Zero-Dependency Execution**: The entire app (Python + Node.js + VLC Core) is bundled into a single portable EXE.
+*   **64-bit VLC Bundle**: Includes a dedicated 64-bit VLC distribution to ensure compatibility on all modern Windows systems.
+*   **IMDb & Cinemeta Integration**: Dynamic metadata enrichment for movies and TV shows, including ratings and synopsis.
+
+### ⚡ Optimized Utility Management
+*   **Streaming FFmpeg Installer**: A built-in, progressive downloader for FFmpeg utilities with real-time percentage feedback.
+*   **Portable Provider Bundling**: Scrapers are bundled using ESBuild for high-speed execution and minimal cold-start times.
+
+---
+
+## 🛠 Provider Development
 
 How providers are structured and how to create a new one.
 
