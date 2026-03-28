@@ -178,6 +178,10 @@ class VLCPlayer(ctk.CTk):
         self.audio_btn = ctk.CTkButton(self.buttons_frame, text="🌐 Audio: Default", width=160, fg_color="#333", command=self.cycle_audio_track)
         self.audio_btn.pack(side="left", padx=5)
 
+        # Subtitle Selection Button
+        self.subtitle_btn = ctk.CTkButton(self.buttons_frame, text="💬 Sub: Off", width=120, fg_color="#333", command=self.cycle_subtitle_track)
+        self.subtitle_btn.pack(side="left", padx=5)
+
         # Volume
         ctk.CTkLabel(self.buttons_frame, text="🔊").pack(side="left", padx=(20, 5))
         self.volume_slider = ctk.CTkSlider(self.buttons_frame, from_=0, to=100, width=120, command=self.set_volume)
@@ -278,6 +282,31 @@ class VLCPlayer(ctk.CTk):
         new_name = tracks[next_idx][1].decode('utf-8')
         self.audio_btn.configure(text=f"🌐 Audio: {new_name}")
 
+    def cycle_subtitle_track(self):
+        tracks = self.player.video_get_spu_description()
+        if not tracks:
+            return
+            
+        curr_track = self.player.video_get_spu()
+        
+        # Find next track index
+        next_idx = 0
+        for i, (tid, name) in enumerate(tracks):
+            if tid == curr_track:
+                next_idx = (i + 1) % len(tracks)
+                break
+        
+        next_tid = tracks[next_idx][0]
+        self.player.video_set_spu(next_tid)
+        
+        # Update button text
+        new_name = tracks[next_idx][1].decode('utf-8')
+        if next_tid == -1 or "Disable" in new_name or "off" in new_name.lower():
+            label = "Off"
+        else:
+            label = new_name
+        self.subtitle_btn.configure(text=f"💬 Sub: {label}")
+
     def on_mouse_move(self, event=None):
         self.last_mouse_move_time = time.time()
         if not self.controls_visible:
@@ -342,6 +371,21 @@ class VLCPlayer(ctk.CTk):
                         t_name = name.decode('utf-8')
                         if t_name not in self.audio_btn.cget("text"):
                             self.audio_btn.configure(text=f"🌐 Audio: {t_name}")
+                        break
+
+            # Update Subtitle Track if needed
+            curr_spu = self.player.video_get_spu()
+            spus = self.player.video_get_spu_description()
+            if spus:
+                for tid, name in spus:
+                    if tid == curr_spu:
+                        s_name = name.decode('utf-8')
+                        if "Disable" in s_name or "off" in s_name.lower():
+                            s_label = "Off"
+                        else:
+                            s_label = s_name
+                        if s_label not in self.subtitle_btn.cget("text"):
+                            self.subtitle_btn.configure(text=f"💬 Sub: {s_label}")
                         break
 
             # Auto-hide logic check
