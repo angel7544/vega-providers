@@ -1,12 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['VegaHubLauncher.py'],
     pathex=[],
     binaries=[],
-    datas=[('icon.ico', '.'), ('icon.png', '.'), ('artplayer.js', '.'), ('vlc_bundle', 'vlc_bundle')],
-    hiddenimports=[],
+    datas=[
+        ('icon.ico', '.'),
+        ('icon.png', '.'),
+        ('artplayer.js', '.'),
+        ('vlc_bundle', 'vlc_bundle')
+    ],
+    hiddenimports=['vlc', 'customtkinter', 'PIL', 'PIL._tkinter_setup', 'player_window'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

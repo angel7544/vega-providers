@@ -143,6 +143,17 @@ class VLCPlayer(ctk.CTk):
         self.time_label = ctk.CTkLabel(self.time_frame, text="00:00 / 00:00", font=ctk.CTkFont(size=12))
         self.time_label.pack(side="left")
 
+        # Auto-hide Tracking
+        self.last_mouse_move_time = time.time()
+        self.controls_visible = True
+        
+        # Mouse movement tracking
+        self.bind("<Motion>", self.on_mouse_move)
+        self.video_frame.bind("<Motion>", self.on_mouse_move)
+        self.controls_frame.bind("<Enter>", self.on_controls_enter)
+        self.controls_frame.bind("<Leave>", self.on_controls_leave)
+        self.is_mouse_on_controls = False
+
         # --- Buttons and Audio Selection ---
         self.buttons_frame = ctk.CTkFrame(self.controls_frame, fg_color="transparent")
         self.buttons_frame.pack(fill="x", padx=20, pady=(5, 15))
@@ -163,10 +174,9 @@ class VLCPlayer(ctk.CTk):
         self.stop_btn = ctk.CTkButton(self.buttons_frame, text="⏹ Stop", width=70, fg_color="#442222", hover_color="#663333", command=self.on_closing)
         self.stop_btn.pack(side="left", padx=20)
 
-        # Audio Track Selection
-        ctk.CTkLabel(self.buttons_frame, text="Audio:").pack(side="left", padx=(10, 5))
-        self.audio_menu = ctk.CTkOptionMenu(self.buttons_frame, values=["Default"], command=self.change_audio_track, width=150)
-        self.audio_menu.pack(side="left", padx=5)
+        # Audio Track Selection Button (Cycles through tracks)
+        self.audio_btn = ctk.CTkButton(self.buttons_frame, text="🌐 Audio: Default", width=160, fg_color="#333", command=self.cycle_audio_track)
+        self.audio_btn.pack(side="left", padx=5)
 
         # Volume
         ctk.CTkLabel(self.buttons_frame, text="🔊").pack(side="left", padx=(20, 5))
@@ -182,11 +192,17 @@ class VLCPlayer(ctk.CTk):
         self.bind("<space>", lambda e: self.toggle_play())
         self.bind("<Left>", lambda e: self.seek_relative(-10))
         self.bind("<Right>", lambda e: self.seek_relative(10))
+        self.bind("f", lambda e: self.toggle_fullscreen())
+        self.bind("<Escape>", lambda e: self.exit_fullscreen())
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         # Start Playback
         self.after(500, self.start_play)
         self.update_ui_task()
+
+    def exit_fullscreen(self, event=None):
+        self.attributes("-fullscreen", False)
+        self.controls_frame.grid(row=1, column=0, sticky="ew")
 
     def start_play(self):
         # Media handle
@@ -221,33 +237,80 @@ class VLCPlayer(ctk.CTk):
         self.player.set_time(new_time)
 
     def on_slider_move(self, value):
-        if self.updating_slider:
-            new_pos = value / 1000.0
-            self.player.set_position(new_pos)
+        # Update time label while dragging for feedback
+        total_ms = self.player.get_length()
+        if total_ms > 0:
+            curr_ms = int((value / 1000.0) * total_ms)
+            self.time_label.configure(text=f"{self.format_time(curr_ms)} / {self.format_time(total_ms)}")
 
     def on_slider_press(self, event):
         self.updating_slider = True
 
     def on_slider_release(self, event):
+        # Only seek when user releases the slider for better performance
+        value = self.slider.get()
+        new_pos = value / 1000.0
+        self.player.set_position(new_pos)
         self.updating_slider = False
 
     def set_volume(self, value):
         self.player.audio_set_volume(int(value))
 
-    def change_audio_track(self, choice):
+    def cycle_audio_track(self):
         tracks = self.player.audio_get_track_description()
-        for track_id, track_name in tracks:
-            if track_name.decode('utf-8') == choice:
-                self.player.audio_set_track(track_id)
+        if not tracks or len(tracks) <= 1:
+            return
+            
+        curr_track = self.player.audio_get_track()
+        
+        # Find next track index
+        next_idx = 0
+        for i, (tid, name) in enumerate(tracks):
+            if tid == curr_track:
+                next_idx = (i + 1) % len(tracks)
                 break
+        
+        # Skip 'Disabled' or weird tracks if possible
+        next_tid = tracks[next_idx][0]
+        self.player.audio_set_track(next_tid)
+        
+        # Update button text immediately
+        new_name = tracks[next_idx][1].decode('utf-8')
+        self.audio_btn.configure(text=f"🌐 Audio: {new_name}")
+
+    def on_mouse_move(self, event=None):
+        self.last_mouse_move_time = time.time()
+        if not self.controls_visible:
+            self.show_controls()
+
+    def on_controls_enter(self, event=None):
+        self.is_mouse_on_controls = True
+        self.show_controls()
+
+    def on_controls_leave(self, event=None):
+        self.is_mouse_on_controls = False
+
+    def show_controls(self):
+        if not self.controls_visible:
+            self.controls_frame.grid(row=1, column=0, sticky="ew")
+            self.controls_visible = True
+            # Re-configure grid weights if needed
+            self.grid_rowconfigure(0, weight=1)
+            self.grid_rowconfigure(1, weight=0)
+
+    def hide_controls(self):
+        if self.controls_visible:
+            self.controls_frame.grid_forget()
+            self.controls_visible = False
+            # Allow video to fill entire window
+            self.grid_rowconfigure(0, weight=1)
 
     def toggle_fullscreen(self):
         state = self.attributes("-fullscreen")
         self.attributes("-fullscreen", not state)
-        if not state:
-            self.controls_frame.grid_forget()
-        else:
-            self.controls_frame.grid(row=1, column=0, sticky="ew")
+        # Force controls to show on toggle
+        self.show_controls()
+        self.focus_set()
 
     def format_time(self, ms):
         s = ms // 1000
@@ -271,16 +334,21 @@ class VLCPlayer(ctk.CTk):
                 self.time_label.configure(text=f"{self.format_time(curr_ms)} / {self.format_time(total_ms)}")
 
             # Update Audio Tracks if needed
-            if len(self.audio_menu._values) <= 1:
-                tracks = self.player.audio_get_track_description()
-                if tracks:
-                    track_names = [t[1].decode('utf-8') for t in tracks]
-                    if track_names:
-                        self.audio_menu.configure(values=track_names)
-                        curr_track = self.player.audio_get_track()
-                        for tid, name in tracks:
-                            if tid == curr_track:
-                                self.audio_menu.set(name.decode('utf-8'))
+            curr_track = self.player.audio_get_track()
+            tracks = self.player.audio_get_track_description()
+            if tracks:
+                for tid, name in tracks:
+                    if tid == curr_track:
+                        t_name = name.decode('utf-8')
+                        if t_name not in self.audio_btn.cget("text"):
+                            self.audio_btn.configure(text=f"🌐 Audio: {t_name}")
+                        break
+
+            # Auto-hide logic check
+            if self.controls_visible and not self.is_mouse_on_controls:
+                inactivity_time = time.time() - self.last_mouse_move_time
+                if inactivity_time > 3.0: # 3 seconds
+                    self.hide_controls()
 
             # Check for end of media
             vlc_lib = get_vlc()

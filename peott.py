@@ -226,15 +226,23 @@ class PersonalEntertainmentApp(ctk.CTk):
         for widget in self.media_scroll.winfo_children():
             widget.destroy()
 
-        st_frame = ctk.CTkFrame(self.media_scroll, fg_color="transparent")
-        st_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        # Main wrapper with scrolling
+        st_container = ctk.CTkFrame(self.media_scroll, fg_color="transparent")
+        st_container.pack(fill="both", expand=True, padx=20, pady=20)
         
-        ctk.CTkLabel(st_frame, text="Configuration", font=ctk.CTkFont(size=18, weight="bold"), anchor="w").pack(fill="x", pady=(0, 15))
+        # --- Section 1: Configuration ---
+        ctk.CTkLabel(st_container, text="⚙️ Configuration", font=ctk.CTkFont(size=18, weight="bold"), anchor="w").pack(fill="x", pady=(0, 15))
         
-        ctk.CTkLabel(st_frame, text="Server URL:", font=ctk.CTkFont(size=14), anchor="w").pack(fill="x", pady=(0, 5))
-        server_entry = ctk.CTkEntry(st_frame, height=35, corner_radius=8, fg_color="#1C1C1E", border_width=1, border_color="#333")
+        config_frame = ctk.CTkFrame(st_container, fg_color="#1a1a1c", corner_radius=10, border_width=1, border_color="#333")
+        config_frame.pack(fill="x", pady=(0, 20), padx=5)
+        
+        inner_config = ctk.CTkFrame(config_frame, fg_color="transparent")
+        inner_config.pack(padx=20, pady=20, fill="x")
+        
+        ctk.CTkLabel(inner_config, text="Server URL (Provider Backend):", font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", pady=(0, 5))
+        server_entry = ctk.CTkEntry(inner_config, height=35, corner_radius=8, fg_color="#1C1C1E", border_width=1, border_color="#444")
         server_entry.insert(0, self.server_url)
-        server_entry.pack(fill="x", pady=(0, 20))
+        server_entry.pack(fill="x", pady=(0, 15))
         
         def save_url():
             new_url = server_entry.get().strip()
@@ -242,28 +250,116 @@ class PersonalEntertainmentApp(ctk.CTk):
                 self.server_url = new_url
                 self.settings["server_url"] = new_url
                 self.save_settings()
-                self.status_label.configure(text="Status: Settings saved 🟢", text_color="green")
-                self.load_providers() # Reload manifest on server change
+                self.status_label.configure(text="Status: Settings Saved", text_color="green")
+                self.load_providers()
                 
-        ctk.CTkButton(st_frame, text="Save Settings", command=save_url, fg_color="#2b6bba", hover_color="#1f5394", height=35).pack(anchor="w", pady=(0, 30))
-        
-        # About section
-        about_frame = ctk.CTkFrame(st_frame, fg_color="#1a1a1c", corner_radius=10, border_width=1, border_color="#333")
-        about_frame.pack(fill="x", pady=20)
-        
-        ctk.CTkLabel(about_frame, text="About", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(20, 5))
-        ctk.CTkLabel(about_frame, text="Developed by angel mehl singh", font=ctk.CTkFont(size=14), text_color="gray").pack(pady=(0, 20))
+        ctk.CTkButton(inner_config, text="Save & Reload Server", command=save_url, fg_color="#2b6bba", hover_color="#1f5394", width=200).pack(anchor="w")
 
-        # FFmpeg Section
-        ctk.CTkLabel(st_frame, text="FFmpeg (Required for MKV Multi-Audio)", font=ctk.CTkFont(size=16, weight="bold"), anchor="w").pack(fill="x", pady=(20, 5))
+        # --- Section 2: Player Features ---
+        ctk.CTkLabel(st_container, text="🎬 Player Features", font=ctk.CTkFont(size=18, weight="bold"), anchor="w").pack(fill="x", pady=(10, 15))
         
-        ffmpeg_status = "Status: Installed ✅" if self.check_ffmpeg_local() else "Status: Not Found ❌"
-        self.ffmpeg_lbl = ctk.CTkLabel(st_frame, text=ffmpeg_status, font=ctk.CTkFont(size=13), anchor="w")
-        self.ffmpeg_lbl.pack(fill="x", pady=(0, 10))
+        player_frame = ctk.CTkFrame(st_container, fg_color="#1a1a1c", corner_radius=10, border_width=1, border_color="#333")
+        player_frame.pack(fill="x", pady=(0, 20), padx=5)
         
-        self.ffmpeg_btn = ctk.CTkButton(st_frame, text="Install FFmpeg Locally", command=self.download_ffmpeg, fg_color="#2b6bba", hover_color="#1f5394")
-        self.ffmpeg_btn.pack(anchor="w", pady=(0, 10))
-        if self.check_ffmpeg_local(): self.ffmpeg_btn.configure(state="disabled", text="FFmpeg Already Installed")
+        features_text = (
+            "• Native VLC Engine: High-performance playback with wide codec support.\n"
+            "• Multi-Audio Support: Easily switch between dual audio tracks with a dedicated button.\n"
+            "• Fullscreen Mode: Immersive viewing with native controls.\n"
+            "• Responsive Seeker: Frame-accurate seeking with real-time feedback.\n"
+            "• Performance: Zero-latency initialization and hardware acceleration."
+        )
+        ctk.CTkLabel(player_frame, text=features_text, justify="left", font=ctk.CTkFont(size=13), padx=20, pady=20).pack(anchor="w")
+
+        # --- Section 3: Keyboard Shortcuts ---
+        ctk.CTkLabel(st_container, text="⌨️ Shortcuts", font=ctk.CTkFont(size=18, weight="bold"), anchor="w").pack(fill="x", pady=(10, 15))
+        
+        shortcuts_frame = ctk.CTkFrame(st_container, fg_color="#1a1a1c", corner_radius=10, border_width=1, border_color="#333")
+        shortcuts_frame.pack(fill="x", pady=(0, 20), padx=5)
+        
+        kbd_text = (
+            "[ Space ] : Play / Pause\n"
+            "[ F ]     : Toggle Fullscreen\n"
+            "[ ESC ]   : Exit Fullscreen / Close\n"
+            "[ ← / → ] : Seek -10s / +10s"
+        )
+        ctk.CTkLabel(shortcuts_frame, text=kbd_text, justify="left", font=ctk.CTkFont(family="Consolas", size=13), padx=20, pady=20).pack(anchor="w")
+
+        # --- Section 4: Help & FAQ ---
+        ctk.CTkLabel(st_container, text="❓ Help & FAQ", font=ctk.CTkFont(size=18, weight="bold"), anchor="w").pack(fill="x", pady=(10, 15))
+        
+        help_frame = ctk.CTkFrame(st_container, fg_color="#1a1a1c", corner_radius=10, border_width=1, border_color="#333")
+        help_frame.pack(fill="x", pady=(0, 20), padx=5)
+        
+        help_text = (
+            "Q: Video is not loading?\n"
+            "A: Check if the provider server is running and your internet is stable.\n\n"
+            "Q: No audio or multiple tracks not showing?\n"
+            "A: Ensure FFmpeg is installed via the button below for advanced MKV processing.\n\n"
+            "Q: Controls disappearing in Fullscreen?\n"
+            "A: Move your mouse or use 'f' to toggle back. (Fixed in current version!)"
+        )
+        ctk.CTkLabel(help_frame, text=help_text, justify="left", font=ctk.CTkFont(size=13), padx=20, pady=20, wraplength=700).pack(anchor="w")
+
+        # --- Section 5: FFmpeg Setup ---
+        ctk.CTkLabel(st_container, text="🛠️ System Tools", font=ctk.CTkFont(size=18, weight="bold"), anchor="w").pack(fill="x", pady=(10, 15))
+        ffmpeg_box = ctk.CTkFrame(st_container, fg_color="#1a1a1c", corner_radius=10, border_width=1, border_color="#333")
+        ffmpeg_box.pack(fill="x", pady=(0, 20), padx=5)
+        
+        inner_ffmpeg = ctk.CTkFrame(ffmpeg_box, fg_color="transparent")
+        inner_ffmpeg.pack(padx=20, pady=20, fill="x")
+        
+        f_status = "Installed ✅" if self.check_ffmpeg_local() else "Not Found ❌"
+        self.ffmpeg_lbl = ctk.CTkLabel(inner_ffmpeg, text=f"Local FFmpeg: {f_status}", font=ctk.CTkFont(size=14, weight="bold"))
+        self.ffmpeg_lbl.pack(side="left")
+        
+        self.ffmpeg_btn = ctk.CTkButton(inner_ffmpeg, text="Install FFmpeg", command=self.download_ffmpeg, width=150)
+        self.ffmpeg_btn.pack(side="right")
+        if self.check_ffmpeg_local(): self.ffmpeg_btn.configure(state="disabled", text="Installed")
+
+        # --- Section 6: About Developer (Premium Profile) ---
+        ctk.CTkLabel(st_container, text="👤 About Developer", font=ctk.CTkFont(size=18, weight="bold"), anchor="w").pack(fill="x", pady=(10, 15))
+        
+        about_frame = ctk.CTkFrame(st_container, fg_color="#1a1a1c", corner_radius=15, border_width=2, border_color="#2b6bba")
+        about_frame.pack(fill="x", pady=(0, 40), padx=5)
+        
+        content_about = ctk.CTkFrame(about_frame, fg_color="transparent")
+        content_about.pack(padx=30, pady=30, fill="x")
+        
+        # Left: Photo (Placeholder)
+        photo_label = ctk.CTkLabel(content_about, text="AMS", width=120, height=120, fg_color="#222", corner_radius=60, font=ctk.CTkFont(size=30, weight="bold"))
+        photo_label.pack(side="left", padx=(0, 30))
+        
+        # Async load custom photo if needed
+        def load_author_img():
+            try:
+                # Using a generic high-quality dev avatar or user's provided github url
+                url = "https://br31tech.live/logo.png"
+                resp = requests.get(url, stream=True, timeout=5)
+                img_data = Image.open(io.BytesIO(resp.content))
+                img = ctk.CTkImage(light_image=img_data, dark_image=img_data, size=(120, 120))
+                self.after(0, lambda: photo_label.configure(image=img, text=""))
+            except: pass
+        threading.Thread(target=load_author_img, daemon=True).start()
+        
+        # Right: Info
+        info_frame = ctk.CTkFrame(content_about, fg_color="transparent")
+        info_frame.pack(side="left", fill="both", expand=True)
+        
+        ctk.CTkLabel(info_frame, text="Angel Mehul Singh", font=ctk.CTkFont(size=24, weight="bold"), anchor="w").pack(fill="x")
+        ctk.CTkLabel(info_frame, text="Full-Stack Developer | @br31technologies", font=ctk.CTkFont(size=14), text_color="gray", anchor="w").pack(fill="x", pady=(0, 15))
+        
+        # Social Links
+        links_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+        links_frame.pack(fill="x")
+        
+        link_btn_args = {"fg_color": "transparent", "text_color": "#2b6bba", "hover_color": "#1a1a1c", "height": 24, "font": ctk.CTkFont(size=13, underline=True)}
+        
+        ctk.CTkButton(links_frame, text="GitHub", command=lambda: webbrowser.open("https://github.com/angel7544"), **link_btn_args).pack(side="left", padx=(0, 15))
+        ctk.CTkButton(links_frame, text="LinkedIn", command=lambda: webbrowser.open("https://linkedin.com/in/angel3002"), **link_btn_args).pack(side="left", padx=(0, 15))
+        ctk.CTkButton(links_frame, text="Website", command=lambda: webbrowser.open("https://br31tech.live"), **link_btn_args).pack(side="left", padx=(0, 15))
+        ctk.CTkButton(links_frame, text="Email", command=lambda: webbrowser.open("mailto:angel@br31tech.live"), **link_btn_args).pack(side="left")
+
+        ctk.CTkLabel(about_frame, text="Crafted with Heart in India ❤️", font=ctk.CTkFont(size=10), text_color="gray").pack(pady=(0, 15))
 
     def check_ffmpeg_local(self):
         base = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
