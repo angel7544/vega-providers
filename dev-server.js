@@ -12,8 +12,8 @@ class DevServer {
   constructor() {
     this.app = express();
     this.port = 3001;
-    this.distDir = path.join(__dirname, "dist");
-    this.currentDir = path.join(__dirname);
+    this.distDir = path.join(process.cwd(), "dist");
+    this.currentDir = process.cwd();
 
     this.setupMiddleware();
     this.setupRoutes();
@@ -33,7 +33,7 @@ class DevServer {
     this.app.use("/dist", express.static(this.distDir));
 
     // Serve web frontend
-    const webDir = path.join(__dirname, "web");
+    const webDir = path.join(process.cwd(), "web");
     if (!fs.existsSync(webDir)) {
       fs.mkdirSync(webDir, { recursive: true });
     }
@@ -41,7 +41,7 @@ class DevServer {
     
     // Serve artplayer.js if needed
     this.app.get("/artplayer.js", (req, res) => {
-      const artPath = path.join(__dirname, "artplayer.js");
+      const artPath = path.join(process.cwd(), "artplayer.js");
       if (fs.existsSync(artPath)) {
         res.sendFile(artPath);
       } else {

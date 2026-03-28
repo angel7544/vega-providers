@@ -12,8 +12,13 @@ import urllib.parse
 import time
 import re
 
+import sys
 # Configuration file for persistence
-CONFIG_FILE = "config.json"
+if getattr(sys, 'frozen', False):
+    CONFIG_FILE = os.path.join(os.path.dirname(sys.executable), "config.json")
+else:
+    CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+
 
 class PersonalEntertainmentApp(ctk.CTk):
     def __init__(self):
@@ -646,8 +651,15 @@ class PersonalEntertainmentApp(ctk.CTk):
                     
                     # Try to embed local artplayer.js for multi-audio support
                     artplayer_js = ""
-                    if os.path.exists("artplayer.js"):
-                        with open("artplayer.js", "r", encoding="utf-8") as f:
+                    
+                    if getattr(sys, 'frozen', False):
+                        base_path = os.path.dirname(sys.executable)
+                    else:
+                        base_path = os.path.dirname(os.path.abspath(__file__))
+                    
+                    artplayer_path = os.path.join(base_path, "artplayer.js")
+                    if os.path.exists(artplayer_path):
+                        with open(artplayer_path, "r", encoding="utf-8") as f:
                             artplayer_js = f.read()
 
                     html_content = f"""
@@ -698,9 +710,12 @@ class PersonalEntertainmentApp(ctk.CTk):
     def play_video_now(self, url):
         self.status_label.configure(text="Status: Launching player...", text_color="cyan")
         try:
-            curr_dir = os.path.dirname(os.path.abspath(__file__))
-            player_script = os.path.join(curr_dir, "player_window.py")
-            subprocess.Popen([sys.executable, player_script, url, self.current_meta.get("title", "Video Player")])
+            if getattr(sys, 'frozen', False):
+                subprocess.Popen([sys.executable, "player_window", url, self.current_meta.get("title", "Video Player")])
+            else:
+                curr_dir = os.path.dirname(os.path.abspath(__file__))
+                player_script = os.path.join(curr_dir, "player_window.py")
+                subprocess.Popen([sys.executable, player_script, url, self.current_meta.get("title", "Video Player")])
             self.after(2000, lambda: self.status_label.configure(text="Status: Playing", text_color="green"))
         except Exception as e:
             print(f"Launch failed: {e}")

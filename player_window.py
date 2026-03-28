@@ -11,7 +11,10 @@ def play_video(url, title):
     logging.info(f"Starting player for URL: {url} with title: {title}")
     
     # Path to local artplayer.js
-    curr_dir = os.path.dirname(os.path.abspath(__file__))
+    if getattr(sys, 'frozen', False):
+        curr_dir = os.path.dirname(sys.executable)
+    else:
+        curr_dir = os.path.dirname(os.path.abspath(__file__))
     artplayer_path = os.path.join(curr_dir, "artplayer.js")
     
     # Load ArtPlayer locally for offline and reliable access
