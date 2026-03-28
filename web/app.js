@@ -6,6 +6,7 @@ let currentMeta = null;
 let player = null;
 let providersMap = {};
 
+// Lucide initialization
 lucide.createIcons();
 
 // Elements
@@ -16,13 +17,12 @@ const statusText = document.querySelector('#statusText');
 const catalogContainer = document.getElementById('catalogContainer');
 const modalOverlay = document.getElementById('modalOverlay');
 
-
 // ============================
-// 🔥 LOAD PROVIDERS
+// 🚀 LOAD PROVIDERS
 // ============================
 async function loadProviders() {
     try {
-        setStatus("Loading providers...", "#f59e0b");
+        setStatus("Loading...", "#8b5cf6");
 
         const resp = await fetch(MANIFEST_URL);
         const providers = await resp.json();
@@ -30,7 +30,7 @@ async function loadProviders() {
         providerSelect.innerHTML = "";
         providersMap = {};
 
-        // 🌐 ALL PROVIDERS OPTION
+        // ALL PROVIDERS OPTION
         const allOpt = document.createElement('option');
         allOpt.value = "__all__";
         allOpt.textContent = "All Providers 🌐";
@@ -38,10 +38,9 @@ async function loadProviders() {
 
         providers.forEach(p => {
             providersMap[p.value] = p;
-
             const opt = document.createElement('option');
             opt.value = p.value;
-            opt.textContent = p.display_name + " 🌐";
+            opt.textContent = p.display_name;
             providerSelect.appendChild(opt);
         });
 
@@ -49,99 +48,68 @@ async function loadProviders() {
 
         providerSelect.onchange = async (e) => {
             currentProvider = e.target.value;
-
             if (currentProvider === "__all__") {
-                catalogContainer.innerHTML = `
-                    <div style="padding:10px;color:#a855f7;">
-                        🌐 Aggregating from all providers
-                    </div>
-                `;
+                catalogContainer.innerHTML = "";
                 fetchData("");
             } else {
                 await loadCatalog();
             }
         };
 
-        // default load
         fetchData("");
         setStatus("Online");
 
     } catch (err) {
         console.error(err);
-        setStatus("Provider load failed", "#ef4444");
+        setStatus("Offline", "#ef4444");
     }
 }
 
-
 // ============================
-// 🔥 SAFE CATALOG LOADER
+// 📂 CATALOG LOADER
 // ============================
 async function loadCatalog() {
     try {
-        catalogContainer.innerHTML = "Loading...";
+        catalogContainer.innerHTML = `<div class="spinner" style="width:20px;height:20px;border-width:2px;"></div>`;
 
         const resp = await fetch(`${API_BASE}/catalog?provider=${currentProvider}`);
-
         if (!resp.ok) throw new Error("Catalog failed");
 
         const data = await resp.json();
-
-        if (!data.catalog || !Array.isArray(data.catalog)) {
-            throw new Error("Invalid catalog");
-        }
-
-        renderCatalog(data.catalog, data.genres || []);
+        renderCatalog(data.catalog || [], data.genres || []);
 
     } catch (err) {
         console.warn("Catalog not supported:", currentProvider);
-
-        catalogContainer.innerHTML = `
-            <div style="color:#f59e0b; padding:10px;">
-                ⚠️ Catalog not available. Showing results.
-            </div>
-        `;
-
+        catalogContainer.innerHTML = "";
         fetchData("");
     }
 }
 
-
-// ============================
-// 🔥 RENDER CATALOG
-// ============================
 function renderCatalog(catalog, genres) {
     catalogContainer.innerHTML = "";
 
-    catalog.forEach(section => {
+    const allSections = [...catalog, ...genres];
+
+    allSections.forEach(section => {
         const btn = document.createElement("button");
-        btn.className = "btn btn-primary";
+        btn.className = "catalog-btn";
         btn.textContent = section.title;
         btn.onclick = () => fetchData(section.filter);
         catalogContainer.appendChild(btn);
     });
-
-    if (genres.length) {
-        const wrap = document.createElement("div");
-
-        genres.forEach(g => {
-            const btn = document.createElement("button");
-            btn.className = "btn btn-secondary";
-            btn.textContent = g.title;
-            btn.onclick = () => fetchData(g.filter);
-            wrap.appendChild(btn);
-        });
-
-        catalogContainer.appendChild(wrap);
-    }
 }
 
-
 // ============================
-// 🔥 FETCH DATA (ALL MODE)
+// 🔍 FETCH DATA
 // ============================
 async function fetchData(filter, search = false) {
-    setStatus("Fetching...", "#f59e0b");
-    contentGrid.innerHTML = "";
+    setStatus("Fetching...", "#8b5cf6");
+    contentGrid.innerHTML = `
+        <div class="loader">
+            <div class="spinner"></div>
+            <p>Scanning the multiverse...</p>
+        </div>
+    `;
 
     try {
         const func = search ? "getSearchPosts" : "getPosts";
@@ -153,32 +121,24 @@ async function fetchData(filter, search = false) {
 
         if (currentProvider === "__all__") {
             const providers = Object.keys(providersMap);
-
             const promises = providers.map(p =>
                 fetch(`${API_BASE}/fetch`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        provider: p,
-                        functionName: func,
-                        params
-                    })
+                    body: JSON.stringify({ provider: p, functionName: func, params })
                 })
                 .then(r => r.json())
-                .then(data => data.map(item => ({
-                    ...item,
-                    __provider: p
-                })))
+                .then(data => (Array.isArray(data) ? data : []).map(item => ({ ...item, __provider: p })))
                 .catch(() => [])
             );
 
             const allData = await Promise.all(promises);
             results = allData.flat();
 
-            // remove duplicates
+            // Unique items
             const map = new Map();
             results.forEach(i => {
-                const key = i.title?.toLowerCase();
+                const key = (i.title + (i.type || "")).toLowerCase();
                 if (key && !map.has(key)) map.set(key, i);
             });
             results = Array.from(map.values());
@@ -187,34 +147,29 @@ async function fetchData(filter, search = false) {
             const resp = await fetch(`${API_BASE}/fetch`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    provider: currentProvider,
-                    functionName: func,
-                    params
-                })
+                body: JSON.stringify({ provider: currentProvider, functionName: func, params })
             });
-
             results = await resp.json();
         }
 
-        renderGrid(results);
-        setStatus(`Loaded ${results.length}`);
+        renderGrid(Array.isArray(results) ? results : []);
+        setStatus(results.length > 0 ? "Online" : "No results");
 
     } catch (err) {
         console.error(err);
-        setStatus("Fetch failed", "#ef4444");
+        setStatus("Fetch Error", "#ef4444");
+        contentGrid.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:#ef4444;">Failed to load content. Please try another provider.</p>`;
     }
 }
 
-
 // ============================
-// 🔥 GRID
+// 🖥️ GRID RENDERING
 // ============================
 function renderGrid(items) {
     contentGrid.innerHTML = "";
 
-    if (!items?.length) {
-        contentGrid.innerHTML = "<p>No results</p>";
+    if (!items.length) {
+        contentGrid.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:var(--text-dim);">No results found in this sector. 🛸</p>`;
         return;
     }
 
@@ -231,12 +186,14 @@ function renderGrid(items) {
         };
 
         card.innerHTML = `
-            <img src="${item.image}" class="media-poster">
-            <div class="media-info">
-                <div class="media-title">${item.title}</div>
-                <div class="media-type">
-                    ${item.type || 'Media'}
-                    ${item.__provider ? `<span style="color:#a855f7"> • ${item.__provider}</span>` : ""}
+            <div class="media-poster-container">
+                <img src="${item.image}" class="media-poster" loading="lazy" onerror="this.src='https://via.placeholder.com/300x450?text=No+Image'">
+                <div class="media-overlay">
+                    <div class="media-title">${item.title}</div>
+                    <div class="media-meta">
+                        <span>${item.type || 'Media'}</span>
+                        ${item.__provider ? `<span style="color:var(--accent)">${item.__provider}</span>` : ""}
+                    </div>
                 </div>
             </div>
         `;
@@ -245,136 +202,195 @@ function renderGrid(items) {
     });
 }
 
-
 // ============================
-// 🔥 META
+// 📽️ DETAILS (IMDb Style)
 // ============================
 async function showDetails(link) {
     modalOverlay.style.display = "flex";
     document.body.style.overflow = "hidden";
+    
+    // Reset Modal
+    document.getElementById('detailTitle').textContent = "Loading...";
+    document.getElementById('detailSynopsis').textContent = "";
+    document.getElementById('detailPoster').src = "";
+    document.getElementById('modalBackdrop').style.backgroundImage = "none";
+    document.getElementById('linksContainer').innerHTML = `<div class="spinner" style="margin:20px auto;"></div>`;
+    document.getElementById('playerArea').style.display = "none";
 
-    const resp = await fetch(`${API_BASE}/fetch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            provider: currentProvider,
-            functionName: "getMeta",
-            params: { link }
-        })
-    });
+    try {
+        const resp = await fetch(`${API_BASE}/fetch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider: currentProvider,
+                functionName: "getMeta",
+                params: { link }
+            })
+        });
 
-    currentMeta = await resp.json();
+        currentMeta = await resp.json();
 
-    document.getElementById('detailTitle').textContent = currentMeta.title;
-    renderLinks(currentMeta);
+        // Populate Content
+        document.getElementById('detailTitle').textContent = currentMeta.title;
+        document.getElementById('detailSynopsis').textContent = currentMeta.description || currentMeta.synopsis || "No description available.";
+        document.getElementById('detailPoster').src = currentMeta.image || "";
+        
+        // Backdrop (IMDb vibe)
+        if (currentMeta.image) {
+            document.getElementById('modalBackdrop').style.backgroundImage = `url(${currentMeta.image})`;
+        }
+
+        // Meta Tags
+        document.getElementById('detailYear').textContent = currentMeta.year || "";
+        document.getElementById('detailType').textContent = currentMeta.type || "Movie";
+        document.getElementById('detailProvider').textContent = currentProvider;
+        
+        // Rating
+        const ratingBox = document.getElementById('detailRating');
+        if (currentMeta.rating) {
+            ratingBox.textContent = `★ ${currentMeta.rating}`;
+            ratingBox.style.display = "block";
+        } else {
+            ratingBox.style.display = "none";
+        }
+
+        renderLinks(currentMeta);
+
+    } catch (err) {
+        console.error(err);
+        document.getElementById('detailTitle').textContent = "Error loading details";
+    }
 }
 
-
 // ============================
-// 🔥 LINKS
+// 🔗 LINKS & EPISODES
 // ============================
 function renderLinks(meta) {
     const container = document.getElementById('linksContainer');
+    const title = document.getElementById('episodesTitle');
     container.innerHTML = "";
+
+    if (meta.type === "tv" || meta.type === "series" || meta.linkList?.[0]?.episodesLink) {
+        title.textContent = "Select Episode";
+    } else {
+        title.textContent = "Available Streams";
+    }
 
     meta.linkList?.forEach(group => {
         const btn = document.createElement('button');
-        btn.textContent = group.title || "Play";
+        btn.className = "stream-btn";
+        btn.textContent = group.title || "Play Now";
 
         if (group.episodesLink) {
             btn.onclick = () => fetchEpisodes(group.episodesLink);
-        } else {
+        } else if (group.directLinks && group.directLinks.length > 0) {
             btn.onclick = () => playStream(group.directLinks[0].link);
+        } else if (group.link) {
+             btn.onclick = () => playStream(group.link);
         }
 
         container.appendChild(btn);
     });
 }
 
+async function fetchEpisodes(url) {
+    const container = document.getElementById('linksContainer');
+    container.innerHTML = `<div class="spinner" style="margin:20px auto;"></div>`;
 
-// ============================
-// 🔥 STREAM
-// ============================
-async function playStream(link) {
-    const resp = await fetch(`${API_BASE}/fetch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            provider: currentProvider,
-            functionName: "getStream",
-            params: { link, type: currentMeta.type }
-        })
-    });
+    try {
+        const resp = await fetch(`${API_BASE}/fetch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider: currentProvider,
+                functionName: "getEpisodes",
+                params: { url }
+            })
+        });
 
-    const streams = await resp.json();
+        const episodes = await resp.json();
+        container.innerHTML = "";
 
-    if (streams?.length) {
-        initPlayer(streams[0]);
+        episodes.forEach(ep => {
+            const btn = document.createElement('button');
+            btn.className = "ep-btn";
+            btn.textContent = ep.title || `Episode ${ep.episode || ""}`;
+            btn.onclick = () => playStream(ep.link);
+            container.appendChild(btn);
+        });
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = `<p style="color:#ef4444">Failed to load episodes.</p>`;
     }
 }
 
+// ============================
+// 📺 PLAYER LOGIC
+// ============================
+async function playStream(link) {
+    const container = document.getElementById('linksContainer');
+    const originalContent = container.innerHTML;
+    container.innerHTML = `<div class="spinner" style="margin:20px auto;"></div>`;
 
-// ============================
-// 🔥 PLAYER
-// ============================
-function getVideoType(url) {
-    if (url.includes(".m3u8")) return "application/x-mpegURL";
-    if (url.endsWith(".mpd")) return "application/dash+xml";
-    if (url.endsWith(".mkv")) return "video/x-matroska";
-    return "video/mp4";
+    try {
+        const resp = await fetch(`${API_BASE}/fetch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider: currentProvider,
+                functionName: "getStream",
+                params: { link, type: currentMeta.type }
+            })
+        });
+
+        const streams = await resp.json();
+        container.innerHTML = originalContent;
+
+        if (Array.isArray(streams) && streams.length > 0) {
+            initPlayer(streams[0]);
+        } else if (streams && streams.link) {
+            initPlayer(streams);
+        } else {
+            alert("No streamable links found.");
+        }
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = originalContent;
+        alert("Error fetching stream.");
+    }
 }
 
 function initPlayer(stream) {
-    document.getElementById('playerArea').style.display = "block";
+    const playerArea = document.getElementById('playerArea');
+    playerArea.style.display = "block";
+    playerArea.scrollIntoView({ behavior: 'smooth' });
 
     const type = stream.type || getVideoType(stream.link);
 
-    if (player) player.dispose();
-
-    player = videojs('vjs-player', {
-        autoplay: true,
-        controls: true,
-        fluid: true,
-        sources: [{
-            src: stream.link,
-            type
-        }]
-    });
+    if (player) {
+        player.src({ src: stream.link, type });
+        player.play();
+    } else {
+        player = videojs('vjs-player', {
+            autoplay: true,
+            controls: true,
+            fluid: true,
+            sources: [{ src: stream.link, type }]
+        });
+        window.player = player;
+    }
 }
 
-
-// ============================
-// 🔥 EPISODES
-// ============================
-async function fetchEpisodes(url) {
-    const resp = await fetch(`${API_BASE}/fetch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            provider: currentProvider,
-            functionName: "getEpisodes",
-            params: { url }
-        })
-    });
-
-    const episodes = await resp.json();
-
-    const container = document.getElementById('linksContainer');
-    container.innerHTML = "";
-
-    episodes.forEach(ep => {
-        const btn = document.createElement('button');
-        btn.textContent = ep.title;
-        btn.onclick = () => playStream(ep.link);
-        container.appendChild(btn);
-    });
+function getVideoType(url) {
+    if (url.includes(".m3u8")) return "application/x-mpegURL";
+    if (url.includes(".mpd")) return "application/dash+xml";
+    return "video/mp4";
 }
 
-
 // ============================
-// 🔥 UTIL
+// 🛠️ UTILS
 // ============================
-function setStatus(text, color = "#10b981") {
+function setStatus(text, color = "#22c55e") {
     statusText.textContent = text;
     statusText.style.color = color;
 }
@@ -384,8 +400,5 @@ function search() {
     if (q) fetchData(q, true);
 }
 
-
-// ============================
 // 🚀 START
-// ============================
-loadProviders();
+loadProviders();
