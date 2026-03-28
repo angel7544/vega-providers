@@ -5,7 +5,7 @@ a = Analysis(
     ['VegaHubLauncher.py'],
     pathex=[],
     binaries=[],
-    datas=[('icon.ico', '.'), ('icon.png', '.'), ('artplayer.js', '.')],
+    datas=[('icon.ico', '.'), ('icon.png', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

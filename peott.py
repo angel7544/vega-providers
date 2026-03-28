@@ -11,6 +11,9 @@ from PIL import Image
 import urllib.parse
 import time
 import re
+import zipfile
+import urllib.request
+import shutil
 
 import sys
 # Configuration file for persistence
@@ -250,6 +253,68 @@ class PersonalEntertainmentApp(ctk.CTk):
         
         ctk.CTkLabel(about_frame, text="About", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(20, 5))
         ctk.CTkLabel(about_frame, text="Developed by angel mehl singh", font=ctk.CTkFont(size=14), text_color="gray").pack(pady=(0, 20))
+
+        # FFmpeg Section
+        ctk.CTkLabel(st_frame, text="FFmpeg (Required for MKV Multi-Audio)", font=ctk.CTkFont(size=16, weight="bold"), anchor="w").pack(fill="x", pady=(20, 5))
+        
+        ffmpeg_status = "Status: Installed ✅" if self.check_ffmpeg_local() else "Status: Not Found ❌"
+        self.ffmpeg_lbl = ctk.CTkLabel(st_frame, text=ffmpeg_status, font=ctk.CTkFont(size=13), anchor="w")
+        self.ffmpeg_lbl.pack(fill="x", pady=(0, 10))
+        
+        self.ffmpeg_btn = ctk.CTkButton(st_frame, text="Install FFmpeg Locally", command=self.download_ffmpeg, fg_color="#2b6bba", hover_color="#1f5394")
+        self.ffmpeg_btn.pack(anchor="w", pady=(0, 10))
+        if self.check_ffmpeg_local(): self.ffmpeg_btn.configure(state="disabled", text="FFmpeg Already Installed")
+
+    def check_ffmpeg_local(self):
+        base = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+        return os.path.exists(os.path.join(base, "ffmpeg.exe")) or os.path.exists(os.path.join(base, "bin", "ffmpeg.exe"))
+
+    def download_ffmpeg(self):
+        self.ffmpeg_btn.configure(state="disabled", text="Installing... (Please wait)")
+        def task():
+            try:
+                base = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+                zip_path = os.path.join(base, "ffmpeg_temp.zip")
+                # Using a direct GitHub redirect which is often faster/more reliable
+                url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+                
+                self.after(0, lambda: self.status_label.configure(text="Status: Connecting to Server...", text_color="yellow"))
+                
+                # Use requests for streaming download to show progress
+                response = requests.get(url, stream=True, timeout=15)
+                total_size = int(response.headers.get('content-length', 0))
+                
+                with open(zip_path, "wb") as f:
+                    downloaded = 0
+                    for chunk in response.iter_content(chunk_size=1024*1024): # 1MB chunks
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total_size > 0:
+                                percent = int((downloaded / total_size) * 100)
+                                self.after(0, lambda p=percent: self.status_label.configure(text=f"Status: Downloading FFmpeg ({p}%)..."))
+                
+                self.after(0, lambda: self.status_label.configure(text="Status: Extracting FFmpeg...", text_color="yellow"))
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    # Find the bin folder and extract ffmpeg.exe and ffprobe.exe
+                    for member in zip_ref.namelist():
+                        if member.endswith("ffmpeg.exe") or member.endswith("ffprobe.exe"):
+                            filename = os.path.basename(member)
+                            source = zip_ref.open(member)
+                            target = open(os.path.join(base, filename), "wb")
+                            with source, target:
+                                shutil.copyfileobj(source, target)
+                
+                if os.path.exists(zip_path): os.remove(zip_path)
+                
+                self.after(0, lambda: self.status_label.configure(text="Status: FFmpeg Installed!", text_color="green"))
+                self.after(0, lambda: self.ffmpeg_lbl.configure(text="Status: Installed ✅"))
+                self.after(0, lambda: self.ffmpeg_btn.configure(text="Installation Complete"))
+            except Exception as e:
+                print(f"FFmpeg install failed: {e}")
+                self.after(0, lambda: self.status_label.configure(text="Status: Install Failed", text_color="red"))
+                self.after(0, lambda: self.ffmpeg_btn.configure(state="normal", text="Retry Install"))
+        threading.Thread(target=task, daemon=True).start()
 
     def fetch_data(self, filter_text, page=1, search=False):
         self.status_label.configure(text="Status: Fetching data...", text_color="yellow")
@@ -709,13 +774,45 @@ class PersonalEntertainmentApp(ctk.CTk):
 
     def play_video_now(self, url):
         self.status_label.configure(text="Status: Launching player...", text_color="cyan")
+        
+        # FFmpeg/FFprobe detection and MKV probing
+        audio_tracks = []
+        is_mkv = ".mkv" in url.lower() or "mkv" in self.current_meta.get("quality", "").lower()
+        
+        if is_mkv:
+            try:
+                # Check local first, then system
+                base = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+                ffprobe_bin = "ffprobe"
+                local_ffprobe = os.path.join(base, "ffprobe.exe")
+                if os.path.exists(local_ffprobe):
+                    ffprobe_bin = local_ffprobe
+                
+                # Probe for audio tracks
+                cmd = [
+                    ffprobe_bin, "-v", "error", "-show_entries", "stream=index,codec_name:stream_tags=language,title",
+                    "-select_streams", "a", "-of", "json", url
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    probe_data = json.loads(result.stdout)
+                    for stream in probe_data.get("streams", []):
+                        tags = stream.get("tags", {})
+                        label = tags.get("title") or tags.get("language") or f"Track {len(audio_tracks) + 1}"
+                        audio_tracks.append({"index": stream["index"], "label": label, "codec": stream["codec_name"]})
+            except Exception as e:
+                print(f"FFprobe failed or not found: {e}")
+
         try:
+            # Flatten audio tracks to a string if needed or pass as json
+            audio_tracks_json = json.dumps(audio_tracks)
+            
             if getattr(sys, 'frozen', False):
-                subprocess.Popen([sys.executable, "player_window", url, self.current_meta.get("title", "Video Player")])
+                subprocess.Popen([sys.executable, "player_window", url, self.current_meta.get("title", "Video Player"), audio_tracks_json])
             else:
                 curr_dir = os.path.dirname(os.path.abspath(__file__))
                 player_script = os.path.join(curr_dir, "player_window.py")
-                subprocess.Popen([sys.executable, player_script, url, self.current_meta.get("title", "Video Player")])
+                subprocess.Popen([sys.executable, player_script, url, self.current_meta.get("title", "Video Player"), audio_tracks_json])
             self.after(2000, lambda: self.status_label.configure(text="Status: Playing", text_color="green"))
         except Exception as e:
             print(f"Launch failed: {e}")

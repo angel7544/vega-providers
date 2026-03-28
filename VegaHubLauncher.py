@@ -28,7 +28,15 @@ if getattr(sys, 'frozen', False):
 
     # Set working directory to the user-facing exe location
     os.chdir(exe_dir)
-    server_cmd = f'"{os.path.join(meipass, "node.exe")}" "{os.path.join(meipass, "server.bundle.js")}"'
+    
+    node_path = os.path.join(meipass, "node.exe")
+    server_path = os.path.join(meipass, "server.bundle.js")
+    
+    if os.path.exists(node_path) and os.path.exists(server_path):
+        server_cmd = f'"{node_path}" "{server_path}"'
+    else:
+        print("Bundled server not found. Skipping server startup.")
+        server_cmd = None
 else:
     application_path = os.path.dirname(os.path.abspath(__file__))
     os.chdir(application_path)
@@ -37,35 +45,42 @@ else:
 from peott import PersonalEntertainmentApp
 
 def run():
-    print("Starting Vega Providers Server...")
-    creationflags = 0
-    if sys.platform == "win32":
-        # Hides the console window for the subprocess
-        creationflags = subprocess.CREATE_NO_WINDOW
-        
-    # Start the local server
-    server_process = subprocess.Popen(
-        server_cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        shell=True,
-        creationflags=creationflags
-    )
+    server_process = None
+    if server_cmd:
+        print("Starting Vega Providers Server...")
+        creationflags = 0
+        if sys.platform == "win32":
+            # Hides the console window for the subprocess
+            creationflags = subprocess.CREATE_NO_WINDOW
+            
+        # Start the local server
+        try:
+            server_process = subprocess.Popen(
+                server_cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                shell=True,
+                creationflags=creationflags
+            )
+        except Exception as e:
+            print(f"Failed to start server: {e}")
 
     def cleanup():
-        print("Shutting down Vega Providers Server...")
-        if sys.platform == "win32":
-            subprocess.call(['taskkill', '/F', '/T', '/PID', str(server_process.pid)], 
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            server_process.terminate()
+        if server_process:
+            print("Shutting down Vega Providers Server...")
+            if sys.platform == "win32":
+                subprocess.call(['taskkill', '/F', '/T', '/PID', str(server_process.pid)], 
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                server_process.terminate()
 
     # Register cleanup to happen automatically when Python exits
     atexit.register(cleanup)
     
-    # Give the node server a moment to spin up
-    print("Waiting for server to start...")
-    time.sleep(2)
+    # Give the node server a moment to spin up if it was started
+    if server_process:
+        print("Waiting for server to start...")
+        time.sleep(2)
     
     # Launch the app GUI
     app = PersonalEntertainmentApp()
