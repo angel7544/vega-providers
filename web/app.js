@@ -6,7 +6,7 @@ let currentMeta = null;
 let player = null;
 let providersMap = {};
 
-// Lucide initialization
+// Init icons
 lucide.createIcons();
 
 // Elements
@@ -30,7 +30,6 @@ async function loadProviders() {
         providerSelect.innerHTML = "";
         providersMap = {};
 
-        // ALL PROVIDERS OPTION
         const allOpt = document.createElement('option');
         allOpt.value = "__all__";
         allOpt.textContent = "All Providers 🌐";
@@ -38,6 +37,7 @@ async function loadProviders() {
 
         providers.forEach(p => {
             providersMap[p.value] = p;
+
             const opt = document.createElement('option');
             opt.value = p.value;
             opt.textContent = p.display_name;
@@ -48,6 +48,7 @@ async function loadProviders() {
 
         providerSelect.onchange = async (e) => {
             currentProvider = e.target.value;
+
             if (currentProvider === "__all__") {
                 catalogContainer.innerHTML = "";
                 fetchData("");
@@ -66,20 +67,19 @@ async function loadProviders() {
 }
 
 // ============================
-// 📂 CATALOG LOADER
+// 📂 LOAD CATALOG
 // ============================
 async function loadCatalog() {
     try {
-        catalogContainer.innerHTML = `<div class="spinner" style="width:20px;height:20px;border-width:2px;"></div>`;
+        catalogContainer.innerHTML = `<div class="spinner"></div>`;
 
         const resp = await fetch(`${API_BASE}/catalog?provider=${currentProvider}`);
-        if (!resp.ok) throw new Error("Catalog failed");
+        if (!resp.ok) throw new Error();
 
         const data = await resp.json();
         renderCatalog(data.catalog || [], data.genres || []);
 
-    } catch (err) {
-        console.warn("Catalog not supported:", currentProvider);
+    } catch {
         catalogContainer.innerHTML = "";
         fetchData("");
     }
@@ -88,9 +88,7 @@ async function loadCatalog() {
 function renderCatalog(catalog, genres) {
     catalogContainer.innerHTML = "";
 
-    const allSections = [...catalog, ...genres];
-
-    allSections.forEach(section => {
+    [...catalog, ...genres].forEach(section => {
         const btn = document.createElement("button");
         btn.className = "catalog-btn";
         btn.textContent = section.title;
@@ -104,10 +102,11 @@ function renderCatalog(catalog, genres) {
 // ============================
 async function fetchData(filter, search = false) {
     setStatus("Fetching...", "#8b5cf6");
+
     contentGrid.innerHTML = `
         <div class="loader">
             <div class="spinner"></div>
-            <p>Scanning the multiverse...</p>
+            <p>Scanning multiverse...</p>
         </div>
     `;
 
@@ -121,73 +120,73 @@ async function fetchData(filter, search = false) {
 
         if (currentProvider === "__all__") {
             const providers = Object.keys(providersMap);
-            const promises = providers.map(p =>
-                fetch(`${API_BASE}/fetch`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ provider: p, functionName: func, params })
-                })
-                .then(r => r.json())
-                .then(data => (Array.isArray(data) ? data : []).map(item => ({ ...item, __provider: p })))
-                .catch(() => [])
+
+            const all = await Promise.all(
+                providers.map(p =>
+                    fetch(`${API_BASE}/fetch`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ provider: p, functionName: func, params })
+                    })
+                        .then(r => r.json())
+                        .then(d => (Array.isArray(d) ? d : []).map(i => ({ ...i, __provider: p })))
+                        .catch(() => [])
+                )
             );
 
-            const allData = await Promise.all(promises);
-            results = allData.flat();
+            results = all.flat();
 
-            // Unique items
             const map = new Map();
             results.forEach(i => {
                 const key = (i.title + (i.type || "")).toLowerCase();
-                if (key && !map.has(key)) map.set(key, i);
+                if (!map.has(key)) map.set(key, i);
             });
-            results = Array.from(map.values());
+
+            results = [...map.values()];
 
         } else {
             const resp = await fetch(`${API_BASE}/fetch`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ provider: currentProvider, functionName: func, params })
             });
+
             results = await resp.json();
         }
 
-        renderGrid(Array.isArray(results) ? results : []);
-        setStatus(results.length > 0 ? "Online" : "No results");
+        renderGrid(results);
+        setStatus(results.length ? "Online" : "No results");
 
     } catch (err) {
         console.error(err);
-        setStatus("Fetch Error", "#ef4444");
-        contentGrid.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:#ef4444;">Failed to load content. Please try another provider.</p>`;
+        setStatus("Error", "#ef4444");
     }
 }
 
 // ============================
-// 🖥️ GRID RENDERING
+// 🖥️ GRID
 // ============================
 function renderGrid(items) {
     contentGrid.innerHTML = "";
 
     if (!items.length) {
-        contentGrid.innerHTML = `<p style="grid-column:1/-1;text-align:center;color:var(--text-dim);">No results found in this sector. 🛸</p>`;
+        contentGrid.innerHTML = `<p>No results 🚫</p>`;
         return;
     }
 
     items.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'media-card';
+        const card = document.createElement("div");
+        card.className = "media-card";
 
         card.onclick = () => {
-            if (item.__provider) {
-                currentProvider = item.__provider;
-                providerSelect.value = item.__provider;
-            }
-            showDetails(item.link);
+            const provider = item.__provider || currentProvider;
+            showDetails(item.link, provider);
         };
 
         card.innerHTML = `
             <div class="media-poster-container">
-                <img src="${item.image}" class="media-poster" loading="lazy" onerror="this.src='https://via.placeholder.com/300x450?text=No+Image'">
+                <img src="${item.image}" loading="lazy"
+                onerror="this.src='https://via.placeholder.com/300x450?text=No+Image'">
                 <div class="media-overlay">
                     <div class="media-title">${item.title}</div>
                     <div class="media-meta">
@@ -203,26 +202,20 @@ function renderGrid(items) {
 }
 
 // ============================
-// 📽️ DETAILS (IMDb Style)
+// 📽️ DETAILS
 // ============================
-async function showDetails(link) {
+async function showDetails(link, provider) {
+    currentProvider = provider;
+
     modalOverlay.style.display = "flex";
     document.body.style.overflow = "hidden";
-    
-    // Reset Modal
-    document.getElementById('detailTitle').textContent = "Loading...";
-    document.getElementById('detailSynopsis').textContent = "";
-    document.getElementById('detailPoster').src = "";
-    document.getElementById('modalBackdrop').style.backgroundImage = "none";
-    document.getElementById('linksContainer').innerHTML = `<div class="spinner" style="margin:20px auto;"></div>`;
-    document.getElementById('playerArea').style.display = "none";
 
     try {
         const resp = await fetch(`${API_BASE}/fetch`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                provider: currentProvider,
+                provider,
                 functionName: "getMeta",
                 params: { link }
             })
@@ -230,154 +223,118 @@ async function showDetails(link) {
 
         currentMeta = await resp.json();
 
-        // Populate Content
-        document.getElementById('detailTitle').textContent = currentMeta.title;
-        document.getElementById('detailSynopsis').textContent = currentMeta.description || currentMeta.synopsis || "No description available.";
-        document.getElementById('detailPoster').src = currentMeta.image || "";
-        
-        // Backdrop (IMDb vibe)
-        if (currentMeta.image) {
-            document.getElementById('modalBackdrop').style.backgroundImage = `url(${currentMeta.image})`;
-        }
-
-        // Meta Tags
-        document.getElementById('detailYear').textContent = currentMeta.year || "";
-        document.getElementById('detailType').textContent = currentMeta.type || "Movie";
-        document.getElementById('detailProvider').textContent = currentProvider;
-        
-        // Rating
-        const ratingBox = document.getElementById('detailRating');
-        if (currentMeta.rating) {
-            ratingBox.textContent = `★ ${currentMeta.rating}`;
-            ratingBox.style.display = "block";
-        } else {
-            ratingBox.style.display = "none";
-        }
+        document.getElementById("detailTitle").textContent = currentMeta.title;
+        document.getElementById("detailSynopsis").textContent =
+            currentMeta.description || currentMeta.synopsis || "No description.";
+        document.getElementById("detailPoster").src = currentMeta.image || "";
 
         renderLinks(currentMeta);
 
     } catch (err) {
         console.error(err);
-        document.getElementById('detailTitle').textContent = "Error loading details";
     }
 }
 
 // ============================
-// 🔗 LINKS & EPISODES
+// 🔗 LINKS
 // ============================
 function renderLinks(meta) {
-    const container = document.getElementById('linksContainer');
-    const title = document.getElementById('episodesTitle');
+    const container = document.getElementById("linksContainer");
     container.innerHTML = "";
 
-    if (meta.type === "tv" || meta.type === "series" || meta.linkList?.[0]?.episodesLink) {
-        title.textContent = "Select Episode";
-    } else {
-        title.textContent = "Available Streams";
-    }
-
     meta.linkList?.forEach(group => {
-        const btn = document.createElement('button');
+        const btn = document.createElement("button");
         btn.className = "stream-btn";
-        btn.textContent = group.title || "Play Now";
+        btn.textContent = group.title || "Play";
 
-        if (group.episodesLink) {
-            btn.onclick = () => fetchEpisodes(group.episodesLink);
-        } else if (group.directLinks && group.directLinks.length > 0) {
-            btn.onclick = () => playStream(group.directLinks[0].link);
-        } else if (group.link) {
-             btn.onclick = () => playStream(group.link);
-        }
+        btn.onclick = () => {
+            const link =
+                group.directLinks?.[0]?.link ||
+                group.link;
+
+            playStream(link, currentProvider);
+        };
 
         container.appendChild(btn);
     });
 }
 
-async function fetchEpisodes(url) {
-    const container = document.getElementById('linksContainer');
-    container.innerHTML = `<div class="spinner" style="margin:20px auto;"></div>`;
+// ============================
+// 🎥 EXTRACT STREAM
+// ============================
+function extractStreamUrl(data) {
+    if (!data) return null;
 
-    try {
-        const resp = await fetch(`${API_BASE}/fetch`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                provider: currentProvider,
-                functionName: "getEpisodes",
-                params: { url }
-            })
-        });
+    if (Array.isArray(data)) return extractStreamUrl(data[0]);
 
-        const episodes = await resp.json();
-        container.innerHTML = "";
+    if (data.link) return data.link;
+    if (data.file) return data.file;
+    if (data.url) return data.url;
 
-        episodes.forEach(ep => {
-            const btn = document.createElement('button');
-            btn.className = "ep-btn";
-            btn.textContent = ep.title || `Episode ${ep.episode || ""}`;
-            btn.onclick = () => playStream(ep.link);
-            container.appendChild(btn);
-        });
-    } catch (err) {
-        console.error(err);
-        container.innerHTML = `<p style="color:#ef4444">Failed to load episodes.</p>`;
-    }
+    if (data.sources?.length) return data.sources[0].file;
+
+    if (data.data) return extractStreamUrl(data.data);
+
+    return null;
 }
 
 // ============================
-// 📺 PLAYER LOGIC
+// 📺 PLAY STREAM
 // ============================
-async function playStream(link) {
-    const container = document.getElementById('linksContainer');
-    const originalContent = container.innerHTML;
-    container.innerHTML = `<div class="spinner" style="margin:20px auto;"></div>`;
+async function playStream(link, provider) {
+    console.log("▶️ PLAY:", link, provider);
 
     try {
         const resp = await fetch(`${API_BASE}/fetch`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                provider: currentProvider,
+                provider,
                 functionName: "getStream",
-                params: { link, type: currentMeta.type }
+                params: { link, type: currentMeta?.type }
             })
         });
 
         const streams = await resp.json();
-        container.innerHTML = originalContent;
+        console.log("🎥 RAW STREAM:", streams);
 
-        if (Array.isArray(streams) && streams.length > 0) {
-            initPlayer(streams[0]);
-        } else if (streams && streams.link) {
-            initPlayer(streams);
-        } else {
-            alert("No streamable links found.");
+        const streamUrl = extractStreamUrl(streams);
+
+        if (!streamUrl) {
+            alert("No playable stream ❌");
+            return;
         }
+
+        initPlayer({ link: streamUrl });
+
     } catch (err) {
         console.error(err);
-        container.innerHTML = originalContent;
-        alert("Error fetching stream.");
+        alert("Stream error ❌");
     }
 }
 
+// ============================
+// 🎬 PLAYER
+// ============================
 function initPlayer(stream) {
-    const playerArea = document.getElementById('playerArea');
+    const playerArea = document.getElementById("playerArea");
     playerArea.style.display = "block";
-    playerArea.scrollIntoView({ behavior: 'smooth' });
+    playerArea.scrollIntoView({ behavior: "smooth" });
 
-    const type = stream.type || getVideoType(stream.link);
+    const type = getVideoType(stream.link);
+
+    console.log("🎬 FINAL STREAM:", stream.link);
 
     if (player) {
         player.src({ src: stream.link, type });
         player.play();
     } else {
-        player = videojs('vjs-player', {
-            autoplay: true,
+        player = videojs("vjs-player", {
             controls: true,
+            autoplay: true,
             fluid: true,
             sources: [{ src: stream.link, type }]
         });
-        window.player = player;
     }
 }
 
@@ -401,4 +358,4 @@ function search() {
 }
 
 // 🚀 START
-loadProviders();
+loadProviders();
