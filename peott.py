@@ -17,12 +17,15 @@ import webbrowser
 sys.setrecursionlimit(10000)
 
 if getattr(sys, 'frozen', False):
-    BASE_DIR = os.path.dirname(sys.executable)
+    DATA_DIR = sys._MEIPASS
+    USER_DIR = os.path.dirname(sys.executable)
 else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+    USER_DIR = DATA_DIR
 
-CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
-UI_DIR = os.path.join(BASE_DIR, "ui")
+CONFIG_FILE = os.path.join(USER_DIR, "config.json")
+UI_DIR = os.path.join(DATA_DIR, "ui")
+
 
 API_STATE = {
     "window": None,
@@ -166,18 +169,28 @@ class JsApi:
             # Enhanced Kill: Look for any running player_window.py processes
             self._force_terminate_player()
 
-            player_script = os.path.join(BASE_DIR, "player_window.py")
-            if not os.path.exists(player_script):
-                print(f"[ERROR] Player script not found: {player_script}")
-                return
+            if getattr(sys, 'frozen', False):
+                # We are compiled to an EXE
+                # In the new multi-EXE architecture, player.exe is a separate binary
+                # in the same root folder as OrbixPlay.exe
+                player_exe = os.path.join(USER_DIR, "player.exe")
+                cmd = [player_exe, url, title]
+            else:
+                player_script = os.path.join(DATA_DIR, "player_window.py")
+                if not os.path.exists(player_script):
+                    print(f"[ERROR] Player script not found: {player_script}")
+                    return
+                cmd = [sys.executable, player_script, url, title]
 
-            cmd = [sys.executable, player_script, url, title]
+                
             print(f"[SYSTEM] Executing: {' '.join(cmd)}")
             
             # Launch the player
             creation_flags = 0
             if sys.platform == "win32":
-                pass
+                # CREATE_NO_WINDOW = 0x08000000 
+                # Prevents a separate console window when launching the player
+                creation_flags = 0x08000000
                 
             process = subprocess.Popen(cmd, creationflags=creation_flags)
             API_STATE["player_process"] = process
@@ -194,8 +207,9 @@ class JsApi:
                 # We filter by command line if possible, or just kill all python processes that have our script in args
                 import subprocess
                 # This is a bit safer: kill by window title or just use powershell to be precise
-                cmd = 'Get-Process | Where-Object { $_.ProcessName -like "*python*" -and $_.CommandLine -like "*player_window.py*" } | Stop-Process -Force'
+                cmd = 'Get-WmiObject Win32_Process | Where-Object { ($_.Name -like "*python*" -or $_.Name -like "*OrbixPlay*" -or $_.Name -like "*player*") -and ($_.CommandLine -like "*player_window.py*" -or $_.CommandLine -like "*--player*") } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }'
                 subprocess.run(["powershell", "-Command", cmd], capture_output=True)
+
                 print("[SYSTEM] Cleaned up existing player processes via PowerShell")
             else:
                 # Unix fallback
@@ -211,8 +225,8 @@ class JsApi:
         if url:
             try:
                 vlc_paths = [
-                    os.path.join(BASE_DIR, "VLC", "vlc.exe"),
-                    os.path.join(BASE_DIR, "vlc", "vlc.exe"),
+                    os.path.join(DATA_DIR, "VLC", "vlc.exe"),
+                    os.path.join(DATA_DIR, "vlc", "vlc.exe"),
                     r"C:\Program Files\VideoLAN\VLC\vlc.exe",
                     r"C:\Program Files (x86)\VideoLAN\VLC\vlc.exe",
                 ]
@@ -230,7 +244,8 @@ class JsApi:
         url = self._get_stream_url(provider, link, item_type)
         if url:
             title_str = title or "Video Player"
-            artplayer_path = os.path.join(BASE_DIR, "artplayer.js")
+            artplayer_path = os.path.join(DATA_DIR, "artplayer.js")
+
             artplayer_js = ""
             if os.path.exists(artplayer_path):
                 with open(artplayer_path, "r", encoding="utf-8") as f:
@@ -242,7 +257,8 @@ class JsApi:
 if(window.ArtPlayer){{new ArtPlayer({{container:'.ap',url:{json.dumps(url)},title:{json.dumps(title_str)},autoplay:true,setting:true,playbackRate:true,aspectRatio:true}});}}
 else{{document.body.innerHTML='<video src={json.dumps(url)} controls autoplay style="width:100%;height:100%;"></video>';}}
 </script></body></html>"""
-            temp_html = os.path.join(BASE_DIR, "browser_player.html")
+            temp_html = os.path.join(USER_DIR, "browser_player.html")
+
             with open(temp_html, "w", encoding="utf-8") as f:
                 f.write(html)
             webbrowser.open(f"file:///{os.path.abspath(temp_html)}")
@@ -263,13 +279,15 @@ else{{document.body.innerHTML='<video src={json.dumps(url)} controls autoplay st
         return {"error": "Link extraction failed."}
 
     def check_ffmpeg(self):
-        return (os.path.exists(os.path.join(BASE_DIR, "ffmpeg.exe")) or
-                os.path.exists(os.path.join(BASE_DIR, "bin", "ffmpeg.exe")))
+        return (os.path.exists(os.path.join(USER_DIR, "ffmpeg.exe")) or
+                os.path.exists(os.path.join(USER_DIR, "bin", "ffmpeg.exe")))
+
 
     def install_ffmpeg(self):
         def _run():
             try:
-                zip_path = os.path.join(BASE_DIR, "ffmpeg_temp.zip")
+                zip_path = os.path.join(USER_DIR, "ffmpeg_temp.zip")
+
                 url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
                 _evaluate_js("onFfmpegProgress('connecting', 0)")
                 response = requests.get(url, stream=True, timeout=15)
@@ -288,7 +306,7 @@ else{{document.body.innerHTML='<video src={json.dumps(url)} controls autoplay st
                     for member in zf.namelist():
                         if member.endswith("ffmpeg.exe") or member.endswith("ffprobe.exe"):
                             filename = os.path.basename(member)
-                            with zf.open(member) as src, open(os.path.join(BASE_DIR, filename), "wb") as dst:
+                            with zf.open(member) as src, open(os.path.join(USER_DIR, filename), "wb") as dst:
                                 shutil.copyfileobj(src, dst)
                 if os.path.exists(zip_path): os.remove(zip_path)
                 _evaluate_js("onFfmpegProgress('done', 100)")
@@ -359,3 +377,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

@@ -89,6 +89,18 @@ class VLCPlayer(ctk.CTk):
         self.is_paused = False
         self.updating_slider = False
 
+        # PiP state
+        self._is_pip = False
+        self._old_geometry = None
+
+        # Aspect Ratio / Crop state
+        self._aspect_modes = ["Original", "16:9", "4:3", "2.35:1", "Fit to Screen (Fill)"]
+        self._current_aspect_idx = 0
+
+        # Timing for startup stability
+        self._playback_start_time = time.time()
+        self._has_played = False
+
         # Error handling if VLC failed to import or find DLLs
         vlc_lib = get_vlc()
         mismatch = os.environ.get('VLC_ARCH_MISMATCH')
@@ -121,18 +133,17 @@ class VLCPlayer(ctk.CTk):
         self.vlc_instance = vlc_lib.Instance('--no-xlib', '--quiet', '--network-caching=3000', '--no-video-title-show')
         self.player = self.vlc_instance.media_player_new()
 
-        # UI Layout
+        # UI Layout - Simplified to allow overlay
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1) # Video area
-        self.grid_rowconfigure(1, weight=0) # Controls area
+        self.grid_rowconfigure(0, weight=1)
 
-        # Video Frame
+        # Video Frame - Now fills the entire window
         self.video_frame = tk.Frame(self, bg="black")
         self.video_frame.grid(row=0, column=0, sticky="nsew")
 
-        # Controls Frame
-        self.controls_frame = ctk.CTkFrame(self, height=120, corner_radius=0, fg_color="#121212")
-        self.controls_frame.grid(row=1, column=0, sticky="ew")
+        # Controls Frame - Now a floating overlay
+        self.controls_frame = ctk.CTkFrame(self, height=120, corner_radius=15, fg_color="#121212", border_width=1, border_color="#333")
+        self.controls_frame.place(relx=0.5, rely=0.97, anchor="s", relwidth=0.95)
         
         # --- Seek Bar ---
         self.slider = ctk.CTkSlider(self.controls_frame, from_=0, to=1000, command=self.on_slider_move, height=18)
@@ -192,6 +203,14 @@ class VLCPlayer(ctk.CTk):
         self.volume_slider.set(80)
         self.volume_slider.pack(side="left", padx=5)
 
+        # PiP Toggle
+        self.pip_btn = ctk.CTkButton(self.buttons_frame, text="🖼 PiP", width=70, fg_color="#333", command=self.toggle_pip)
+        self.pip_btn.pack(side="right", padx=5)
+
+        # Fit to Screen / Aspect Ratio
+        self.crop_btn = ctk.CTkButton(self.buttons_frame, text="📺 Fit", width=70, fg_color="#333", command=self.cycle_aspect_ratio)
+        self.crop_btn.pack(side="right", padx=5)
+
         # Fullscreen Toggle
         self.fs_btn = ctk.CTkButton(self.buttons_frame, text="Full Screen", width=100, fg_color="#2b6bba", command=self.toggle_fullscreen)
         self.fs_btn.pack(side="right", padx=5)
@@ -201,6 +220,8 @@ class VLCPlayer(ctk.CTk):
         self.bind("<Left>", lambda e: self.seek_relative(-10))
         self.bind("<Right>", lambda e: self.seek_relative(10))
         self.bind("f", lambda e: self.toggle_fullscreen())
+        self.bind("p", lambda e: self.toggle_pip())
+        self.bind("c", lambda e: self.cycle_aspect_ratio())
         self.bind("<Escape>", lambda e: self.exit_fullscreen())
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
@@ -210,11 +231,16 @@ class VLCPlayer(ctk.CTk):
 
     def exit_fullscreen(self, event=None):
         self.attributes("-fullscreen", False)
-        self.controls_frame.grid(row=1, column=0, sticky="ew")
+        self.show_controls()
 
     def start_play(self):
         # Media handle
-        media = self.vlc_instance.media_new(self.url)
+        clean_url = self.url
+        if clean_url.startswith("http") and " " in clean_url:
+            # Only encode spaces to %20 to avoid breaking complex CDNs
+            clean_url = clean_url.replace(" ", "%20")
+        
+        media = self.vlc_instance.media_new(clean_url)
         self.player.set_media(media)
 
         # Set window handle for video output
@@ -368,25 +394,80 @@ class VLCPlayer(ctk.CTk):
 
     def show_controls(self):
         if not self.controls_visible:
-            self.controls_frame.grid(row=1, column=0, sticky="ew")
+            self.controls_frame.place(relx=0.5, rely=0.97, anchor="s", relwidth=0.95)
             self.controls_visible = True
-            # Re-configure grid weights if needed
-            self.grid_rowconfigure(0, weight=1)
-            self.grid_rowconfigure(1, weight=0)
 
     def hide_controls(self):
         if self.controls_visible:
-            self.controls_frame.grid_forget()
+            self.controls_frame.place_forget()
             self.controls_visible = False
-            # Allow video to fill entire window
-            self.grid_rowconfigure(0, weight=1)
 
     def toggle_fullscreen(self):
+        # Disable PiP if entering fullscreen
+        if self._is_pip:
+            self.toggle_pip()
+            
         state = self.attributes("-fullscreen")
         self.attributes("-fullscreen", not state)
         # Force controls to show on toggle
         self.show_controls()
         self.focus_set()
+
+    def toggle_pip(self):
+        if not self._is_pip:
+            # Entering PiP
+            self._old_geometry = self.geometry()
+            
+            # Default to bottom right, ~300x200
+            screen_width = self.winfo_screenwidth()
+            screen_height = self.winfo_screenheight()
+            w, h = 320, 180
+            x = screen_width - w - 20
+            y = screen_height - h - 60
+            
+            self.geometry(f"{w}x{h}+{x}+{y}")
+            self.attributes("-topmost", True)
+            self.overrideredirect(True)
+            self.hide_controls()
+            self._is_pip = True
+        else:
+            # Exiting PiP
+            self.overrideredirect(False)
+            self.attributes("-topmost", False)
+            if self._old_geometry:
+                self.geometry(self._old_geometry)
+            self.show_controls()
+            self._is_pip = False
+            # Re-focus window
+            self.focus_force()
+
+    def cycle_aspect_ratio(self):
+        self._current_aspect_idx = (self._current_aspect_idx + 1) % len(self._aspect_modes)
+        mode = self._aspect_modes[self._current_aspect_idx]
+        
+        # Reset any previous aspect or crop
+        self.player.video_set_aspect_ratio(None)
+        self.player.video_set_crop_geometry(None)
+        
+        if mode == "16:9":
+            self.player.video_set_aspect_ratio("16:9")
+        elif mode == "4:3":
+            self.player.video_set_aspect_ratio("4:3")
+        elif mode == "2.35:1":
+            # 2.35:1 is a common cinematic ratio. 
+            # We use crop to fit the video content into a 2.35:1 area.
+            self.player.video_set_crop_geometry("2.35:1")
+        elif mode == "Fit to Screen (Fill)":
+            # This is "Crop to Fill" - it finds the current window ratio and forces video to it
+            w = self.video_frame.winfo_width()
+            h = self.video_frame.winfo_height()
+            if h > 0:
+                ratio = f"{w}:{h}"
+                # We use crop geometry to cut off the black bars (letterboxing/pillarboxing)
+                self.player.video_set_crop_geometry(ratio)
+        
+        # Update button text
+        self.crop_btn.configure(text=f"📺 {mode.split(' ')[0]}")
 
     def format_time(self, ms):
         s = ms // 1000
@@ -449,8 +530,33 @@ class VLCPlayer(ctk.CTk):
 
             # Check for end of media
             vlc_lib = get_vlc()
-            if vlc_lib and self.player.get_state() == vlc_lib.State.Ended:
-                self.on_closing()
+            if vlc_lib:
+                state = self.player.get_state()
+                
+                # If we are playing, mark that we have successfully started
+                if state == vlc_lib.State.Playing:
+                    self._has_played = True
+
+                # Error handling: If we hit an error state
+                if state == vlc_lib.State.Error:
+                    self._log_error(f"VLC Player Error State reached for URL: {self.url}")
+                    if not hasattr(self, '_stream_error_shown'):
+                        self._stream_error_shown = True
+                        self.show_vlc_error("Stream connection failed, timed out, or URL is invalid.\n\nPlease try another link or provider.")
+                    return # Stop updating UI
+                
+                # Only close on Ended if we actually played something or enough time has passed
+                # This prevents immediate closure if VLC momentarily reports Ended during handshake
+                if state == vlc_lib.State.Ended:
+                    uptime = time.time() - self._playback_start_time
+                    if self._has_played:
+                        self.on_closing()
+                    elif uptime > 15.0:
+                        if not hasattr(self, '_stream_error_shown'):
+                            self._stream_error_shown = True
+                            self.show_vlc_error("Stream ended unexpectedly without playing.\n\nThe link may be dead or region-locked.")
+                        return
+
 
         except Exception as e:
             # Don't flood stdout with every error, but log it once if it's new
@@ -463,7 +569,11 @@ class VLCPlayer(ctk.CTk):
     def _log_error(self, message):
         try:
             import traceback
-            log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_error.log")
+            if getattr(sys, 'frozen', False):
+                base = os.path.dirname(sys.executable)
+            else:
+                base = os.path.dirname(os.path.abspath(__file__))
+            log_file = os.path.join(base, "player_error.log")
             with open(log_file, "a", encoding="utf-8") as f:
                 f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: {message}\n")
                 f.write(traceback.format_exc())
@@ -499,8 +609,16 @@ class VLCPlayer(ctk.CTk):
         ctk.CTkButton(err_frame, text="Close Player", fg_color="transparent", border_width=1, command=self.destroy).pack(pady=5)
 
     def on_closing(self):
-        self.player.stop()
-        self.vlc_instance.release()
+        if hasattr(self, '_is_closing') and self._is_closing:
+            return
+        self._is_closing = True
+        
+        try:
+            self.player.stop()
+            self.vlc_instance.release()
+        except Exception:
+            pass
+            
         self.destroy()
         sys.exit(0)
 
@@ -527,8 +645,10 @@ if __name__ == "__main__":
             # Join all remaining arguments for the title (handles spaces)
             t = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else "Video Player"
             play_video(u, t)
+        except SystemExit:
+            pass
         except BaseException as e:
-            # Catching BaseException to handle even SystemExit or weird hardware/vlc aborts
+            # Catching BaseException to handle weird hardware/vlc aborts
             global_log(f"CRASH: {e}")
             sys.exit(1)
     else:
