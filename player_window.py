@@ -279,8 +279,12 @@ class VLCPlayer(ctk.CTk):
         self.player.audio_set_track(next_tid)
         
         # Update button text immediately
-        new_name = tracks[next_idx][1].decode('utf-8')
-        self.audio_btn.configure(text=f"🌐 Audio: {new_name}")
+        try:
+            new_name = tracks[next_idx][1]
+            if isinstance(new_name, bytes): new_name = new_name.decode('utf-8', errors='ignore')
+            self.audio_btn.configure(text=f"🌐 Audio: {new_name}")
+        except Exception as e:
+            print(f"Error decoding audio track: {e}")
 
     def cycle_subtitle_track(self):
         tracks = self.player.video_get_spu_description()
@@ -300,12 +304,16 @@ class VLCPlayer(ctk.CTk):
         self.player.video_set_spu(next_tid)
         
         # Update button text
-        new_name = tracks[next_idx][1].decode('utf-8')
-        if next_tid == -1 or "Disable" in new_name or "off" in new_name.lower():
-            label = "Off"
-        else:
-            label = new_name
-        self.subtitle_btn.configure(text=f"💬 Sub: {label}")
+        try:
+            new_name = tracks[next_idx][1]
+            if isinstance(new_name, bytes): new_name = new_name.decode('utf-8', errors='ignore')
+            if next_tid == -1 or "Disable" in str(new_name) or "off" in str(new_name).lower():
+                label = "Off"
+            else:
+                label = new_name
+            self.subtitle_btn.configure(text=f"💬 Sub: {label}")
+        except Exception as e:
+            print(f"Error decoding sub track: {e}")
 
     def on_mouse_move(self, event=None):
         self.last_mouse_move_time = time.time()
@@ -368,9 +376,12 @@ class VLCPlayer(ctk.CTk):
             if tracks:
                 for tid, name in tracks:
                     if tid == curr_track:
-                        t_name = name.decode('utf-8')
-                        if t_name not in self.audio_btn.cget("text"):
-                            self.audio_btn.configure(text=f"🌐 Audio: {t_name}")
+                        try:
+                            t_name = name
+                            if isinstance(t_name, bytes): t_name = t_name.decode('utf-8', errors='ignore')
+                            if t_name not in self.audio_btn.cget("text"):
+                                self.audio_btn.configure(text=f"🌐 Audio: {t_name}")
+                        except Exception: pass
                         break
 
             # Update Subtitle Track if needed
@@ -379,13 +390,16 @@ class VLCPlayer(ctk.CTk):
             if spus:
                 for tid, name in spus:
                     if tid == curr_spu:
-                        s_name = name.decode('utf-8')
-                        if "Disable" in s_name or "off" in s_name.lower():
-                            s_label = "Off"
-                        else:
-                            s_label = s_name
-                        if s_label not in self.subtitle_btn.cget("text"):
-                            self.subtitle_btn.configure(text=f"💬 Sub: {s_label}")
+                        try:
+                            s_name = name
+                            if isinstance(s_name, bytes): s_name = s_name.decode('utf-8', errors='ignore')
+                            if "Disable" in str(s_name) or "off" in str(s_name).lower():
+                                s_label = "Off"
+                            else:
+                                s_label = s_name
+                            if s_label not in self.subtitle_btn.cget("text"):
+                                self.subtitle_btn.configure(text=f"💬 Sub: {s_label}")
+                        except Exception: pass
                         break
 
             # Auto-hide logic check
@@ -440,6 +454,16 @@ def play_video(url, title="Video Player", audio_tracks_json=None):
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        u = sys.argv[1]
-        t = sys.argv[2] if len(sys.argv) > 2 else "Video Player"
-        play_video(u, t)
+        try:
+            u = sys.argv[1]
+            # Join all remaining arguments for the title (handles spaces)
+            t = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else "Video Player"
+            play_video(u, t)
+        except Exception as e:
+            import traceback
+            log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_error.log")
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] CRASH: {e}\n")
+                f.write(traceback.format_exc())
+            print(f"CRASH: Error written to {log_file}")
+            sys.exit(1)

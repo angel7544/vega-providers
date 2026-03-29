@@ -1,1 +1,4 @@
-{"last_provider": "vega", "server_url": "https://movies.br31tech.live"}
+{
+  "last_provider": "uhd",
+  "server_url": "http://192.168.29.181:3001"
+}
