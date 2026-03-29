@@ -51,7 +51,7 @@ export async function hubcloudExtractor(
           if (!link?.includes("api")) {
             const token = link.split("/").pop();
             const baseUrl = link.split("/").slice(0, -2).join("/");
-            link = `${baseUrl}/api/file/${token}?download`;
+            link = `${baseUrl}/api/file/${token}`;
           }
           streamLinks.push({ server: "Pixeldrain", link: link, type: "mkv" });
           break;
