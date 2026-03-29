@@ -38,21 +38,17 @@ def setup_vlc_dll_path():
             vlc_bits = 64 if " (x86)" not in found_path else 32
             
             if python_bits != vlc_bits:
-                print(f"ERROR: VLC Architecture Mismatch!")
-                print(f"Python is {python_bits}-bit, but found VLC {vlc_bits}-bit at: {found_path}")
-                print(f"Please install the {python_bits}-bit version of VLC Media Player.")
+                os.environ['VLC_ARCH_MISMATCH'] = f"Python {python_bits}-bit vs VLC {vlc_bits}-bit"
             
-            # CRITICAL: Set environment variable for python-vlc to find the DLL
-            lib_file = os.path.join(found_path, "libvlc.dll")
-            os.environ['PYTHON_VLC_LIB_PATH'] = lib_file
+            # Set environment variable for python-vlc to find the DLL
+            os.environ['PYTHON_VLC_LIB_PATH'] = os.path.join(found_path, "libvlc.dll")
             
             try:
                 os.add_dll_directory(found_path)
-            except AttributeError:
-                # Python < 3.8
-                os.environ['PATH'] = found_path + os.pathsep + os.environ['PATH']
+            except Exception:
+                pass
         else:
-            print("ERROR: libvlc.dll not found. Please install VLC Media Player.")
+            os.environ['VLC_NOT_FOUND'] = "1"
 
 setup_vlc_dll_path()
 
@@ -95,8 +91,14 @@ class VLCPlayer(ctk.CTk):
 
         # Error handling if VLC failed to import or find DLLs
         vlc_lib = get_vlc()
-        if vlc_lib is None or not hasattr(vlc_lib, 'Instance'):
-            self.show_vlc_error()
+        mismatch = os.environ.get('VLC_ARCH_MISMATCH')
+        not_found = os.environ.get('VLC_NOT_FOUND')
+
+        if vlc_lib is None or not hasattr(vlc_lib, 'Instance') or mismatch or not_found:
+            err_msg = ""
+            if mismatch: err_msg = mismatch
+            elif not_found: err_msg = "VLC Not Found"
+            self.show_vlc_error(err_msg)
             return
 
         # Load Window Title Bar Icon
@@ -114,7 +116,9 @@ class VLCPlayer(ctk.CTk):
 
         # VLC Initialization
         # On Windows, we might need to specify the plugin path if not in env
-        self.vlc_instance = vlc_lib.Instance('--no-xlib', '--quiet')
+        # Added --network-caching=3000 for better remote stream stability
+        # Added --no-video-title-show to prevent VLC from showing filename atop the video
+        self.vlc_instance = vlc_lib.Instance('--no-xlib', '--quiet', '--network-caching=3000', '--no-video-title-show')
         self.player = self.vlc_instance.media_player_new()
 
         # UI Layout
@@ -235,10 +239,27 @@ class VLCPlayer(ctk.CTk):
             self.is_paused = False
 
     def seek_relative(self, seconds):
-        curr_time = self.player.get_time()
-        new_time = curr_time + (seconds * 1000)
-        if new_time < 0: new_time = 0
-        self.player.set_time(new_time)
+        try:
+            vlc_lib = get_vlc()
+            # Guard: Only seek if playing or paused
+            if not vlc_lib or self.player.get_state() not in [vlc_lib.State.Playing, vlc_lib.State.Paused]:
+                return
+
+            curr_time = self.player.get_time()
+            if curr_time < 0: return
+
+            new_time = curr_time + (seconds * 1000)
+            if new_time < 0: new_time = 0
+            
+            # Additional check: don't seek past length if known
+            total_ms = self.player.get_length()
+            if total_ms > 0 and new_time > total_ms:
+                new_time = total_ms - 1000 # 1s before end
+                if new_time < 0: new_time = 0
+
+            self.player.set_time(new_time)
+        except Exception as e:
+            self._log_error(f"seek_relative error: {e}")
 
     def on_slider_move(self, value):
         # Update time label while dragging for feedback
@@ -251,11 +272,29 @@ class VLCPlayer(ctk.CTk):
         self.updating_slider = True
 
     def on_slider_release(self, event):
-        # Only seek when user releases the slider for better performance
-        value = self.slider.get()
-        new_pos = value / 1000.0
-        self.player.set_position(new_pos)
-        self.updating_slider = False
+        try:
+            # Only seek when user releases the slider for better performance
+            vlc_lib = get_vlc()
+            if not vlc_lib: return
+
+            # Guard: Only seek if player is active
+            state = self.player.get_state()
+            if state not in [vlc_lib.State.Playing, vlc_lib.State.Paused, vlc_lib.State.Opening, vlc_lib.State.Buffering]:
+                self.updating_slider = False
+                return
+
+            value = self.slider.get()
+            new_pos = value / 1000.0
+            
+            # Bounds check
+            if new_pos < 0: new_pos = 0
+            if new_pos > 1: new_pos = 1
+            
+            self.player.set_position(new_pos)
+        except Exception as e:
+            self._log_error(f"on_slider_release error: {e}")
+        finally:
+            self.updating_slider = False
 
     def set_volume(self, value):
         self.player.audio_set_volume(int(value))
@@ -414,32 +453,50 @@ class VLCPlayer(ctk.CTk):
                 self.on_closing()
 
         except Exception as e:
-            print(f"UI update Error: {e}")
+            # Don't flood stdout with every error, but log it once if it's new
+            # print(f"UI update Error: {e}")
+            pass
             
         if self.winfo_exists():
             self.after(500, self.update_ui_task)
 
-    def show_vlc_error(self):
+    def _log_error(self, message):
+        try:
+            import traceback
+            log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_error.log")
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: {message}\n")
+                f.write(traceback.format_exc())
+        except:
+            pass
+
+    def show_vlc_error(self, specific_error=""):
         # Clear any existing widgets
         for widget in self.winfo_children():
             widget.destroy()
             
         err_frame = ctk.CTkFrame(self, fg_color="#1a1a1c", corner_radius=15, border_width=2, border_color="#ff4444")
-        err_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.8, relheight=0.6)
+        err_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.8, relheight=0.7)
         
-        ctk.CTkLabel(err_frame, text="❌ VLC Initialization Failed", font=ctk.CTkFont(size=24, weight="bold"), text_color="#ff4444").pack(pady=(40, 20))
+        ctk.CTkLabel(err_frame, text="❌ VLC Initialization Failed", font=ctk.CTkFont(size=24, weight="bold"), text_color="#ff4444").pack(pady=(30, 10))
         
         python_bits = 8 * 8 if sys.maxsize > 2**32 else 4 * 8
         msg = f"Your Python environment is {python_bits}-bit.\n\n"
-        msg += "To use this player, you MUST install the 64-bit version of VLC Media Player.\n"
-        msg += "The currently installed VLC (in Program Files x86) is 32-bit and incompatible."
         
-        ctk.CTkLabel(err_frame, text=msg, font=ctk.CTkFont(size=14), wraplength=600, justify="center").pack(pady=20)
+        if "Python" in specific_error:
+            msg += f"Architecture Mismatch Detected: {specific_error}\n\n"
+            msg += "The 'vlc_bundle' or installed VLC must be 64-bit to work with this Python version."
+        elif "Not Found" in specific_error:
+            msg += "VLC was not found in 'vlc_bundle' or standard system paths."
+        else:
+            msg += f"Detailed Error: {specific_error}"
+        
+        ctk.CTkLabel(err_frame, text=msg, font=ctk.CTkFont(size=14), wraplength=600, justify="center").pack(pady=10)
         
         btn_download = ctk.CTkButton(err_frame, text="Download VLC 64-bit", fg_color="#2b6bba", command=lambda: webbrowser.open("https://www.videolan.org/vlc/download-windows.html"))
-        btn_download.pack(pady=10)
+        btn_download.pack(pady=15)
         
-        ctk.CTkButton(err_frame, text="Close Player", fg_color="transparent", border_width=1, command=self.destroy).pack(pady=10)
+        ctk.CTkButton(err_frame, text="Close Player", fg_color="transparent", border_width=1, command=self.destroy).pack(pady=5)
 
     def on_closing(self):
         self.player.stop()
@@ -453,17 +510,27 @@ def play_video(url, title="Video Player", audio_tracks_json=None):
     app.mainloop()
 
 if __name__ == "__main__":
+    def global_log(msg):
+        try:
+            import traceback
+            log_f = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_error.log")
+            with open(log_f, "a", encoding="utf-8") as f:
+                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] PID {os.getpid()}: {msg}\n")
+                f.write(traceback.format_exc())
+            print(f"CRASH: Error written to {log_f}")
+        except:
+            pass
+
     if len(sys.argv) > 1:
         try:
             u = sys.argv[1]
             # Join all remaining arguments for the title (handles spaces)
             t = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else "Video Player"
             play_video(u, t)
-        except Exception as e:
-            import traceback
-            log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_error.log")
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] CRASH: {e}\n")
-                f.write(traceback.format_exc())
-            print(f"CRASH: Error written to {log_file}")
+        except BaseException as e:
+            # Catching BaseException to handle even SystemExit or weird hardware/vlc aborts
+            global_log(f"CRASH: {e}")
             sys.exit(1)
+    else:
+        # No args, just exit
+        sys.exit(0)

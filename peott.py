@@ -27,7 +27,8 @@ UI_DIR = os.path.join(BASE_DIR, "ui")
 API_STATE = {
     "window": None,
     "settings": {},
-    "server_url": "http://localhost:3001"
+    "server_url": "http://localhost:3001",
+    "player_process": None
 }
 
 
@@ -162,6 +163,9 @@ class JsApi:
     def _launch_player(self, url, title):
         print(f"[DEBUG] _launch_player(url={url[:60]}..., title={title})")
         try:
+            # Enhanced Kill: Look for any running player_window.py processes
+            self._force_terminate_player()
+
             player_script = os.path.join(BASE_DIR, "player_window.py")
             if not os.path.exists(player_script):
                 print(f"[ERROR] Player script not found: {player_script}")
@@ -170,16 +174,35 @@ class JsApi:
             cmd = [sys.executable, player_script, url, title]
             print(f"[SYSTEM] Executing: {' '.join(cmd)}")
             
-            # Launch the player without a visible console window on Windows
+            # Launch the player
             creation_flags = 0
             if sys.platform == "win32":
-                creation_flags = subprocess.CREATE_NO_WINDOW
+                pass
                 
             process = subprocess.Popen(cmd, creationflags=creation_flags)
+            API_STATE["player_process"] = process
             print(f"[SUCCESS] Player process started (PID: {process.pid})")
             
         except Exception as e:
             print(f"[ERROR] Player launch exception: {e}")
+
+    def _force_terminate_player(self):
+        """Finds and kills any existing player_window.py processes."""
+        try:
+            if sys.platform == "win32":
+                # Use taskkill to find and kill processes running player_window.py
+                # We filter by command line if possible, or just kill all python processes that have our script in args
+                import subprocess
+                # This is a bit safer: kill by window title or just use powershell to be precise
+                cmd = 'Get-Process | Where-Object { $_.ProcessName -like "*python*" -and $_.CommandLine -like "*player_window.py*" } | Stop-Process -Force'
+                subprocess.run(["powershell", "-Command", cmd], capture_output=True)
+                print("[SYSTEM] Cleaned up existing player processes via PowerShell")
+            else:
+                # Unix fallback
+                if API_STATE["player_process"]:
+                    API_STATE["player_process"].kill()
+        except:
+            pass
 
     def play_vlc(self, provider, link, item_type):
         print(f"[API] play_vlc -> {link}")
