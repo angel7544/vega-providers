@@ -1,23 +1,21 @@
 // ============================
 // ⚙️ CONFIGURATION & STATE
 // ============================
+const DEFAULT_RENDER_URL = "https://vega-providers-du52.onrender.com";
 let API_BASE = localStorage.getItem('vega_api_url') || "";
 
 const getApiUrl = () => {
-    // 1. Manual User Override (Settings Menu)
-    let savedBase = localStorage.getItem('vega_api_url') || "";
-    if (savedBase) {
-        if (savedBase.endsWith('/')) savedBase = savedBase.slice(0, -1);
-        return savedBase;
+    // 1. If user set a custom URL in settings, use that first
+    if (API_BASE) return API_BASE;
+
+    // 2. If running on localhost/local network, default to local server
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.')) {
+        return window.location.origin;
     }
 
-    // 2. Environment Variable Override (Injected at build time on Vercel)
-    if (window.BACKEND_URL) {
-        return window.BACKEND_URL.endsWith('/') ? window.BACKEND_URL.slice(0, -1) : window.BACKEND_URL;
-    }
-
-    // 3. Current Hostname (Localhost or All-in-one Render)
-    return window.location.origin;
+    // 3. Otherwise, use the hardcoded Render production URL
+    return DEFAULT_RENDER_URL;
 };
 
 let currentProvider = localStorage.getItem('orbix_last_provider') || "__all__";
@@ -79,9 +77,6 @@ const contentGrid = document.getElementById('contentGrid');
 const searchInput = document.getElementById('searchInput');
 const statusText = document.getElementById('statusText');
 const catalogContainer = document.getElementById('catalogContainer');
-const modalSettings = document.getElementById('modalSettings');
-const settingApiUrl = document.getElementById('settingApiUrl');
-const settingTmdbKey = document.getElementById('settingTmdbKey');
 
 // Pages
 const pageBrowse = document.getElementById('pageBrowse');
@@ -112,7 +107,28 @@ function goBackToBrowse() {
     switchPage('pageBrowse');
 }
 
-function loadHome() { fetchData(""); updateActiveNav(0); switchPage('pageBrowse'); }
+function openSettingsModal() {
+    apiUrlInput.value = localStorage.getItem('vega_api_url') || "";
+    settingsModal.style.display = "flex";
+    setTimeout(() => settingsModal.classList.add('active'), 10);
+}
+
+function closeSettingsModal() {
+    settingsModal.classList.remove('active');
+    setTimeout(() => settingsModal.style.display = "none", 300);
+}
+
+function saveSettings() {
+    let val = apiUrlInput.value.trim();
+    if (val.endsWith('/')) val = val.slice(0, -1);
+    localStorage.setItem('vega_api_url', val);
+    
+    let tmdbVal = document.getElementById('tmdbKeyInput')?.value.trim() || "";
+    localStorage.setItem('tmdb_api_key', tmdbVal);
+
+    closeSettingsModal();
+    window.location.reload();
+}
 
 function loadHome() { fetchData(""); updateActiveNav(0); switchPage('pageBrowse'); }
 function loadMovies() { fetchData("movie"); updateActiveNav(1); switchPage('pageBrowse'); }

@@ -13,7 +13,6 @@
     "test:ui": "npm run test:interactive",
     "build": "node build-bundled.js",
     "build:dev": "cross-env SKIP_MINIFY=true node build-bundled.js",
-    "build:vercel": "sed -i \"s|<head>|<head><script>window.BACKEND_URL='${BACKEND_URL}';</script>|g\" web/index.html && echo '✅ Backend URL Injected'",
     "dev": "node dev-server.js",
     "dev:build": "npm run build && npm run dev",
     "watch": "nodemon",
