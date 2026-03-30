@@ -56,10 +56,6 @@
                     <span id="statusDot">●</span>
                     <span id="statusText">Online</span>
                 </div>
-
-                <button class="settings-btn" onclick="openSettings()" title="Settings">
-                    <i data-lucide="settings"></i>
-                </button>
             </div>
         </div>
     </header>
@@ -164,36 +160,10 @@
     </div>
 
     <!-- APP SCRIPT -->
-    <!-- SETTINGS MODAL -->
-    <div id="modalSettings" class="modal-overlay">
-        <div class="modal-content settings-modal">
-            <div class="modal-header">
-                <h3><i data-lucide="settings"></i> Application Settings</h3>
-                <button class="close-modal" onclick="closeSettings()">&times;</button>
-            </div>
-            
-            <div class="settings-body">
-                <div class="setting-item">
-                    <label>Backend API URL (Render)</label>
-                    <p class="setting-desc">Required for Hybrid deployment (Vercel + Render)</p>
-                    <input type="text" id="settingApiUrl" placeholder="https://your-app.onrender.com">
-                </div>
-
-                <div class="setting-item">
-                    <label>TMDB API Key (Optional)</label>
-                    <p class="setting-desc">For high-quality posters and metadata</p>
-                    <input type="password" id="settingTmdbKey" placeholder="Enter TMDB Key...">
-                </div>
-
-                <div class="settings-actions">
-                    <button class="catalog-btn secondary" onclick="closeSettings()">Cancel</button>
-                    <button class="catalog-btn primary" onclick="saveSettings()">Save & Reload</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script src="app.js"></script>
+
+    <!-- Hidden Settings Trigger (Tap bottom right) -->
+    <div style="position: fixed; bottom: 0; right: 0; width: 40px; height: 40px; opacity: 0.05; cursor: pointer; z-index: 9999;" onclick="openSettingsModal()"></div>
 
 </body>
 </html>

@@ -1,21 +1,11 @@
 // ============================
 // ⚙️ CONFIGURATION & STATE
 // ============================
-const DEFAULT_RENDER_URL = "https://vega-providers-du52.onrender.com";
 let API_BASE = localStorage.getItem('vega_api_url') || "";
-
 const getApiUrl = () => {
-    // 1. If user set a custom URL in settings, use that first
-    if (API_BASE) return API_BASE;
-
-    // 2. If running on localhost/local network, default to local server
-    const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.')) {
-        return window.location.origin;
-    }
-
-    // 3. Otherwise, use the hardcoded Render production URL
-    return DEFAULT_RENDER_URL;
+    let url = API_BASE ? API_BASE : window.location.origin;
+    if (url.endsWith('/')) url = url.slice(0, -1);
+    return url;
 };
 
 let currentProvider = localStorage.getItem('orbix_last_provider') || "__all__";
@@ -27,51 +17,7 @@ let tmdbKey = localStorage.getItem('tmdb_api_key') || "";
 // Init icons
 lucide.createIcons();
 
-// --- SETTINGS LOGIC ---
-function openSettings() {
-    document.getElementById('settingApiUrl').value = localStorage.getItem('vega_api_url') || "";
-    document.getElementById('settingTmdbKey').value = localStorage.getItem('tmdb_api_key') || "";
-    document.getElementById('modalSettings').classList.add('active');
-    lucide.createIcons();
-}
-
-function closeSettings() {
-    document.getElementById('modalSettings').classList.remove('active');
-}
-
-function saveSettings() {
-    const apiUrlInput = document.getElementById('settingApiUrl');
-    const tmdbKeyInput = document.getElementById('settingTmdbKey');
-    
-    let apiUrl = apiUrlInput.value.trim();
-    if (apiUrl && apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
-    
-    const tmdbKey = tmdbKeyInput.value.trim();
-    
-    console.log("💾 Saving Settings:", { apiUrl, tmdbKey });
-
-    if (apiUrl) {
-        localStorage.setItem('vega_api_url', apiUrl);
-    } else {
-        localStorage.removeItem('vega_api_url');
-    }
-
-    if (tmdbKey) {
-        localStorage.setItem('tmdb_api_key', tmdbKey);
-    } else {
-        localStorage.removeItem('tmdb_api_key');
-    }
-
-    // Visual feedback
-    const saveBtn = document.querySelector('.settings-actions button.primary');
-    const originalText = saveBtn.innerText;
-    saveBtn.innerText = "Saved! Reloading...";
-    saveBtn.style.background = "#22c55e";
-
-    setTimeout(() => {
-        window.location.reload();
-    }, 800);
-}
+// Elements
 const providerSelect = document.getElementById('providerSelect');
 const contentGrid = document.getElementById('contentGrid');
 const searchInput = document.getElementById('searchInput');
