@@ -767,13 +767,33 @@ async function resolveDownload(link, provider, title) {
     backBtn.onclick = () => renderDownloads(currentMeta);
     dlContainer.appendChild(backBtn);
 
-    streams.forEach(s => {
-        const btn = document.createElement("button");
-        btn.className = "download-btn";
+    streams.forEach((s, index) => {
+        const btnGroup = document.createElement("div");
+        btnGroup.className = "source-row";
+        btnGroup.style.display = "flex";
+        btnGroup.style.gap = "5px";
+        btnGroup.style.width = "100%";
+
+        const playBtn = document.createElement("button");
+        playBtn.className = "download-btn";
+        playBtn.style.flex = "1";
         const qualityText = s.quality ? ` [${s.quality}p]` : "";
-        btn.innerHTML = `<i data-lucide="external-link"></i> ${s.server}${qualityText}`;
-        btn.onclick = () => window.open(s.link, '_blank');
-        dlContainer.appendChild(btn);
+        playBtn.innerHTML = `<i data-lucide="play"></i> Watch from ${s.server}${qualityText}`;
+        playBtn.onclick = () => {
+            closePlayer();
+            initPlayer(streams, index);
+        };
+        
+        const linkBtn = document.createElement("button");
+        linkBtn.className = "download-btn";
+        linkBtn.style.width = "50px";
+        linkBtn.innerHTML = `<i data-lucide="external-link"></i>`;
+        linkBtn.title = "Open Original Link";
+        linkBtn.onclick = () => window.open(s.link, '_blank');
+
+        btnGroup.appendChild(playBtn);
+        btnGroup.appendChild(linkBtn);
+        dlContainer.appendChild(btnGroup);
     });
     
     lucide.createIcons();
@@ -782,8 +802,8 @@ async function resolveDownload(link, provider, title) {
 // ============================
 // 🎬 PLAYER
 // ============================
-function initPlayer(streams) {
-    let currentStreamIndex = 0;
+function initPlayer(streams, initialIndex = 0) {
+    let currentStreamIndex = initialIndex;
     let isTranscoding = false;
     let currentAudioTrack = null;
     switchPage('pagePlayer');
