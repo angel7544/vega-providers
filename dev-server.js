@@ -21,39 +21,21 @@ class DevServer {
   }
 
   setupMiddleware() {
-    // Enable CORS for mobile app
-    this.app.use(
-      cors({
-        origin: "*",
-        methods: ["GET", "POST", "OPTIONS"],
-        allowedHeaders: ["Content-Type", "Authorization"],
-      })
-    );
+    // Enable CORS for mobile app & Vercel frontend (CRITICAL)
+    const cors = require("cors");
+    this.app.use(cors({
+      origin: "*",
+      methods: ["GET", "POST", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"]
+    }));
+
+    // JSON parsing
+    this.app.use(express.json());
 
     // Serve static files from dist directory
     this.app.use("/dist", express.static(this.distDir));
 
     // Serve web frontend
-    const webDir = path.join(process.cwd(), "web");
-    if (!fs.existsSync(webDir)) {
-      fs.mkdirSync(webDir, { recursive: true });
-    }
-    this.app.use("/", express.static(webDir));
-    
-    // Serve artplayer.js if needed
-    this.app.get("/artplayer.js", (req, res) => {
-      const artPath = path.join(process.cwd(), "artplayer.js");
-      if (fs.existsSync(artPath)) {
-        res.sendFile(artPath);
-      } else {
-        res.status(404).send("artplayer.js not found");
-      }
-    });
-
-    // JSON parsing
-    this.app.use(express.json());
-
-    // --- Serve Web Frontend ---
     const webPath = path.join(this.currentDir, "web");
     if (fs.existsSync(webPath)) {
       console.log(`🌐 Serving web frontend from: ${webPath}`);
