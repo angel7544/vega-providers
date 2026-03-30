@@ -177,7 +177,6 @@ class DevServer {
         const result = await module[functionName](fullParams);
 
         // --- Centralized Proxy Wrapper ---
-        // If this is a stream request, check if we should proxy any of the links
         if (functionName === "getStream" && Array.isArray(result)) {
            const processedResult = result.map(stream => {
              const link = stream.link || "";
@@ -187,17 +186,13 @@ class DevServer {
              ].some(domain => link.toLowerCase().includes(domain));
 
              if (needsProxy) {
-               // Determine base URL for the proxy
                const protocol = req.protocol;
                const host = req.get('host');
                const proxyBase = `${protocol}://${host}/stream`;
-               
-               // Create a proxied link
-               // Pass original link as 'url' and also as 'referer'
                const proxiedLink = `${proxyBase}?url=${encodeURIComponent(link)}&referer=${encodeURIComponent(link)}`;
                
-               console.log(`🛡️ Proxying IP-locked source: ${stream.server} -> ${link.substring(0, 50)}...`);
-               return { ...stream, link: proxiedLink, originalLink: link, proxied: true };
+               console.log(`🛡️ Proxying IP-locked source: ${stream.server}`);
+               return { ...stream, link: proxiedLink, proxied: true };
              }
              return stream;
            });
@@ -206,8 +201,12 @@ class DevServer {
 
         res.json(result);
       } catch (error) {
-        console.error("Fetch failed:", error);
-        res.status(500).json({ error: error.message });
+        console.error("Fetch failed:", error.name, error.message, "Status:", error.response?.status);
+        res.status(error.response?.status || 500).json({ 
+            error: error.message,
+            status: error.response?.status,
+            isCloudflare: error.response?.data?.includes("Just a moment...") || error.response?.status === 403
+        });
       }
     });
 

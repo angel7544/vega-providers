@@ -673,7 +673,15 @@ async function getResolvedStreams(link, provider) {
                 params: { link, type: currentMeta?.type }
             })
         });
-        if (!resp.ok) return [];
+
+        if (!resp.ok) {
+            const errorData = await resp.json().catch(() => ({}));
+            if (errorData.isCloudflare || resp.status === 403) {
+                console.error("🛑 CLOUDFLARE BLOCK ON RENDER:", provider);
+                alert(`🛑 Provider [${provider}] is blocked by Cloudflare on the Render server.\n\nSince Render uses data-center IPs, Cloudflare often blocks them. This provider might only work if you run the server on your Localhost.`);
+            }
+            return [];
+        }
         return await resp.json();
     } catch (err) {
         console.error("Resolve error:", err);
