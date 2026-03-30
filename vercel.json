@@ -1,43 +1,18 @@
 {
   "version": 2,
-  "outputDirectory": "web",
-  "functions": {
-    "api/index.js": {
-      "includeFiles": "{dist/**,manifest.json}"
+  "name": "vega-web-v3",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "builds": [
+    {
+      "src": "web/**",
+      "use": "@vercel/static"
     }
-  },
+  ],
   "routes": [
     {
-      "src": "/manifest.json",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/fetch",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/providers",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/catalog",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/status",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/health",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/vlc",
-      "dest": "/api/index.js"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/$1"
+      "dest": "/web/$1"
     }
   ]
 }

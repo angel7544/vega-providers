@@ -53,6 +53,13 @@ class DevServer {
     // JSON parsing
     this.app.use(express.json());
 
+    // --- Serve Web Frontend ---
+    const webPath = path.join(this.currentDir, "web");
+    if (fs.existsSync(webPath)) {
+      console.log(`🌐 Serving web frontend from: ${webPath}`);
+      this.app.use(express.static(webPath));
+    }
+
     // Logging
     this.app.use((req, res, next) => {
       console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
@@ -362,14 +369,25 @@ class DevServer {
         .format("mp4")
         .outputOptions([
           "-movflags frag_keyframe+empty_moov+default_base_moof",
-          "-tune zerolatency"
+          "-tune zerolatency",
+          "-timeout 30000000" // 30 seconds timeout for input
         ]);
 
       command.on("error", (err) => {
-        console.error("FFmpeg error:", err.message);
+        if (!err.message.includes("SIGKILL") && !err.message.includes("Output stream closed")) {
+          console.error("FFmpeg error:", err.message);
+        }
         if (!res.headersSent) {
           res.status(500).send("Streaming failed");
         }
+      });
+
+      // --- CRITICAL CLEANUP FOR RENDER FREE TIER ---
+      // When the user closes the player or disconnects, KILL the FFmpeg process
+      // This ensures 0 storage usage and 0 lingering CPU/RAM usage.
+      req.on("close", () => {
+        console.log("⏹️ User disconnected. Killing stream process...");
+        command.kill("SIGKILL");
       });
 
       command.pipe(res, { end: true });

@@ -3,9 +3,12 @@
 // ============================
 let API_BASE = localStorage.getItem('vega_api_url') || "";
 const getApiUrl = () => {
-    let url = API_BASE ? API_BASE : window.location.origin;
-    if (url.endsWith('/')) url = url.slice(0, -1);
-    return url;
+    // If we're on localhost, default to localhost
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return API_BASE || window.location.origin;
+    }
+    // On Vercel or other production, prefer the saved Render URL
+    return API_BASE || window.location.origin;
 };
 
 let currentProvider = localStorage.getItem('orbix_last_provider') || "__all__";
@@ -17,7 +20,37 @@ let tmdbKey = localStorage.getItem('tmdb_api_key') || "";
 // Init icons
 lucide.createIcons();
 
-// Elements
+// --- SETTINGS LOGIC ---
+function openSettings() {
+    document.getElementById('settingApiUrl').value = localStorage.getItem('vega_api_url') || "";
+    document.getElementById('settingTmdbKey').value = localStorage.getItem('tmdb_api_key') || "";
+    document.getElementById('modalSettings').classList.add('active');
+    lucide.createIcons();
+}
+
+function closeSettings() {
+    document.getElementById('modalSettings').classList.remove('active');
+}
+
+function saveSettings() {
+    const apiUrl = document.getElementById('settingApiUrl').value.trim();
+    const tmdbKey = document.getElementById('settingTmdbKey').value.trim();
+    
+    if (apiUrl) {
+        localStorage.setItem('vega_api_url', apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl);
+    } else {
+        localStorage.removeItem('vega_api_url');
+    }
+
+    if (tmdbKey) {
+        localStorage.setItem('tmdb_api_key', tmdbKey);
+    } else {
+        localStorage.removeItem('tmdb_api_key');
+    }
+
+    alert("Settings saved! Reloading...");
+    window.location.reload();
+}
 const providerSelect = document.getElementById('providerSelect');
 const contentGrid = document.getElementById('contentGrid');
 const searchInput = document.getElementById('searchInput');
