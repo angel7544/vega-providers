@@ -175,6 +175,35 @@ class DevServer {
         };
 
         const result = await module[functionName](fullParams);
+
+        // --- Centralized Proxy Wrapper ---
+        // If this is a stream request, check if we should proxy any of the links
+        if (functionName === "getStream" && Array.isArray(result)) {
+           const processedResult = result.map(stream => {
+             const link = stream.link || "";
+             const needsProxy = [
+               "hubcloud", "filepress", "pixel", "fastdl", "fsl", "cloudflarestorage", 
+               "workers.dev", "googleusercontent", "drive.google"
+             ].some(domain => link.toLowerCase().includes(domain));
+
+             if (needsProxy) {
+               // Determine base URL for the proxy
+               const protocol = req.protocol;
+               const host = req.get('host');
+               const proxyBase = `${protocol}://${host}/stream`;
+               
+               // Create a proxied link
+               // Pass original link as 'url' and also as 'referer'
+               const proxiedLink = `${proxyBase}?url=${encodeURIComponent(link)}&referer=${encodeURIComponent(link)}`;
+               
+               console.log(`🛡️ Proxying IP-locked source: ${stream.server} -> ${link.substring(0, 50)}...`);
+               return { ...stream, link: proxiedLink, originalLink: link, proxied: true };
+             }
+             return stream;
+           });
+           return res.json(processedResult);
+        }
+
         res.json(result);
       } catch (error) {
         console.error("Fetch failed:", error);
@@ -215,11 +244,17 @@ class DevServer {
 
     // Audio Info endpoint - detect tracks
     this.app.get("/audio-info", async (req, res) => {
-      const { url } = req.query;
+      const { url, referer } = req.query;
       if (!url) return res.status(400).json({ error: "url is required" });
 
-      console.log(`🎵 Probing audio tracks for: ${url}`);
-      ffmpeg.ffprobe(url, (err, metadata) => {
+      console.log(`🎵 Probing audio tracks for: ${url}, referer: ${referer}`);
+      
+      const probeOptions = [];
+      if (referer) {
+         probeOptions.push("-headers", `Referer: ${referer}\r\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\n`);
+      }
+      
+      ffmpeg.ffprobe(url, probeOptions, (err, metadata) => {
         if (err) {
           console.error("Probe failed:", err);
           return res.status(500).json({ error: "Could not probe stream" });
@@ -240,15 +275,23 @@ class DevServer {
 
     // Streaming / Transcoding endpoint
     this.app.get("/stream", (req, res) => {
-      const { url, audioIndex, transcode } = req.query;
+      const { url, audioIndex, transcode, referer } = req.query;
       if (!url) return res.status(400).json({ error: "url is required" });
 
-      console.log(`🚀 Streaming with options: url=${url}, audioIndex=${audioIndex}, transcode=${transcode}`);
+      console.log(`🚀 Streaming with options: url=${url}, audioIndex=${audioIndex}, transcode=${transcode}, referer=${referer}`);
 
       // Set headers for video stream
       res.setHeader("Content-Type", "video/mp4");
 
       let command = ffmpeg(url);
+
+      // Add input options for headers if provided
+      if (referer) {
+        command.inputOptions([`-headers`, `Referer: ${referer}\r\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\n`]);
+      } else {
+        // Default UA to avoid blocks
+        command.inputOptions([`-headers`, `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\n`]);
+      }
 
       // Map video
       command.outputOptions("-map 0:v:0?");

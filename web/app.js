@@ -750,9 +750,7 @@ function initPlayer(streams) {
 
     function startPlayback() {
         if (currentStreamIndex >= streams.length) {
-            const firstStream = streams[0];
-            const link = firstStream.link || firstStream.file || firstStream.url;
-            alert(`⚠️ All playback attempts failed.\n\nThis stream might be a blocked MKV format, or network blocked (CORS).\n\nTry enabling "Premium Audio (Transcode)" in settings or download the file instead.`);
+            alert(`⚠️ All playback attempts failed.\n\nThis source might be blocked by Cloudflare (Backend) or your Browser (Frontend).\n\nPossible fixes:\n1. Try another source if available.\n2. Enable "Premium Audio (Transcode)" to force server-side fetch.\n3. Make sure you are using the latest providers.`);
             closePlayer();
             document.getElementById("downloadSection").scrollIntoView({ behavior: 'smooth' });
             return;
@@ -762,15 +760,16 @@ function initPlayer(streams) {
         let streamUrl = extractStreamUrl(stream);
 
         if (!streamUrl) {
+            console.warn("Empty stream URL, skipping...");
             currentStreamIndex++;
             startPlayback();
             return;
         }
 
-        // If transcoding is enabled, route through our server proxy
-        if (isTranscoding) {
+        // If local transcoding is enabled AND link isn't already proxied, route through server
+        if (isTranscoding && !streamUrl.includes("/stream?")) {
             const baseUrl = getApiUrl();
-            const proxyUrl = `${baseUrl}/stream?url=${encodeURIComponent(streamUrl)}&transcode=true${currentAudioTrack !== null ? `&audioIndex=${currentAudioTrack}` : ""}`;
+            const proxyUrl = `${baseUrl}/stream?url=${encodeURIComponent(streamUrl)}&transcode=true&referer=${encodeURIComponent(streamUrl)}`;
             streamUrl = proxyUrl;
         }
 
@@ -884,7 +883,8 @@ function initPlayer(streams) {
 
         // Detect Audio Tracks for non-HLS streams via Backend
         if (!isM3u8 && !isTranscoding) {
-            fetch(`${getApiUrl()}/audio-info?url=${encodeURIComponent(streamUrl)}`)
+            const audioInfoUrl = `${getApiUrl()}/audio-info?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent(streamUrl)}`;
+            fetch(audioInfoUrl)
                 .then(r => r.json())
                 .then(data => {
                     if (data.audioTracks && data.audioTracks.length > 1) {
