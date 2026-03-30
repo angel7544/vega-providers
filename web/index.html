@@ -25,8 +25,11 @@
 <body>
 
     <!-- NAVBAR -->
-    <header class="navbar" id="mainNavbar">
-        <div class="nav-content">
+    <header class="navbar" id="mainNavbar" style="flex-direction: column; height: auto;">
+        <div class="marquee-wrapper">
+            <div class="marquee-text">Browser only streams 1080p as 2k and 4k have no audio support via browser. @team_orbixplay</div>
+        </div>
+        <div class="nav-content" style="height: 80px; width: 100%;">
             <!-- LOGO -->
             <div class="logo" onclick="window.location.reload()">
                 <img src="../icon.png" alt="Logo" style="width: 32px; height: 32px; border-radius: 8px;">
@@ -95,12 +98,17 @@
                 <div class="detail-main">
                     <div class="meta-info">
                         <h2 id="detailTitle"></h2>
-                        <div class="meta-tags">
+                        <div class="meta-tags" style="display: none !important;">
                             <span id="detailYear"></span>
                             <span id="detailType" class="type-tag"></span>
                             <span id="detailProvider" class="provider-info"></span>
                         </div>
                         <p id="detailSynopsis" class="synopsis"></p>
+                    </div>
+
+                    <div id="gallerySection" class="episodes-section" style="display: none; margin-top: 30px;">
+                        <h3 style="color: var(--text-dim); font-size: 18px;">Episode Stills / Gallery</h3>
+                        <div id="galleryContainer" class="gallery-grid"></div>
                     </div>
 
                     <div class="episodes-section">
@@ -143,7 +151,9 @@
             <div class="settings-form">
                 <label>Backend URL</label>
                 <input type="text" id="apiUrlInput" placeholder="e.g. https://my-vega-api.vercel.app">
-                <p class="hint">Leave empty to use the same origin (auto-detect).</p>
+                <label style="margin-top: 10px;">TMDB API Key (Optional)</label>
+                <input type="text" id="tmdbKeyInput" placeholder="Enter your TMDB API Key">
+                <p class="hint">Used for premium posters, backdrops, and IMDB ratings.</p>
                 <button class="save-btn" onclick="saveSettings()">Save & Reload</button>
             </div>
         </div>

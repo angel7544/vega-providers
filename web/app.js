@@ -12,6 +12,7 @@ let currentProvider = localStorage.getItem('orbix_last_provider') || "__all__";
 let currentMeta = null;
 let player = null;
 let providersMap = {};
+let tmdbKey = localStorage.getItem('tmdb_api_key') || "";
 
 // Init icons
 lucide.createIcons();
@@ -67,6 +68,10 @@ function saveSettings() {
     let val = apiUrlInput.value.trim();
     if (val.endsWith('/')) val = val.slice(0, -1);
     localStorage.setItem('vega_api_url', val);
+    
+    let tmdbVal = document.getElementById('tmdbKeyInput')?.value.trim() || "";
+    localStorage.setItem('tmdb_api_key', tmdbVal);
+
     closeSettingsModal();
     window.location.reload();
 }
@@ -309,13 +314,22 @@ async function showDetails(link, provider) {
 
         currentMeta = await resp.json();
 
-        document.getElementById("detailTitle").textContent = currentMeta.title || "Unknown Title";
+        // 🎬 Ultra-Minimalist UI
+        const parsed = parseMediaInfo(currentMeta.title);
+        document.getElementById("detailTitle").textContent = parsed.title;
         document.getElementById("detailSynopsis").textContent =
             currentMeta.description || currentMeta.synopsis || "No synopsis available.";
         
         const posterImg = currentMeta.image || "";
         document.getElementById("detailPoster").src = posterImg;
-        
+
+        // Hide Rating/Year placeholders (already hidden in CSS/HTML but ensuring state here)
+        document.getElementById("detailRating").textContent = "";
+        document.getElementById("detailYear").textContent = "";
+
+        // Render Gallery
+        renderGallery(currentMeta);
+
         // Update backdrop safely
         if (posterImg) {
             document.getElementById("detailBackdrop").style.backgroundImage = `url(${posterImg})`;
@@ -331,6 +345,145 @@ async function showDetails(link, provider) {
         document.getElementById("detailTitle").textContent = "Failed to load Details";
         document.getElementById("linksContainer").innerHTML = "<p>Stream retrieval failed.</p>";
     }
+}
+
+// ============================
+// 🌟 PREMIUM METADATA TOOLS
+// ============================
+function parseMediaInfo(rawTitle) {
+    if (!rawTitle) return { title: "Unknown", meta: [] };
+    let title = rawTitle.replace(/^Download\s+/i, "");
+    const meta = [];
+
+    const seasonMatch = title.match(/(Season\s*\d+(?:\s*[–-]\s*\d+)?|\bS\d+(?:[–-]\d+)?\b)/i);
+    if (seasonMatch) {
+        meta.push({ type: 'season', text: seasonMatch[0].trim() });
+        title = title.replace(seasonMatch[0], "");
+    }
+
+    const qualities = title.match(/\b(480p|720p|1080p|2160p|4K|SDR|HDR|BluRay|WEB-DL|HDRip)\b/gi);
+    if (qualities) {
+        [...new Set(qualities)].forEach(q => meta.push({ type: 'quality', text: q.toUpperCase() }));
+        qualities.forEach(q => title = title.replace(new RegExp(`\\b${q}\\b`, 'gi'), ""));
+    }
+
+    const audioTags = title.match(/({[\w\-\s]+}|\[[\w\-\s]+\]|\b(?:Dual|Multi|Hindi|English|Tamil|Telugu|Dual Audio|Multi Audio)\b)/gi);
+    if (audioTags) {
+        audioTags.forEach(tag => {
+            if (!/Episode|Added|Series|Movie/i.test(tag)) {
+                meta.push({ type: 'audio', text: tag.replace(/[{}[\]]/g, "").trim() });
+                title = title.replace(tag, "");
+            }
+        });
+    }
+
+    const epMatch = title.match(/\[\s*Episode\s*(\d+)\s*Added\s*\]/i);
+    if (epMatch) {
+        meta.push({ type: 'episode', text: `Ep ${epMatch[1]}` });
+        title = title.replace(epMatch[0], "");
+    }
+
+    title = title
+        .replace(/\b(Series|Movie|JioHotstar|Netflix|Amazon|Hotstar|Zee5|SonyLiv|Disney\+|Apple\s*TV)\b/gi, "")
+        .replace(/[\{\}\(\)\[\]]/g, " ") // replace stray brackets with space
+        .replace(/[–\-+|&/·•]+/g, " ") // replace symbols with space
+        .replace(/\s+/g, " ") // normalize spacing
+        .trim();
+
+    return { title: title || rawTitle, meta };
+}
+
+async function fetchTmdbMetadata(query) {
+    try {
+        const resp = await fetch(`https://api.themoviedb.org/3/search/multi?api_key=${tmdbKey}&query=${encodeURIComponent(query)}`);
+        const data = await resp.json();
+        const item = data.results?.[0];
+        if (!item) {
+            fetchTvMazeMetadata(query); // try TVMaze if TMDB fails
+            return;
+        }
+        // ... rest of the existing TMDB logic ...
+        applyMetadataToUi({
+            title: item.title || item.name,
+            overview: item.overview,
+            poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
+            backdrop: item.backdrop_path ? `https://image.tmdb.org/t/p/original${item.backdrop_path}` : null,
+            rating: item.vote_average,
+            year: (item.release_date || item.first_air_date || "").split('-')[0],
+            type: item.media_type === 'tv' ? 'Series' : 'Movie'
+        });
+    } catch (e) { fetchTvMazeMetadata(query); }
+}
+
+async function fetchTvMazeMetadata(query) {
+    try {
+        const resp = await fetch(`https://api.tvmaze.com/singlesearch/shows?q=${encodeURIComponent(query)}`);
+        if (!resp.ok) return;
+        const item = await resp.json();
+        
+        console.log("📺 TVMAZE MATCH:", item);
+        
+        applyMetadataToUi({
+            title: item.name,
+            overview: item.summary?.replace(/<[^>]*>/g, ""), // strip HTML
+            poster: item.image?.medium || item.image?.original,
+            backdrop: item.image?.original,
+            rating: item.rating?.average,
+            year: (item.premiered || "").split('-')[0],
+            type: 'Series'
+        });
+    } catch (e) { console.error("TVMaze error", e); }
+}
+
+function applyMetadataToUi(data) {
+    if (data.title) document.getElementById("detailTitle").textContent = data.title;
+    if (data.overview) document.getElementById("detailSynopsis").textContent = data.overview;
+    
+    if (data.poster) {
+        document.getElementById("detailPoster").src = data.poster;
+    }
+    
+    if (data.backdrop) {
+        document.getElementById("detailBackdrop").style.backgroundImage = 
+            `linear-gradient(to bottom, rgba(5,5,5,0.4), rgba(5,5,5,1)), url(${data.backdrop})`;
+    }
+    
+    if (data.rating) {
+        document.getElementById("detailRating").innerHTML = `<i data-lucide="star" style="width:12px;height:12px;display:inline-block;fill:#f59e0b;color:#f59e0b"></i> ${data.rating.toFixed(1)}`;
+    }
+    
+    if (data.year) document.getElementById("detailYear").textContent = data.year;
+    if (data.type) document.getElementById("detailProvider").textContent = data.type;
+
+    lucide.createIcons();
+}
+
+function renderGallery(meta) {
+    const container = document.getElementById("galleryContainer");
+    const section = document.getElementById("gallerySection");
+    container.innerHTML = "";
+
+    const images = meta.images || meta.screenShots || meta.screenshots || [];
+    
+    if (!images || images.length === 0) {
+        section.style.display = "none";
+        return;
+    }
+
+    section.style.display = "block";
+    images.forEach(img => {
+        const item = document.createElement("div");
+        item.className = "gallery-item";
+        item.onclick = () => window.open(img, '_blank');
+        
+        const image = document.createElement("img");
+        image.className = "gallery-img";
+        image.src = img;
+        image.loading = "lazy";
+        
+        item.appendChild(image);
+        container.appendChild(item);
+    });
 }
 
 // ============================
@@ -350,19 +503,27 @@ function renderLinks(meta) {
     }
 
     meta.linkList.forEach(group => {
+        const title = group.title || "Play";
+        const isSeries = group.episodesLink || /(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(title);
+
         const btn = document.createElement("button");
         btn.className = "stream-btn";
-        btn.textContent = group.title || "Play";
+        btn.textContent = title;
 
         btn.onclick = () => {
-            if (group.episodesLink) {
-                loadEpisodes(group.episodesLink, currentProvider);
+            if (isSeries) {
+                // If we already have direct links (like UHDMovies/Vegamovies), use them instantly!
+                if (group.directLinks && group.directLinks.length > 0) {
+                    renderEpisodeList(group.directLinks, currentProvider);
+                } else {
+                    loadEpisodes(group.episodesLink || group.link, currentProvider);
+                }
             } else {
                 const link = group.directLinks?.[0]?.link || group.link;
                 if (link) {
                     playStream(link, currentProvider);
                 } else {
-                    alert("No direct link or episodes link found.");
+                    alert("No direct link found.");
                 }
             }
         };
@@ -390,35 +551,63 @@ async function loadEpisodes(episodesUrl, provider) {
         });
 
         const episodes = await resp.json();
-        
-        container.innerHTML = `<h4 style="grid-column: 1/-1; margin-bottom: 10px;">Select Episode</h4>`;
-        
-        if (!episodes || !episodes.length) {
-            container.innerHTML += "<p style='color: var(--text-dim)'>No episodes found.</p>";
-            return;
-        }
-
-        episodes.forEach(ep => {
-            const btn = document.createElement("button");
-            btn.className = "ep-btn";
-            btn.textContent = ep.title || "Episode";
-            btn.onclick = () => playStream(ep.link, provider);
-            container.appendChild(btn);
-
-            // Add to download section too as a scan button
-            const dlBtn = document.createElement("button");
-            dlBtn.className = "download-btn";
-            dlBtn.innerHTML = `<i data-lucide="search-code"></i> Extract: ${ep.title}`;
-            dlBtn.onclick = () => resolveDownload(ep.link, provider, ep.title);
-            dlContainer.appendChild(dlBtn);
-        });
-        
-        lucide.createIcons();
+        renderEpisodeList(episodes, provider, episodesUrl);
 
     } catch (err) {
-        console.error(err);
-        container.innerHTML = "<p style='color: #ef4444'>Failed to load episodes.</p>";
+        console.error("Episode load error:", err);
+        container.innerHTML = `
+            <p style='color: #ef4444'>Failed to load episode list.</p>
+            <button class="catalog-btn" style="margin-top:10px" onclick="playStream('${episodesUrl}', '${provider}')">
+                Try playing as direct stream
+            </button>
+        `;
     }
+}
+
+function renderEpisodeList(episodes, provider, fallbackUrl = "") {
+    const container = document.getElementById("linksContainer");
+    const dlContainer = document.getElementById("downloadContainer");
+    
+    container.innerHTML = `<h4 style="grid-column: 1/-1; margin-bottom: 10px;">Select Episode</h4>`;
+    dlContainer.innerHTML = "";
+    
+    if (!episodes || !episodes.length) {
+        container.innerHTML += "<p style='color: var(--text-dim)'>No episodes found.</p>";
+        if (fallbackUrl) {
+            const btn = document.createElement("button");
+            btn.className = "catalog-btn";
+            btn.style.marginTop = "10px";
+            btn.textContent = "Try playing as direct stream";
+            btn.onclick = () => playStream(fallbackUrl, provider);
+            container.appendChild(btn);
+        }
+        return;
+    }
+
+    episodes.forEach(ep => {
+        const row = document.createElement("div");
+        row.className = "ep-row";
+
+        const btn = document.createElement("button");
+        btn.className = "ep-btn";
+        btn.textContent = ep.title || "Episode";
+        btn.onclick = () => playStream(ep.link, provider);
+        
+        const dlBtn = document.createElement("button");
+        dlBtn.className = "ep-btn-dl";
+        dlBtn.innerHTML = `<i data-lucide="download"></i>`;
+        dlBtn.title = "Extract Download Links";
+        dlBtn.onclick = () => {
+            document.getElementById("downloadSection").scrollIntoView({ behavior: 'smooth' });
+            resolveDownload(ep.link, provider, ep.title);
+        };
+
+        row.appendChild(btn);
+        row.appendChild(dlBtn);
+        container.appendChild(row);
+    });
+    
+    lucide.createIcons();
 }
 
 function renderDownloads(meta) {
@@ -434,7 +623,10 @@ function renderDownloads(meta) {
     section.style.display = "block";
 
     meta.linkList.forEach(group => {
-        if (group.episodesLink) return; // Downloads for episodes are handled in loadEpisodes
+        const title = group.title || "";
+        const isSeries = group.episodesLink || /(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(title);
+        
+        if (isSeries) return; // Downloads for episodes are handled inside loadEpisodes results
 
         const firstLink = group.directLinks?.[0]?.link || group.link;
         if (!firstLink) return;
@@ -495,16 +687,14 @@ async function playStream(link, provider) {
     const streams = await getResolvedStreams(link, provider);
     console.log("🎥 RESOLVED STREAMS:", streams);
 
-    const streamUrl = extractStreamUrl(streams);
-
-    if (!streamUrl) {
+    if (!streams || !streams.length) {
         alert("⚠️ No playable stream found. This source might be IP-locked or expired.");
         setStatus("Online");
         return;
     }
 
     setStatus("Online", "#22c55e");
-    initPlayer({ link: streamUrl });
+    initPlayer(streams); // Pass entire array for fallback
 }
 
 async function resolveDownload(link, provider, title) {
@@ -516,8 +706,26 @@ async function resolveDownload(link, provider, title) {
     dlContainer.innerHTML = "";
     if (!streams || !streams.length) {
         dlContainer.innerHTML = "<p style='color: #ef4444; font-size:13px;'>Failed to extract direct download links.</p>";
+        
+        const retryBtn = document.createElement("button");
+        retryBtn.className = "catalog-btn";
+        retryBtn.style.gridColumn = "1/-1";
+        retryBtn.style.marginTop = "10px";
+        retryBtn.innerHTML = `<i data-lucide="refresh-cw"></i> Try Again / Back`;
+        retryBtn.onclick = () => renderDownloads(currentMeta);
+        dlContainer.appendChild(retryBtn);
+        lucide.createIcons();
         return;
     }
+
+    // Add a back button
+    const backBtn = document.createElement("button");
+    backBtn.className = "catalog-btn";
+    backBtn.style.gridColumn = "1/-1";
+    backBtn.style.marginBottom = "10px";
+    backBtn.innerHTML = `<i data-lucide="arrow-left"></i> Back to Scan Buttons`;
+    backBtn.onclick = () => renderDownloads(currentMeta);
+    dlContainer.appendChild(backBtn);
 
     streams.forEach(s => {
         const btn = document.createElement("button");
@@ -534,94 +742,110 @@ async function resolveDownload(link, provider, title) {
 // ============================
 // 🎬 PLAYER
 // ============================
-function initPlayer(stream) {
+function initPlayer(streams) {
+    let currentStreamIndex = 0;
     switchPage('pagePlayer');
-    document.getElementById("playerTitleDisplay").innerText = currentMeta?.title || "Video Player";
 
-    const isM3u8 = stream.link.includes(".m3u8");
-    const isGDrive = stream.link.includes("googleusercontent.com");
+    function startPlayback() {
+        if (currentStreamIndex >= streams.length) {
+            const firstStream = streams[0];
+            const link = firstStream.link || firstStream.file || firstStream.url;
+            alert(`⚠️ All playback attempts failed.\n\nThis stream might be a blocked MKV format, or network blocked (CORS).\n\nTry downloading the file instead.`);
+            closePlayer();
+            document.getElementById("downloadSection").scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
 
-    if (player) {
-        player.destroy(false);
-        player = null;
-        document.getElementById('artplayer-app').innerHTML = ''; // Ensure clean slate
-    }
+        const stream = streams[currentStreamIndex];
+        const streamUrl = extractStreamUrl(stream);
 
-    console.log("🎬 INITIALIZING ARTPLAYER:", stream.link);
+        if (!streamUrl) {
+            currentStreamIndex++;
+            startPlayback();
+            return;
+        }
 
-    // Initialize Artplayer with HLS.js custom type
-    player = new Artplayer({
-        container: '#artplayer-app',
-        url: stream.link,
-        title: currentMeta?.title || "Video Player",
-        type: isM3u8 ? 'm3u8' : (isGDrive ? 'mp4' : 'auto'),
-        autoplay: true,
-        autoSize: false,
-        autoMini: true,
-        playbackRate: true,
-        aspectRatio: true,
-        setting: true,
-        hotkey: true,
-        pip: true,
-        mutex: true,
-        fullscreen: true,
-        fullscreenWeb: true,
-        subtitleOffset: true,
-        miniProgressBar: true,
-        playsInline: true,
-        theme: '#8b5cf6', // Matches Accent Color
-        customType: {
-            m3u8: function (video, url, art) {
-                if (Hls.isSupported()) {
-                    if (art.hls) art.hls.destroy();
-                    const hls = new Hls({
-                        maxBufferLength: 120, // MASSIVE caching buffer (120 seconds ahead)
-                        maxMaxBufferLength: 600, // Absolute max memory cache
-                        maxBufferSize: 120 * 1000 * 1000, // 120MB chunk memory limit
-                        xhrSetup: function (xhr, url) {
-                            // Can inject headers here if proxying
-                        }
-                    });
-                    
-                    hls.on(Hls.Events.ERROR, function (event, data) {
-                        if (data.fatal) {
-                            switch (data.type) {
-                                case Hls.ErrorTypes.MEDIA_ERROR:
-                                    console.log('Fatal media error encountered, attempting to recover...');
-                                    hls.recoverMediaError();
-                                    break;
-                                case Hls.ErrorTypes.NETWORK_ERROR:
-                                    console.log('Fatal network error encountered, attempting to restart load...');
-                                    hls.startLoad();
-                                    break;
-                                default:
-                                    console.error('Unrecoverable HLS error:', data);
-                                    hls.destroy();
-                                    break;
+        document.getElementById("playerTitleDisplay").innerText = 
+            `[Source ${currentStreamIndex + 1}/${streams.length}] ` + (currentMeta?.title || "Video Player");
+
+        const isM3u8 = streamUrl.toLowerCase().includes(".m3u8");
+        const isMp4 = streamUrl.toLowerCase().includes(".mp4") || streamUrl.includes("googleusercontent.com");
+
+        if (player) {
+            player.destroy(false);
+            player = null;
+            document.getElementById('artplayer-app').innerHTML = ''; 
+        }
+
+        console.log(`🎬 INITIALIZING ARTPLAYER (Source ${currentStreamIndex + 1}):`, streamUrl);
+
+        player = new Artplayer({
+            container: '#artplayer-app',
+            url: streamUrl,
+            title: currentMeta?.title || "Video Player",
+            type: isM3u8 ? 'm3u8' : (isMp4 ? 'mp4' : 'auto'),
+            autoplay: true,
+            autoSize: false,
+            autoMini: true,
+            playbackRate: true,
+            aspectRatio: true,
+            setting: true,
+            hotkey: true,
+            pip: true,
+            mutex: true,
+            fullscreen: true,
+            fullscreenWeb: true,
+            subtitleOffset: true,
+            miniProgressBar: true,
+            playsInline: true,
+            theme: '#8b5cf6', 
+            customType: {
+                m3u8: function (video, url, art) {
+                    if (Hls.isSupported()) {
+                        if (art.hls) art.hls.destroy();
+                        const hls = new Hls({
+                            maxBufferLength: 120,
+                            maxMaxBufferLength: 600,
+                            maxBufferSize: 120 * 1000 * 1000,
+                        });
+                        
+                        hls.on(Hls.Events.ERROR, function (event, data) {
+                            if (data.fatal) {
+                                switch (data.type) {
+                                    case Hls.ErrorTypes.MEDIA_ERROR:
+                                        hls.recoverMediaError();
+                                        break;
+                                    case Hls.ErrorTypes.NETWORK_ERROR:
+                                        hls.startLoad();
+                                        break;
+                                    default:
+                                        hls.destroy();
+                                        break;
+                                }
                             }
-                        }
-                    });
+                        });
 
-                    hls.loadSource(url);
-                    hls.attachMedia(video);
-                    art.hls = hls; // Keep ref to destroy later safely
-                    art.on('destroy', () => hls.destroy());
-                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                    video.src = url;
-                } else {
-                    art.notice.show = 'Unsupported HLS format on this browser';
+                        hls.loadSource(url);
+                        hls.attachMedia(video);
+                        art.hls = hls;
+                        art.on('destroy', () => hls.destroy());
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        video.src = url;
+                    } else {
+                        art.notice.show = 'Unsupported HLS format';
+                    }
                 }
             }
-        }
-    });
+        });
 
-    player.on('video:error', () => {
-        if (isGDrive) {
-            alert("⚠️ Google Drive Video failed to load.\n\nThis is a known Serverless limitation. The server grabbed the link from one IP, but your browser is playing it from another, causing Google to block it (403 Forbidden). Try another provider.");
-        } else {
-            alert("⚠️ Video failed to play.\nThis stream might be a blocked MKV format, or network blocked (CORS).");
-        }
-    });
+        player.on('video:error', () => {
+            console.warn(`❌ Stream ${currentStreamIndex + 1} failed. Trying next...`);
+            currentStreamIndex++;
+            startPlayback();
+        });
+    }
+
+    startPlayback();
 }
 
 function closePlayer() {

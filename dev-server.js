@@ -134,17 +134,25 @@ class DevServer {
         const modulePath = path.join(this.distDir, provider);
         let module;
 
-        if (functionName === "getPosts" || functionName === "getSearchPosts") {
-          module = require(path.join(modulePath, "posts.js"));
-        } else if (functionName === "getMeta") {
-          module = require(path.join(modulePath, "meta.js"));
-        } else if (functionName === "getEpisodes") {
-          module = require(path.join(modulePath, "episodes.js"));
-        } else if (functionName === "getStream") {
-          module = require(path.join(modulePath, "stream.js"));
-        } else {
+        const moduleSubPath = {
+          getPosts: "posts.js",
+          getSearchPosts: "posts.js",
+          getMeta: "meta.js",
+          getEpisodes: "episodes.js",
+          getStream: "stream.js"
+        }[functionName];
+
+        if (!moduleSubPath) {
           return res.status(400).json({ error: `Unknown function: ${functionName}` });
         }
+
+        const fullModulePath = path.join(modulePath, moduleSubPath);
+        if (!fs.existsSync(fullModulePath)) {
+          console.warn(`⚠️ Provider '${provider}' missing '${moduleSubPath}'. Skipping request.`);
+          return res.json([]);
+        }
+
+        module = require(fullModulePath);
 
         if (!module[functionName]) {
           return res.status(404).json({ error: `Function '${functionName}' not found in ${provider}` });
