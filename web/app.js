@@ -79,6 +79,9 @@ const contentGrid = document.getElementById('contentGrid');
 const searchInput = document.getElementById('searchInput');
 const statusText = document.getElementById('statusText');
 const catalogContainer = document.getElementById('catalogContainer');
+const modalSettings = document.getElementById('modalSettings');
+const settingApiUrl = document.getElementById('settingApiUrl');
+const settingTmdbKey = document.getElementById('settingTmdbKey');
 
 // Pages
 const pageBrowse = document.getElementById('pageBrowse');
@@ -109,28 +112,7 @@ function goBackToBrowse() {
     switchPage('pageBrowse');
 }
 
-function openSettingsModal() {
-    apiUrlInput.value = localStorage.getItem('vega_api_url') || "";
-    settingsModal.style.display = "flex";
-    setTimeout(() => settingsModal.classList.add('active'), 10);
-}
-
-function closeSettingsModal() {
-    settingsModal.classList.remove('active');
-    setTimeout(() => settingsModal.style.display = "none", 300);
-}
-
-function saveSettings() {
-    let val = apiUrlInput.value.trim();
-    if (val.endsWith('/')) val = val.slice(0, -1);
-    localStorage.setItem('vega_api_url', val);
-    
-    let tmdbVal = document.getElementById('tmdbKeyInput')?.value.trim() || "";
-    localStorage.setItem('tmdb_api_key', tmdbVal);
-
-    closeSettingsModal();
-    window.location.reload();
-}
+function loadHome() { fetchData(""); updateActiveNav(0); switchPage('pageBrowse'); }
 
 function loadHome() { fetchData(""); updateActiveNav(0); switchPage('pageBrowse'); }
 function loadMovies() { fetchData("movie"); updateActiveNav(1); switchPage('pageBrowse'); }
