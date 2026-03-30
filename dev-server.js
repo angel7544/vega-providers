@@ -11,7 +11,7 @@ const os = require("os");
 class DevServer {
   constructor() {
     this.app = express();
-    this.port = 3001;
+    this.port = process.env.PORT || 3001;
     this.distDir = path.join(process.cwd(), "dist");
     this.currentDir = process.cwd();
 

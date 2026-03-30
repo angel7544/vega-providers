@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: vega-providers
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: node dev-server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: SKIP_MINIFY
+        value: "false"
+    healthCheckPath: /health
