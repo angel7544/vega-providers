@@ -2,13 +2,15 @@
 // ⚙️ CONFIGURATION & STATE
 // ============================
 let API_BASE = localStorage.getItem('vega_api_url') || "";
+
 const getApiUrl = () => {
-    // If we're on localhost, default to localhost
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        return API_BASE || window.location.origin;
+    // Re-check localStorage in case it changed
+    let savedBase = localStorage.getItem('vega_api_url') || "";
+    if (savedBase) {
+        if (savedBase.endsWith('/')) savedBase = savedBase.slice(0, -1);
+        return savedBase;
     }
-    // On Vercel or other production, prefer the saved Render URL
-    return API_BASE || window.location.origin;
+    return window.location.origin;
 };
 
 let currentProvider = localStorage.getItem('orbix_last_provider') || "__all__";
@@ -33,11 +35,18 @@ function closeSettings() {
 }
 
 function saveSettings() {
-    const apiUrl = document.getElementById('settingApiUrl').value.trim();
-    const tmdbKey = document.getElementById('settingTmdbKey').value.trim();
+    const apiUrlInput = document.getElementById('settingApiUrl');
+    const tmdbKeyInput = document.getElementById('settingTmdbKey');
     
+    let apiUrl = apiUrlInput.value.trim();
+    if (apiUrl && apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+    
+    const tmdbKey = tmdbKeyInput.value.trim();
+    
+    console.log("💾 Saving Settings:", { apiUrl, tmdbKey });
+
     if (apiUrl) {
-        localStorage.setItem('vega_api_url', apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl);
+        localStorage.setItem('vega_api_url', apiUrl);
     } else {
         localStorage.removeItem('vega_api_url');
     }
@@ -48,8 +57,15 @@ function saveSettings() {
         localStorage.removeItem('tmdb_api_key');
     }
 
-    alert("Settings saved! Reloading...");
-    window.location.reload();
+    // Visual feedback
+    const saveBtn = document.querySelector('.settings-actions button.primary');
+    const originalText = saveBtn.innerText;
+    saveBtn.innerText = "Saved! Reloading...";
+    saveBtn.style.background = "#22c55e";
+
+    setTimeout(() => {
+        window.location.reload();
+    }, 800);
 }
 const providerSelect = document.getElementById('providerSelect');
 const contentGrid = document.getElementById('contentGrid');
