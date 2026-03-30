@@ -798,6 +798,11 @@ function initPlayer(streams) {
             subtitleOffset: true,
             miniProgressBar: true,
             playsInline: true,
+            muted: true, // Required for autoplay on most mobile browsers
+            volume: 0.7,
+            autoOrientation: true,
+            lockTime: 5,
+            autoPlayback: true,
             theme: '#8b5cf6', 
             customType: {
                 m3u8: function (video, url, art) {

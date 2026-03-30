@@ -172,7 +172,14 @@ h1, h2, h3, .logo-text {
   position: absolute;
   left: 14px;
   color: var(--text-muted);
-  width: 18px;
+  cursor: pointer;
+  z-index: 2;
+  transition: transform 0.2s;
+}
+
+.search-wrapper i:hover {
+  transform: scale(1.1);
+  color: var(--accent);
 }
 
 .search-wrapper input {
@@ -816,7 +823,10 @@ h1, h2, h3, .logo-text {
   }
   
   .search-wrapper i {
-    display: none;
+    display: block;
+    left: 10px;
+    width: 14px;
+    z-index: 10;
   }
 
   .search-wrapper input:focus {
