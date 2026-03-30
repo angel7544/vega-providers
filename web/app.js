@@ -744,20 +744,22 @@ async function resolveDownload(link, provider, title) {
 // ============================
 function initPlayer(streams) {
     let currentStreamIndex = 0;
+    let isTranscoding = false;
+    let currentAudioTrack = null;
     switchPage('pagePlayer');
 
     function startPlayback() {
         if (currentStreamIndex >= streams.length) {
             const firstStream = streams[0];
             const link = firstStream.link || firstStream.file || firstStream.url;
-            alert(`⚠️ All playback attempts failed.\n\nThis stream might be a blocked MKV format, or network blocked (CORS).\n\nTry downloading the file instead.`);
+            alert(`⚠️ All playback attempts failed.\n\nThis stream might be a blocked MKV format, or network blocked (CORS).\n\nTry enabling "Premium Audio (Transcode)" in settings or download the file instead.`);
             closePlayer();
             document.getElementById("downloadSection").scrollIntoView({ behavior: 'smooth' });
             return;
         }
 
         const stream = streams[currentStreamIndex];
-        const streamUrl = extractStreamUrl(stream);
+        let streamUrl = extractStreamUrl(stream);
 
         if (!streamUrl) {
             currentStreamIndex++;
@@ -765,11 +767,18 @@ function initPlayer(streams) {
             return;
         }
 
+        // If transcoding is enabled, route through our server proxy
+        if (isTranscoding) {
+            const baseUrl = getApiUrl();
+            const proxyUrl = `${baseUrl}/stream?url=${encodeURIComponent(streamUrl)}&transcode=true${currentAudioTrack !== null ? `&audioIndex=${currentAudioTrack}` : ""}`;
+            streamUrl = proxyUrl;
+        }
+
         document.getElementById("playerTitleDisplay").innerText = 
             `[Source ${currentStreamIndex + 1}/${streams.length}] ` + (currentMeta?.title || "Video Player");
 
-        const isM3u8 = streamUrl.toLowerCase().includes(".m3u8");
-        const isMp4 = streamUrl.toLowerCase().includes(".mp4") || streamUrl.includes("googleusercontent.com");
+        const isM3u8 = streamUrl.toLowerCase().includes(".m3u8") && !isTranscoding;
+        const isMp4 = streamUrl.toLowerCase().includes(".mp4") || streamUrl.includes("googleusercontent.com") || isTranscoding;
 
         if (player) {
             player.destroy(false);
@@ -798,12 +807,23 @@ function initPlayer(streams) {
             subtitleOffset: true,
             miniProgressBar: true,
             playsInline: true,
-            muted: true, // Required for autoplay on most mobile browsers
+            muted: true, 
             volume: 0.7,
             autoOrientation: true,
-            lockTime: 5,
-            autoPlayback: true,
             theme: '#8b5cf6', 
+            settings: [
+                {
+                    html: 'Premium Audio (Transcode)',
+                    icon: '<i data-lucide="zap" style="width:16px;height:16px;color:#8b5cf6"></i>',
+                    switch: isTranscoding,
+                    onSwitch: function (item) {
+                        isTranscoding = !item.switch;
+                        console.log("🛠 Transcoding toggled:", isTranscoding);
+                        startPlayback(); // Restart with proxy
+                        return isTranscoding;
+                    },
+                }
+            ],
             customType: {
                 m3u8: function (video, url, art) {
                     if (Hls.isSupported()) {
@@ -814,6 +834,27 @@ function initPlayer(streams) {
                             maxBufferSize: 120 * 1000 * 1000,
                         });
                         
+                        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                            const tracks = hls.audioTracks;
+                            if (tracks && tracks.length > 1) {
+                                art.setting.add({
+                                    name: 'audio-tracks',
+                                    html: 'Audio Tracks',
+                                    icon: '<i data-lucide="languages" style="width:16px;height:16px"></i>',
+                                    selector: tracks.map((track, index) => ({
+                                        html: track.name || track.lang || `Track ${index + 1}`,
+                                        trackIndex: index,
+                                        default: index === hls.audioTrack,
+                                    })),
+                                    onSelect: function (item) {
+                                        hls.audioTrack = item.trackIndex;
+                                        return item.html;
+                                    },
+                                });
+                                lucide.createIcons();
+                            }
+                        });
+
                         hls.on(Hls.Events.ERROR, function (event, data) {
                             if (data.fatal) {
                                 switch (data.type) {
@@ -836,18 +877,45 @@ function initPlayer(streams) {
                         art.on('destroy', () => hls.destroy());
                     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                         video.src = url;
-                    } else {
-                        art.notice.show = 'Unsupported HLS format';
                     }
                 }
             }
         });
+
+        // Detect Audio Tracks for non-HLS streams via Backend
+        if (!isM3u8 && !isTranscoding) {
+            fetch(`${getApiUrl()}/audio-info?url=${encodeURIComponent(streamUrl)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.audioTracks && data.audioTracks.length > 1) {
+                        player.setting.add({
+                            name: 'audio-tracks-manual',
+                            html: 'Select Audio Track',
+                            icon: '<i data-lucide="mic" style="width:16px;height:16px"></i>',
+                            selector: data.audioTracks.map(track => ({
+                                html: `${track.title} (${track.codec})`,
+                                audioIndex: track.index,
+                            })),
+                            onSelect: function (item) {
+                                isTranscoding = true; // Must transcode to switch specific tracks on non-HLS
+                                currentAudioTrack = item.audioIndex;
+                                startPlayback();
+                                return item.html;
+                            },
+                        });
+                        lucide.createIcons();
+                    }
+                }).catch(() => {});
+        }
 
         player.on('video:error', () => {
             console.warn(`❌ Stream ${currentStreamIndex + 1} failed. Trying next...`);
             currentStreamIndex++;
             startPlayback();
         });
+
+        // Initialize icons after setting up the player
+        setTimeout(() => lucide.createIcons(), 100);
     }
 
     startPlayback();

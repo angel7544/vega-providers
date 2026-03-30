@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require("fs");
 const { execSync } = require("child_process");
 const os = require("os");
+const ffmpeg = require("fluent-ffmpeg");
 
 /**
  * Local development server for testing providers
@@ -212,6 +213,78 @@ class DevServer {
       }
     });
 
+    // Audio Info endpoint - detect tracks
+    this.app.get("/audio-info", async (req, res) => {
+      const { url } = req.query;
+      if (!url) return res.status(400).json({ error: "url is required" });
+
+      console.log(`🎵 Probing audio tracks for: ${url}`);
+      ffmpeg.ffprobe(url, (err, metadata) => {
+        if (err) {
+          console.error("Probe failed:", err);
+          return res.status(500).json({ error: "Could not probe stream" });
+        }
+
+        const audioTracks = metadata.streams
+          .filter(s => s.codec_type === "audio")
+          .map((s, index) => ({
+            index: s.index,
+            codec: s.codec_name,
+            language: s.tags?.language || `Track ${index + 1}`,
+            title: s.tags?.title || s.tags?.language || `Audio Track ${index + 1}`
+          }));
+
+        res.json({ audioTracks });
+      });
+    });
+
+    // Streaming / Transcoding endpoint
+    this.app.get("/stream", (req, res) => {
+      const { url, audioIndex, transcode } = req.query;
+      if (!url) return res.status(400).json({ error: "url is required" });
+
+      console.log(`🚀 Streaming with options: url=${url}, audioIndex=${audioIndex}, transcode=${transcode}`);
+
+      // Set headers for video stream
+      res.setHeader("Content-Type", "video/mp4");
+
+      let command = ffmpeg(url);
+
+      // Map video
+      command.outputOptions("-map 0:v:0?");
+
+      if (audioIndex !== undefined && audioIndex !== "") {
+        command.outputOptions(`-map 0:${audioIndex}`);
+      } else {
+        command.outputOptions("-map 0:a:0?");
+      }
+
+      command.videoCodec("copy");
+
+      if (transcode === "true") {
+        command.audioCodec("aac").audioBitrate("192k");
+        console.log("🛠 Transcoding audio to AAC...");
+      } else {
+        command.audioCodec("copy");
+      }
+
+      command
+        .format("mp4")
+        .outputOptions([
+          "-movflags frag_keyframe+empty_moov+default_base_moof",
+          "-tune zerolatency"
+        ]);
+
+      command.on("error", (err) => {
+        console.error("FFmpeg error:", err.message);
+        if (!res.headersSent) {
+          res.status(500).send("Streaming failed");
+        }
+      });
+
+      command.pipe(res, { end: true });
+    });
+
     // Catalog endpoint
     this.app.get("/catalog", (req, res) => {
       const { provider } = req.query;
@@ -258,6 +331,8 @@ class DevServer {
           "GET /providers",
           "GET /catalog",
           "GET /health",
+          "GET /audio-info",
+          "GET /stream",
         ],
       });
     });
