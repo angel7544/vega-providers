@@ -881,13 +881,30 @@ function initPlayer(streams, initialIndex = 0) {
             theme: '#8b5cf6', 
             settings: [
                 {
+                    html: 'Video Source',
+                    icon: '<i data-lucide="server" style="width:16px;height:16px"></i>',
+                    selector: streams.map((s, i) => ({
+                        html: `${i + 1}. ${s.server}`,
+                        index: i,
+                        default: i === currentStreamIndex,
+                    })),
+                    onSelect: function (item) {
+                        if (item.index === currentStreamIndex) return item.html;
+                        const currentTime = player.currentTime;
+                        console.log(`📡 Switching to Source ${item.index + 1}: ${item.html}`);
+                        currentStreamIndex = item.index;
+                        startPlayback(currentTime);
+                        return item.html;
+                    },
+                },
+                {
                     html: 'Premium Audio (Transcode)',
                     icon: '<i data-lucide="zap" style="width:16px;height:16px;color:#8b5cf6"></i>',
                     switch: isTranscoding,
                     onSwitch: function (item) {
                         isTranscoding = !item.switch;
                         console.log("🛠 Transcoding toggled:", isTranscoding);
-                        startPlayback(); // Restart with proxy
+                        startPlayback(player.currentTime || 0); // Restart with proxy
                         return isTranscoding;
                     },
                 }
