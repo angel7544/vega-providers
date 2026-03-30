@@ -808,7 +808,7 @@ function initPlayer(streams, initialIndex = 0) {
     let currentAudioTrack = null;
     switchPage('pagePlayer');
 
-    function startPlayback() {
+    function startPlayback(initialTime = 0) {
         if (currentStreamIndex >= streams.length) {
             alert(`⚠️ All playback attempts failed.\n\nThis source might be blocked by Cloudflare (Backend) or your Browser (Frontend).\n\nPossible fixes:\n1. Try another source if available.\n2. Enable "Premium Audio (Transcode)" to force server-side fetch.\n3. Make sure you are using the latest providers.`);
             closePlayer();
@@ -846,6 +846,15 @@ function initPlayer(streams, initialIndex = 0) {
         }
 
         console.log(`🎬 INITIALIZING ARTPLAYER (Source ${currentStreamIndex + 1}):`, streamUrl);
+
+        // Handle seeking for transcoded streams
+        if (isTranscoding && initialTime > 0) {
+            if (streamUrl.includes('?')) {
+                streamUrl += `&start=${initialTime}`;
+            } else {
+                streamUrl += `?start=${initialTime}`;
+            }
+        }
 
         player = new Artplayer({
             container: '#artplayer-app',
@@ -896,6 +905,17 @@ function initPlayer(streams, initialIndex = 0) {
                         hls.on(Hls.Events.MANIFEST_PARSED, function () {
                             const tracks = hls.audioTracks;
                             if (tracks && tracks.length > 1) {
+                                // Default to Hindi if found
+                                const hindiIndex = tracks.findIndex(t => 
+                                    t.name?.toLowerCase().includes('hindi') || 
+                                    t.lang?.toLowerCase().includes('hi') || 
+                                    t.lang?.toLowerCase().includes('hin')
+                                );
+                                if (hindiIndex !== -1 && hls.audioTrack !== hindiIndex) {
+                                    console.log("🧡 Auto-switching HLS to Hindi audio...");
+                                    hls.audioTrack = hindiIndex;
+                                }
+
                                 art.setting.add({
                                     name: 'audio-tracks',
                                     html: 'Audio Tracks',
@@ -948,6 +968,21 @@ function initPlayer(streams, initialIndex = 0) {
                 .then(r => r.json())
                 .then(data => {
                     if (data.audioTracks && data.audioTracks.length > 1) {
+                        // Default to Hindi if found
+                        const hindiTrack = data.audioTracks.find(t => 
+                            t.title?.toLowerCase().includes('hindi') || 
+                            t.language?.toLowerCase().includes('hi') || 
+                            t.language?.toLowerCase().includes('hin')
+                        );
+
+                        if (hindiTrack && currentAudioTrack === null) {
+                            console.log("🧡 Auto-switching standard stream to Hindi audio via Transcode...");
+                            isTranscoding = true;
+                            currentAudioTrack = hindiTrack.index;
+                            startPlayback(player.currentTime || 0); // Restart with Hindi
+                            return;
+                        }
+
                         player.setting.add({
                             name: 'audio-tracks-manual',
                             html: 'Select Audio Track',
@@ -967,6 +1002,15 @@ function initPlayer(streams, initialIndex = 0) {
                     }
                 }).catch(() => {});
         }
+
+        // Handle Seeks in Transcoding Mode
+        player.on('video:seeking', (event) => {
+            if (isTranscoding) {
+                const targetTime = player.currentTime;
+                console.log(`⏩ Seeking to ${targetTime} in Transcoding mode...`);
+                startPlayback(targetTime);
+            }
+        });
 
         // Automated Source Fallback
         player.on('video:error', () => {

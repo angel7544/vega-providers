@@ -314,15 +314,23 @@ class DevServer {
 
     // Streaming / Transcoding endpoint
     this.app.get("/stream", (req, res) => {
-      const { url, audioIndex, transcode, referer } = req.query;
+      const { url, audioIndex, transcode, referer, start } = req.query;
       if (!url) return res.status(400).json({ error: "url is required" });
 
-      console.log(`🚀 Streaming with options: url=${url}, audioIndex=${audioIndex}, transcode=${transcode}, referer=${referer}`);
+      console.log(`🚀 Streaming with options: url=${url}, audioIndex=${audioIndex}, transcode=${transcode}, start=${start}`);
 
       // Set headers for video stream
       res.setHeader("Content-Type", "video/mp4");
 
-      let command = ffmpeg(url);
+      let command = ffmpeg();
+
+      // Add seeking if provided (BEFORE input for fast seek)
+      if (start && !isNaN(parseFloat(start))) {
+        command.inputOptions([`-ss`, `${start}`]);
+      }
+      
+      // Set input
+      command.input(url);
 
       // Add input options for headers if provided
       if (referer) {
