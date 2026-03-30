@@ -24,7 +24,8 @@ Fill in the following details:
 | **Name** | `vega-providers` (or any name you like) |
 | **Runtime** | `Node` |
 | **Build Command** | `npm install && npm run build` |
-| **Start Command** | `node dev-server.js` |
+| **Start Command** | `npm start` (or `node dev-server.js`) |
+| **Branch** | `pythonLitePLayer` (Ensure this matches your current branch) |
 
 ### 3. Add Environment Variables (Optional)
 Render needs to know which Node.js version to use (v20 is recommended).
@@ -36,7 +37,17 @@ Once you click **Create Web Service**, Render will:
 1. Clone your repo.
 2. Install dependencies.
 3. Build all providers into the `dist/` folder.
-4. Start the server on a dynamic port assigned by Render.
+4. Start the server.
+
+---
+
+## ⚠️ Troubleshooting: "index.js not found"
+If you see an error like `Error: Cannot find module 'index.js'`, it means Render is trying to run the default file.
+**Solution:**
+1. Go to your **Render Dashboard** -> **Settings**.
+2. Find **Start Command** and change it to `npm start`.
+3. Scroll down and click **Save Changes**.
+4. Click **Manual Deploy** -> **Clear Build Cache & Deploy**.
 
 ---
 
