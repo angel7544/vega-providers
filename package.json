@@ -5,7 +5,7 @@
   "license": "ISC",
   "author": "",
   "type": "commonjs",
-  "main": "index.js",
+  "main": "dev-server.js",
   "scripts": {
     "test": "node test-providers.js",
     "test:single": "node test-providers.js",
@@ -19,7 +19,7 @@
     "watch:dev": "nodemon --watch providers --ext ts --exec \"npm run build\" & npm run dev",
     "dev:auto": "concurrently \"nodemon --watch providers --ext ts --exec \\\"npm run build:dev\\\"\" \"npm run dev\"",
     "auto": "node auto-dev.js",
-    "start": "npm run build && npm run dev",
+    "start": "node dev-server.js",
     "vercel-build": "npm run build"
   },
   "devDependencies": {
