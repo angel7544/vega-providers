@@ -16,8 +16,7 @@ a = Analysis(
     hiddenimports=h1 + ['webview.platforms.edgechromium', 'webview.platforms.winforms'],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
-    excludes=[],
+    excludes=['PyQt6', 'PyQt5.QtNetwork', 'PyQt5.QtQml', 'PyQt5.QtQuick'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=None,
@@ -25,7 +24,7 @@ a = Analysis(
 )
 
 # --- Player Analysis ---
-d2, b2, h2 = get_deps('customtkinter')
+d2, b2, h2 = get_deps('PyQt5')
 # Also add VLC if exists
 import os
 if os.path.exists('vlc_bundle'):
@@ -39,8 +38,7 @@ a2 = Analysis(
     hiddenimports=h2 + ['player_window'],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
-    excludes=[],
+    excludes=['PyQt6', 'PyQt5.QtNetwork', 'PyQt5.QtQml', 'PyQt5.QtQuick'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=None,

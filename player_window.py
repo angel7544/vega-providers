@@ -1,656 +1,296 @@
 import os
 import sys
-import webbrowser
+import time
+import ctypes
+import traceback
+import urllib.parse
 
-# --- VLC DLL Path Handling (Must be before import vlc) ---
-def setup_vlc_dll_path():
-    if sys.platform == "win32":
-        # Search for VLC installation paths
-        vlc_paths = [
-            os.environ.get("PYTHON_VLC_LIB_PATH", ""), # User override
+# --- Extreme Hardened VLC DLL Loader ---
+def pre_load_vlc_dll():
+    try:
+        import platform
+        arch = platform.architecture()[0]
+        bitness = "64" if "64" in arch else "32"
+        print(f"[DEBUG] Python detect: {arch} ({bitness}-bit)")
+
+        search_paths = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "vlc_bundle"),
+            r"C:\Program Files\VideoLAN\VLC",
+            r"C:\Program Files (x86)\VideoLAN\VLC"
         ]
         
-        # Prioritize bundled VLC
-        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            bundle_vlc = os.path.join(sys._MEIPASS, "vlc_bundle")
-            if os.path.exists(bundle_vlc):
-                vlc_paths.append(bundle_vlc)
-        
-        local_bundle = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vlc_bundle")
-        if os.path.exists(local_bundle):
-            vlc_paths.append(local_bundle)
-            
-        # Fallback to system paths
-        vlc_paths.extend([
-            r"C:\Program Files\VideoLAN\VLC",
-            r"C:\Program Files (x86)\VideoLAN\VLC",
-        ])
-        
-        found_path = None
-        for p in vlc_paths:
-            if p and os.path.exists(os.path.join(p, "libvlc.dll")):
-                found_path = p
+        found_dir = None
+        for d in search_paths:
+            if d and os.path.exists(os.path.join(d, "libvlc.dll")):
+                found_dir = d
                 break
         
-        if found_path:
-            # Check for bit-depth mismatch (common error)
-            python_bits = 8 * 8 if sys.maxsize > 2**32 else 4 * 8
-            vlc_bits = 64 if " (x86)" not in found_path else 32
-            
-            if python_bits != vlc_bits:
-                os.environ['VLC_ARCH_MISMATCH'] = f"Python {python_bits}-bit vs VLC {vlc_bits}-bit"
-            
-            # Set environment variable for python-vlc to find the DLL
-            os.environ['PYTHON_VLC_LIB_PATH'] = os.path.join(found_path, "libvlc.dll")
-            
+        if found_dir:
+            os.environ['PYTHON_VLC_LIB_PATH'] = os.path.join(found_dir, "libvlc.dll")
+            os.environ['VLC_PLUGIN_PATH'] = os.path.join(found_dir, "plugins")
+            if hasattr(os, 'add_dll_directory'): os.add_dll_directory(found_dir)
             try:
-                os.add_dll_directory(found_path)
-            except Exception:
-                pass
+                ctypes.CDLL(os.path.join(found_dir, "libvlccore.dll"))
+                ctypes.CDLL(os.path.join(found_dir, "libvlc.dll"))
+                print(f"[INFO] VLC DLLs verified from: {found_dir}")
+                return True
+            except Exception as e:
+                print(f"[ERROR] Failed manual load: {e}"); time.sleep(5)
         else:
-            os.environ['VLC_NOT_FOUND'] = "1"
+            print(f"[ERROR] No libvlc.dll found for {bitness}-bit Python.")
+            time.sleep(5)
+    except Exception as e:
+        print(f"[FATAL] VLC pre-load error: {e}"); time.sleep(5)
+    return False
 
-setup_vlc_dll_path()
+# Load before any VLC imports
+pre_load_vlc_dll()
 
-# We defer 'import vlc' to inside the VLCPlayer class to avoid 
-# import-time DLL errors in the launcher.
-vlc = None
-def get_vlc():
-    global vlc
-    if vlc is None:
-        try:
-            import vlc as vlc_module
-            vlc = vlc_module
-        except ImportError as e:
-            print(f"Failed to import vlc module: {e}")
-    return vlc
+try:
+    import vlc
+    from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                                 QHBoxLayout, QPushButton, QSlider, QLabel, 
+                                 QFrame, QGraphicsOpacityEffect, qApp, QMessageBox)
+    from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QEvent
+    from PyQt5.QtGui import QIcon
+except Exception as e:
+    print(f"[FATAL] PyQt5/VLC Import Failed: {e}"); time.sleep(5); sys.exit(1)
 
-import customtkinter as ctk
-import tkinter as tk
-from tkinter import ttk
-import sys
-import os
-import threading
-import time
-
-# Set appearance mode and color theme
-ctk.set_appearance_mode("Dark")
-ctk.set_default_color_theme("blue")
-
-class VLCPlayer(ctk.CTk):
+class VLCPlayer(QMainWindow):
     def __init__(self, url, title="Video Player"):
         super().__init__()
-
-        self.title(title)
-        self.geometry("1000x700")
-        self.configure(fg_color="#000000")
-
-        self.url = url
-        self.is_paused = False
-        self.updating_slider = False
-
-        # PiP state
-        self._is_pip = False
-        self._old_geometry = None
-
-        # Aspect Ratio / Crop state
-        self._aspect_modes = ["Original", "16:9", "4:3", "2.35:1", "Fit to Screen (Fill)"]
-        self._current_aspect_idx = 0
-
-        # Timing for startup stability
-        self._playback_start_time = time.time()
-        self._has_played = False
-
-        # Error handling if VLC failed to import or find DLLs
-        vlc_lib = get_vlc()
-        mismatch = os.environ.get('VLC_ARCH_MISMATCH')
-        not_found = os.environ.get('VLC_NOT_FOUND')
-
-        if vlc_lib is None or not hasattr(vlc_lib, 'Instance') or mismatch or not_found:
-            err_msg = ""
-            if mismatch: err_msg = mismatch
-            elif not_found: err_msg = "VLC Not Found"
-            self.show_vlc_error(err_msg)
-            return
-
-        # Load Window Title Bar Icon
         try:
-            icon_path = "icon.ico"
-            if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-                bundled_icon = os.path.join(sys._MEIPASS, "icon.ico")
-                if os.path.exists(bundled_icon):
-                    icon_path = bundled_icon
+            self.setWindowTitle(title)
+            self.resize(1100, 750)
+            self.setStyleSheet("background-color: black; color: white;")
             
-            if os.path.exists(icon_path):
-                self.iconbitmap(icon_path)
-        except:
-            pass
+            icon_p = "icon.ico"
+            if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+                icon_p = os.path.join(sys._MEIPASS, "icon.ico")
+            if os.path.exists(icon_p): self.setWindowIcon(QIcon(icon_p))
 
-        # VLC Initialization
-        # On Windows, we might need to specify the plugin path if not in env
-        # Added --network-caching=3000 for better remote stream stability
-        # Added --no-video-title-show to prevent VLC from showing filename atop the video
-        self.vlc_instance = vlc_lib.Instance('--no-xlib', '--quiet', '--network-caching=3000', '--no-video-title-show')
-        self.player = self.vlc_instance.media_player_new()
+            # Store URL (decoded and raw fallback)
+            self.url = url
+            self.instance, self.player = None, None
+            self.creation_time, self.is_dragging = time.time(), False
 
-        # UI Layout - Simplified to allow overlay
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+            # UI Setup
+            self.central_widget = QWidget(); self.setCentralWidget(self.central_widget)
+            self.layout = QVBoxLayout(self.central_widget); self.layout.setContentsMargins(0, 0, 0, 0)
+            self.video_frame = QFrame(); self.video_frame.setAttribute(Qt.WA_NativeWindow); self.video_frame.setStyleSheet("background-color: black;"); self.layout.addWidget(self.video_frame)
 
-        # Video Frame - Now fills the entire window
-        self.video_frame = tk.Frame(self, bg="black")
-        self.video_frame.grid(row=0, column=0, sticky="nsew")
+            # Controls Overlay
+            self.controls_overlay = QWidget(self); self.controls_overlay.setObjectName("controlsBar")
+            self.controls_overlay.setStyleSheet("""
+                QWidget#controlsBar { background-color: rgba(20, 20, 22, 230); border: 1px solid #333; border-radius: 15px; }
+                QPushButton { background-color: #333; border: none; border-radius: 5px; padding: 6px; min-width: 65px; font-weight: bold; color: white; font-size: 11px; }
+                QPushButton:hover { background-color: #444; }
+                #playBtn { background-color: #2b6bba; min-width: 80px; }
+            """)
+            self.controls_layout = QVBoxLayout(self.controls_overlay); self.controls_layout.setContentsMargins(25, 12, 25, 18)
+            self.slider = QSlider(Qt.Horizontal); self.slider.setRange(0, 1000); self.slider.sliderPressed.connect(self.on_slider_press); self.slider.sliderReleased.connect(self.on_slider_release); self.controls_layout.addWidget(self.slider)
 
-        # Controls Frame - Now a floating overlay
-        self.controls_frame = ctk.CTkFrame(self, height=120, corner_radius=15, fg_color="#121212", border_width=1, border_color="#333")
-        self.controls_frame.place(relx=0.5, rely=0.97, anchor="s", relwidth=0.95)
-        
-        # --- Seek Bar ---
-        self.slider = ctk.CTkSlider(self.controls_frame, from_=0, to=1000, command=self.on_slider_move, height=18)
-        self.slider.pack(fill="x", padx=20, pady=(10, 5))
-        self.slider.set(0)
-        self.slider.bind("<Button-1>", self.on_slider_press)
-        self.slider.bind("<ButtonRelease-1>", self.on_slider_release)
+            self.btns_row = QHBoxLayout(); self.time_label = QLabel("Loading..."); self.time_label.setFixedWidth(120); self.btns_row.addWidget(self.time_label); self.btns_row.addStretch()
+            self.play_btn = QPushButton("⏸ Pause"); self.play_btn.setObjectName("playBtn"); self.play_btn.clicked.connect(self.toggle_play); self.btns_row.addWidget(self.play_btn)
+            self.back_btn = QPushButton("⏪ 10s"); self.back_btn.clicked.connect(lambda: self.seek_relative(-10)); self.btns_row.addWidget(self.back_btn)
+            self.fwd_btn = QPushButton("10s ⏩"); self.fwd_btn.clicked.connect(lambda: self.seek_relative(10)); self.btns_row.addWidget(self.fwd_btn)
+            self.stop_btn = QPushButton("⏹ Stop"); self.stop_btn.clicked.connect(self.close); self.btns_row.addWidget(self.stop_btn); self.btns_row.addSpacing(15)
+            self.audio_btn = QPushButton("🌐 Audio"); self.audio_btn.clicked.connect(self.cycle_audio); self.btns_row.addWidget(self.audio_btn)
+            self.sub_btn = QPushButton("💬 Sub"); self.sub_btn.clicked.connect(self.cycle_subs); self.btns_row.addWidget(self.sub_btn); self.btns_row.addStretch()
+            self.vol_slider = QSlider(Qt.Horizontal); self.vol_slider.setRange(0, 100); self.vol_slider.setValue(80); self.vol_slider.setFixedWidth(70); self.vol_slider.valueChanged.connect(self.set_volume); self.btns_row.addWidget(QLabel("🔊")); self.btns_row.addWidget(self.vol_slider)
+            self.aspect_btn = QPushButton("📺 Fit"); self.aspect_btn.clicked.connect(self.cycle_aspect); self.btns_row.addWidget(self.aspect_btn)
+            self.pip_btn = QPushButton("🖼 PiP"); self.pip_btn.clicked.connect(self.toggle_pip); self.btns_row.addWidget(self.pip_btn)
+            self.fs_btn = QPushButton("Full Screen"); self.fs_btn.clicked.connect(self.toggle_fullscreen); self.btns_row.addWidget(self.fs_btn)
+            self.controls_layout.addLayout(self.btns_row)
 
-        # Time Labels
-        self.time_frame = ctk.CTkFrame(self.controls_frame, fg_color="transparent")
-        self.time_frame.pack(fill="x", padx=22)
-        self.time_label = ctk.CTkLabel(self.time_frame, text="00:00 / 00:00", font=ctk.CTkFont(size=12))
-        self.time_label.pack(side="left")
+            # State & Anim
+            self._aspect_modes, self._aspect_idx, self._is_pip, self._old_geom = ["Original", "16:9", "4:3", "Fill"], 0, False, None
+            self.opacity_effect = QGraphicsOpacityEffect(self.controls_overlay); self.controls_overlay.setGraphicsEffect(self.opacity_effect)
+            self.fade_anim = QPropertyAnimation(self.opacity_effect, b"opacity"); self.fade_anim.setDuration(300)
+            self.ui_timer = QTimer(); self.ui_timer.setInterval(200); self.ui_timer.timeout.connect(self.update_ui)
+            self.hide_timer = QTimer(); self.hide_timer.setInterval(3000); self.hide_timer.timeout.connect(self.hide_controls)
+            qApp.installEventFilter(self)
+            self.controls_visible = True
+        except Exception as e:
+            print(f"[FATAL] Init: {e}"); time.sleep(5); sys.exit(1)
 
-        # Auto-hide Tracking
-        self.last_mouse_move_time = time.time()
-        self.controls_visible = True
-        
-        # Mouse movement tracking
-        self.bind("<Motion>", self.on_mouse_move)
-        self.video_frame.bind("<Motion>", self.on_mouse_move)
-        self.controls_frame.bind("<Enter>", self.on_controls_enter)
-        self.controls_frame.bind("<Leave>", self.on_controls_leave)
-        self.is_mouse_on_controls = False
+    def start_playback(self):
+        try:
+            wid = int(self.video_frame.winId())
+            # --- FINAL NETWORK BYPASS ARGS ---
+            # Shared UA with peott.py extractor
+            ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            ref = "https://cloud.unblockedgames.world/"
+            
+            vlc_args = [
+                '--quiet',
+                '--no-video-title-show',
+                '--network-caching=5000',
+                '--no-check-ssl',
+                f'--user-agent={ua}',
+                f'--http-referrer={ref}',
+                '--http-reconnect',
+                '--http-continuous'
+            ]
+            
+            self.instance = vlc.Instance(*vlc_args)
+            if not self.instance: self.instance = vlc.Instance('--quiet')
+            
+            self.player = self.instance.media_player_new()
+            if sys.platform == "win32": self.player.set_hwnd(wid)
+            
+            # Smart URL Handling: Try unquoted brackets [] if the worker expects them raw
+            final_url = self.url
+            if "%5B" in final_url or "%20" in final_url:
+                # Many workers expect raw [] and spaces instead of percent-encoded for routing
+                final_url = urllib.parse.unquote(self.url)
+                print(f"[DEBUG] Attempting unquoted raw path bypass...")
 
-        # --- Buttons and Audio Selection ---
-        self.buttons_frame = ctk.CTkFrame(self.controls_frame, fg_color="transparent")
-        self.buttons_frame.pack(fill="x", padx=20, pady=(5, 15))
+            print(f"[DEBUG] Synchronized Identity Stream: {final_url[:130]}...")
+            media = self.instance.media_new(final_url)
+            self.player.set_media(media)
+            self.player.play()
+            
+            self.ui_timer.start(); self.hide_timer.start()
+        except Exception as e:
+            print(f"[ERROR] Playback Startup: {e}")
 
-        # Play/Pause
-        self.play_btn = ctk.CTkButton(self.buttons_frame, text="⏸ Pause", width=90, command=self.toggle_play)
-        self.play_btn.pack(side="left", padx=5)
+    def eventFilter(self, obj, event):
+        if event.type() in [QEvent.MouseMove, QEvent.MouseButtonPress]: self.show_controls()
+        if event.type() == QEvent.KeyPress:
+            if not event.isAutoRepeat(): self.keyPressEvent(event)
+            return True
+        return super().eventFilter(obj, event)
 
-        # Skip Back
-        self.back_btn = ctk.CTkButton(self.buttons_frame, text="⏪ 10s", width=60, fg_color="#333", command=lambda: self.seek_relative(-10))
-        self.back_btn.pack(side="left", padx=5)
+    def resizeEvent(self, event):
+        w, h = self.width(), self.height()
+        cw = w - 40 # Increased width to fill screen with small margins
+        self.controls_overlay.setGeometry((w - cw)//2, h - 135, cw, 115)
+        super().resizeEvent(event)
 
-        # Skip Forward
-        self.fwd_btn = ctk.CTkButton(self.buttons_frame, text="10s ⏩", width=60, fg_color="#333", command=lambda: self.seek_relative(10))
-        self.fwd_btn.pack(side="left", padx=5)
-
-        # Stop
-        self.stop_btn = ctk.CTkButton(self.buttons_frame, text="⏹ Stop", width=70, fg_color="#442222", hover_color="#663333", command=self.on_closing)
-        self.stop_btn.pack(side="left", padx=20)
-
-        # Audio Track Selection Button (Cycles through tracks)
-        self.audio_btn = ctk.CTkButton(self.buttons_frame, text="🌐 Audio: Default", width=160, fg_color="#333", command=self.cycle_audio_track)
-        self.audio_btn.pack(side="left", padx=5)
-
-        # Subtitle Selection Button
-        self.subtitle_btn = ctk.CTkButton(self.buttons_frame, text="💬 Sub: Off", width=120, fg_color="#333", command=self.cycle_subtitle_track)
-        self.subtitle_btn.pack(side="left", padx=5)
-
-        # Volume
-        ctk.CTkLabel(self.buttons_frame, text="🔊").pack(side="left", padx=(20, 5))
-        self.volume_slider = ctk.CTkSlider(self.buttons_frame, from_=0, to=100, width=120, command=self.set_volume)
-        self.volume_slider.set(80)
-        self.volume_slider.pack(side="left", padx=5)
-
-        # PiP Toggle
-        self.pip_btn = ctk.CTkButton(self.buttons_frame, text="🖼 PiP", width=70, fg_color="#333", command=self.toggle_pip)
-        self.pip_btn.pack(side="right", padx=5)
-
-        # Fit to Screen / Aspect Ratio
-        self.crop_btn = ctk.CTkButton(self.buttons_frame, text="📺 Fit", width=70, fg_color="#333", command=self.cycle_aspect_ratio)
-        self.crop_btn.pack(side="right", padx=5)
-
-        # Fullscreen Toggle
-        self.fs_btn = ctk.CTkButton(self.buttons_frame, text="Full Screen", width=100, fg_color="#2b6bba", command=self.toggle_fullscreen)
-        self.fs_btn.pack(side="right", padx=5)
-
-        # Events and Shortcuts
-        self.bind("<space>", lambda e: self.toggle_play())
-        self.bind("<Left>", lambda e: self.seek_relative(-10))
-        self.bind("<Right>", lambda e: self.seek_relative(10))
-        self.bind("f", lambda e: self.toggle_fullscreen())
-        self.bind("p", lambda e: self.toggle_pip())
-        self.bind("c", lambda e: self.cycle_aspect_ratio())
-        self.bind("<Escape>", lambda e: self.exit_fullscreen())
-        self.protocol("WM_DELETE_WINDOW", self.on_closing)
-
-        # Start Playback
-        self.after(500, self.start_play)
-        self.update_ui_task()
-
-    def exit_fullscreen(self, event=None):
-        self.attributes("-fullscreen", False)
-        self.show_controls()
-
-    def start_play(self):
-        # Media handle
-        clean_url = self.url
-        if clean_url.startswith("http") and " " in clean_url:
-            # Only encode spaces to %20 to avoid breaking complex CDNs
-            clean_url = clean_url.replace(" ", "%20")
-        
-        media = self.vlc_instance.media_new(clean_url)
-        self.player.set_media(media)
-
-        # Set window handle for video output
-        if sys.platform == "win32":
-            self.player.set_hwnd(self.video_frame.winfo_id())
-        elif sys.platform == "darwin":
-            self.player.set_nsobject(self.video_frame.winfo_id())
-        else:
-            self.player.set_xwindow(self.video_frame.winfo_id())
-
-        self.player.play()
-        self.player.audio_set_volume(80)
+    def keyPressEvent(self, event):
+        k = event.key()
+        if k == Qt.Key_Space: self.toggle_play()
+        elif k == Qt.Key_Left: self.seek_relative(-10)
+        elif k == Qt.Key_Right: self.seek_relative(10)
+        elif k in [Qt.Key_F, Qt.Key_F11]: self.toggle_fullscreen()
+        elif k == Qt.Key_C: self.cycle_aspect()
+        elif k == Qt.Key_P: self.toggle_pip()
+        elif k == Qt.Key_Escape and self.isFullScreen(): self.toggle_fullscreen()
 
     def toggle_play(self):
-        if self.player.is_playing():
-            self.player.pause()
-            self.play_btn.configure(text="▶ Play")
-            self.is_paused = True
-        else:
-            self.player.play()
-            self.play_btn.configure(text="⏸ Pause")
-            self.is_paused = False
+        if self.player and self.player.is_playing(): self.player.pause(); self.play_btn.setText("▶ Play")
+        elif self.player: self.player.play(); self.play_btn.setText("⏸ Pause")
 
     def seek_relative(self, seconds):
-        try:
-            vlc_lib = get_vlc()
-            # Guard: Only seek if playing or paused
-            if not vlc_lib or self.player.get_state() not in [vlc_lib.State.Playing, vlc_lib.State.Paused]:
-                return
+        if self.player:
+            t = self.player.get_time()
+            if t >= 0: self.player.set_time(t + (seconds * 1000))
 
-            curr_time = self.player.get_time()
-            if curr_time < 0: return
+    def on_slider_press(self): self.is_dragging = True
+    def on_slider_release(self):
+        if self.player: self.player.set_position(self.slider.value() / 1000.0); self.is_dragging = False
 
-            new_time = curr_time + (seconds * 1000)
-            if new_time < 0: new_time = 0
-            
-            # Additional check: don't seek past length if known
-            total_ms = self.player.get_length()
-            if total_ms > 0 and new_time > total_ms:
-                new_time = total_ms - 1000 # 1s before end
-                if new_time < 0: new_time = 0
+    def set_volume(self, val):
+        if self.player: self.player.audio_set_volume(val)
 
-            self.player.set_time(new_time)
-        except Exception as e:
-            self._log_error(f"seek_relative error: {e}")
-
-    def on_slider_move(self, value):
-        # Update time label while dragging for feedback
-        total_ms = self.player.get_length()
-        if total_ms > 0:
-            curr_ms = int((value / 1000.0) * total_ms)
-            self.time_label.configure(text=f"{self.format_time(curr_ms)} / {self.format_time(total_ms)}")
-
-    def on_slider_press(self, event):
-        self.updating_slider = True
-
-    def on_slider_release(self, event):
-        try:
-            # Only seek when user releases the slider for better performance
-            vlc_lib = get_vlc()
-            if not vlc_lib: return
-
-            # Guard: Only seek if player is active
-            state = self.player.get_state()
-            if state not in [vlc_lib.State.Playing, vlc_lib.State.Paused, vlc_lib.State.Opening, vlc_lib.State.Buffering]:
-                self.updating_slider = False
-                return
-
-            value = self.slider.get()
-            new_pos = value / 1000.0
-            
-            # Bounds check
-            if new_pos < 0: new_pos = 0
-            if new_pos > 1: new_pos = 1
-            
-            self.player.set_position(new_pos)
-        except Exception as e:
-            self._log_error(f"on_slider_release error: {e}")
-        finally:
-            self.updating_slider = False
-
-    def set_volume(self, value):
-        self.player.audio_set_volume(int(value))
-
-    def cycle_audio_track(self):
-        tracks = self.player.audio_get_track_description()
-        if not tracks or len(tracks) <= 1:
+    def cycle_audio(self):
+        if not self.player: return
+        ts = self.player.audio_get_track_description()
+        if not ts or len(ts) <= 1:
+            self.audio_btn.setText("🌐 1 Track")
             return
-            
-        curr_track = self.player.audio_get_track()
-        
-        # Find next track index
-        next_idx = 0
-        for i, (tid, name) in enumerate(tracks):
-            if tid == curr_track:
-                next_idx = (i + 1) % len(tracks)
-                break
-        
-        # Skip 'Disabled' or weird tracks if possible
-        next_tid = tracks[next_idx][0]
-        self.player.audio_set_track(next_tid)
-        
-        # Update button text immediately
-        try:
-            new_name = tracks[next_idx][1]
-            if isinstance(new_name, bytes): new_name = new_name.decode('utf-8', errors='ignore')
-            self.audio_btn.configure(text=f"🌐 Audio: {new_name}")
-        except Exception as e:
-            print(f"Error decoding audio track: {e}")
+        c, idx = self.player.audio_get_track(), 0
+        for i, (tid, name) in enumerate(ts):
+            if tid == c: idx = (i+1)%len(ts); break
+        self.player.audio_set_track(ts[idx][0])
+        name_str = ts[idx][1].decode('utf-8', 'ignore') if isinstance(ts[idx][1], bytes) else str(ts[idx][1])
+        self.audio_btn.setText(f"🌐 {name_str[:8]}")
 
-    def cycle_subtitle_track(self):
-        tracks = self.player.video_get_spu_description()
-        if not tracks:
+    def cycle_subs(self):
+        if not self.player: return
+        ts = self.player.video_get_spu_description()
+        if not ts or len(ts) <= 1:
+            self.sub_btn.setText("💬 No Subs")
             return
-            
-        curr_track = self.player.video_get_spu()
-        
-        # Find next track index
-        next_idx = 0
-        for i, (tid, name) in enumerate(tracks):
-            if tid == curr_track:
-                next_idx = (i + 1) % len(tracks)
-                break
-        
-        next_tid = tracks[next_idx][0]
-        self.player.video_set_spu(next_tid)
-        
-        # Update button text
-        try:
-            new_name = tracks[next_idx][1]
-            if isinstance(new_name, bytes): new_name = new_name.decode('utf-8', errors='ignore')
-            if next_tid == -1 or "Disable" in str(new_name) or "off" in str(new_name).lower():
-                label = "Off"
-            else:
-                label = new_name
-            self.subtitle_btn.configure(text=f"💬 Sub: {label}")
-        except Exception as e:
-            print(f"Error decoding sub track: {e}")
+        c, idx = self.player.video_get_spu(), 0
+        for i, (tid, name) in enumerate(ts):
+            if tid == c: idx = (i+1)%len(ts); break
+        self.player.video_set_spu(ts[idx][0])
+        name_str = ts[idx][1].decode('utf-8', 'ignore') if isinstance(ts[idx][1], bytes) else str(ts[idx][1])
+        self.sub_btn.setText(f"💬 {name_str[:8]}")
 
-    def on_mouse_move(self, event=None):
-        self.last_mouse_move_time = time.time()
-        if not self.controls_visible:
-            self.show_controls()
-
-    def on_controls_enter(self, event=None):
-        self.is_mouse_on_controls = True
-        self.show_controls()
-
-    def on_controls_leave(self, event=None):
-        self.is_mouse_on_controls = False
-
-    def show_controls(self):
-        if not self.controls_visible:
-            self.controls_frame.place(relx=0.5, rely=0.97, anchor="s", relwidth=0.95)
-            self.controls_visible = True
-
-    def hide_controls(self):
-        if self.controls_visible:
-            self.controls_frame.place_forget()
-            self.controls_visible = False
-
-    def toggle_fullscreen(self):
-        # Disable PiP if entering fullscreen
-        if self._is_pip:
-            self.toggle_pip()
-            
-        state = self.attributes("-fullscreen")
-        self.attributes("-fullscreen", not state)
-        # Force controls to show on toggle
-        self.show_controls()
-        self.focus_set()
+    def cycle_aspect(self):
+        if not self.player: return
+        self._aspect_idx = (self._aspect_idx + 1) % len(self._aspect_modes)
+        m = self._aspect_modes[self._aspect_idx]
+        self.player.video_set_aspect_ratio(None); self.player.video_set_crop_geometry(None)
+        if m in ["16:9", "4:3"]: self.player.video_set_aspect_ratio(m)
+        elif m == "Fill":
+            w, h = self.video_frame.width(), self.video_frame.height()
+            if h > 0: self.player.video_set_crop_geometry(f"{w}:{h}")
+        self.aspect_btn.setText(f"📺 {m}")
 
     def toggle_pip(self):
         if not self._is_pip:
-            # Entering PiP
-            self._old_geometry = self.geometry()
-            
-            # Default to bottom right, ~300x200
-            screen_width = self.winfo_screenwidth()
-            screen_height = self.winfo_screenheight()
-            w, h = 320, 180
-            x = screen_width - w - 20
-            y = screen_height - h - 60
-            
-            self.geometry(f"{w}x{h}+{x}+{y}")
-            self.attributes("-topmost", True)
-            self.overrideredirect(True)
-            self.hide_controls()
-            self._is_pip = True
+            self._old_geom = self.geometry()
+            s = QApplication.desktop().screenGeometry().size(); w, h = 320, 180
+            self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+            self.setGeometry(s.width() - w - 20, s.height() - h - 60, w, h); self.show(); self._is_pip = True
         else:
-            # Exiting PiP
-            self.overrideredirect(False)
-            self.attributes("-topmost", False)
-            if self._old_geometry:
-                self.geometry(self._old_geometry)
-            self.show_controls()
-            self._is_pip = False
-            # Re-focus window
-            self.focus_force()
+            self.setWindowFlags(self.windowFlags() & ~Qt.WindowStaysOnTopHint & ~Qt.FramelessWindowHint)
+            if self._old_geom: self.setGeometry(self._old_geom)
+            self.show(); self._is_pip = False
 
-    def cycle_aspect_ratio(self):
-        self._current_aspect_idx = (self._current_aspect_idx + 1) % len(self._aspect_modes)
-        mode = self._aspect_modes[self._current_aspect_idx]
-        
-        # Reset any previous aspect or crop
-        self.player.video_set_aspect_ratio(None)
-        self.player.video_set_crop_geometry(None)
-        
-        if mode == "16:9":
-            self.player.video_set_aspect_ratio("16:9")
-        elif mode == "4:3":
-            self.player.video_set_aspect_ratio("4:3")
-        elif mode == "2.35:1":
-            # 2.35:1 is a common cinematic ratio. 
-            # We use crop to fit the video content into a 2.35:1 area.
-            self.player.video_set_crop_geometry("2.35:1")
-        elif mode == "Fit to Screen (Fill)":
-            # This is "Crop to Fill" - it finds the current window ratio and forces video to it
-            w = self.video_frame.winfo_width()
-            h = self.video_frame.winfo_height()
-            if h > 0:
-                ratio = f"{w}:{h}"
-                # We use crop geometry to cut off the black bars (letterboxing/pillarboxing)
-                self.player.video_set_crop_geometry(ratio)
-        
-        # Update button text
-        self.crop_btn.configure(text=f"📺 {mode.split(' ')[0]}")
+    def toggle_fullscreen(self):
+        if self.isFullScreen(): self.showNormal()
+        else: self.showFullScreen()
 
-    def format_time(self, ms):
-        s = ms // 1000
-        m, s = divmod(s, 60)
-        h, m = divmod(m, 60)
-        if h > 0:
-            return f"{h:02d}:{m:02d}:{s:02d}"
-        else:
-            return f"{m:02d}:{s:02d}"
+    def show_controls(self):
+        self.hide_timer.start()
+        if not self.controls_visible:
+            self.controls_visible = True; self.controls_overlay.raise_()
+            if self.fade_anim.state() == QPropertyAnimation.Running: self.fade_anim.stop()
+            self.fade_anim.setStartValue(self.opacity_effect.opacity()); self.fade_anim.setEndValue(1.0); self.fade_anim.start(); self.controls_overlay.show()
 
-    def update_ui_task(self):
+    def hide_controls(self):
+        if self.controls_visible:
+            self.controls_visible = False; self.fade_anim.setStartValue(self.opacity_effect.opacity()); self.fade_anim.setEndValue(0.0)
+            try: self.fade_anim.finished.disconnect()
+            except: pass
+            self.fade_anim.finished.connect(lambda: self.controls_overlay.hide() if not self.controls_visible else None)
+            self.fade_anim.start()
+
+    def update_ui(self):
+        if not self.player: return
         try:
-            if not self.updating_slider:
-                pos = self.player.get_position()
-                if pos >= 0:
-                    self.slider.set(pos * 1000)
+            state = self.player.get_state()
+            if state in [vlc.State.Ended, vlc.State.Error]:
+                if time.time() - self.creation_time < 12:
+                    self.time_label.setText("Link fail.")
+                    print(f"[RETRY] Server blocked player ID: {self.creation_time}. Try a different provider.")
+                else: self.close()
+                return
+
+            if not self.is_dragging:
+                p = self.player.get_position()
+                if p >= 0: self.slider.setValue(int(p * 1000))
             
-            curr_ms = self.player.get_time()
-            total_ms = self.player.get_length()
-            if curr_ms >= 0 and total_ms > 0:
-                self.time_label.configure(text=f"{self.format_time(curr_ms)} / {self.format_time(total_ms)}")
+            ms, ln = self.player.get_time(), self.player.get_length()
+            if ms >= 0 and ln > 0: self.time_label.setText(f"{ms//60000:02d}:{(ms//1000)%60:02d} / {ln//60000:02d}:{(ln//1000)%60:02d}")
+        except: pass
 
-            # Update Audio Tracks if needed
-            curr_track = self.player.audio_get_track()
-            tracks = self.player.audio_get_track_description()
-            if tracks:
-                for tid, name in tracks:
-                    if tid == curr_track:
-                        try:
-                            t_name = name
-                            if isinstance(t_name, bytes): t_name = t_name.decode('utf-8', errors='ignore')
-                            if t_name not in self.audio_btn.cget("text"):
-                                self.audio_btn.configure(text=f"🌐 Audio: {t_name}")
-                        except Exception: pass
-                        break
+    def closeEvent(self, event):
+        try: self.player.stop(); self.instance.release()
+        except: pass
+        super().closeEvent(event)
 
-            # Update Subtitle Track if needed
-            curr_spu = self.player.video_get_spu()
-            spus = self.player.video_get_spu_description()
-            if spus:
-                for tid, name in spus:
-                    if tid == curr_spu:
-                        try:
-                            s_name = name
-                            if isinstance(s_name, bytes): s_name = s_name.decode('utf-8', errors='ignore')
-                            if "Disable" in str(s_name) or "off" in str(s_name).lower():
-                                s_label = "Off"
-                            else:
-                                s_label = s_name
-                            if s_label not in self.subtitle_btn.cget("text"):
-                                self.subtitle_btn.configure(text=f"💬 Sub: {s_label}")
-                        except Exception: pass
-                        break
+def main():
+    if len(sys.argv) < 2: return
+    app = QApplication(sys.argv)
+    url, title = sys.argv[1], " ".join(sys.argv[2:])
+    player = VLCPlayer(url, title); player.show()
+    QTimer.singleShot(1500, player.start_playback)
+    sys.exit(app.exec_())
 
-            # Auto-hide logic check
-            if self.controls_visible and not self.is_mouse_on_controls:
-                inactivity_time = time.time() - self.last_mouse_move_time
-                if inactivity_time > 3.0: # 3 seconds
-                    self.hide_controls()
-
-            # Check for end of media
-            vlc_lib = get_vlc()
-            if vlc_lib:
-                state = self.player.get_state()
-                
-                # If we are playing, mark that we have successfully started
-                if state == vlc_lib.State.Playing:
-                    self._has_played = True
-
-                # Error handling: If we hit an error state
-                if state == vlc_lib.State.Error:
-                    self._log_error(f"VLC Player Error State reached for URL: {self.url}")
-                    if not hasattr(self, '_stream_error_shown'):
-                        self._stream_error_shown = True
-                        self.show_vlc_error("Stream connection failed, timed out, or URL is invalid.\n\nPlease try another link or provider.")
-                    return # Stop updating UI
-                
-                # Only close on Ended if we actually played something or enough time has passed
-                # This prevents immediate closure if VLC momentarily reports Ended during handshake
-                if state == vlc_lib.State.Ended:
-                    uptime = time.time() - self._playback_start_time
-                    if self._has_played:
-                        self.on_closing()
-                    elif uptime > 15.0:
-                        if not hasattr(self, '_stream_error_shown'):
-                            self._stream_error_shown = True
-                            self.show_vlc_error("Stream ended unexpectedly without playing.\n\nThe link may be dead or region-locked.")
-                        return
-
-
-        except Exception as e:
-            # Don't flood stdout with every error, but log it once if it's new
-            # print(f"UI update Error: {e}")
-            pass
-            
-        if self.winfo_exists():
-            self.after(500, self.update_ui_task)
-
-    def _log_error(self, message):
-        try:
-            import traceback
-            if getattr(sys, 'frozen', False):
-                base = os.path.dirname(sys.executable)
-            else:
-                base = os.path.dirname(os.path.abspath(__file__))
-            log_file = os.path.join(base, "player_error.log")
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] ERROR: {message}\n")
-                f.write(traceback.format_exc())
-        except:
-            pass
-
-    def show_vlc_error(self, specific_error=""):
-        # Clear any existing widgets
-        for widget in self.winfo_children():
-            widget.destroy()
-            
-        err_frame = ctk.CTkFrame(self, fg_color="#1a1a1c", corner_radius=15, border_width=2, border_color="#ff4444")
-        err_frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.8, relheight=0.7)
-        
-        ctk.CTkLabel(err_frame, text="❌ VLC Initialization Failed", font=ctk.CTkFont(size=24, weight="bold"), text_color="#ff4444").pack(pady=(30, 10))
-        
-        python_bits = 8 * 8 if sys.maxsize > 2**32 else 4 * 8
-        msg = f"Your Python environment is {python_bits}-bit.\n\n"
-        
-        if "Python" in specific_error:
-            msg += f"Architecture Mismatch Detected: {specific_error}\n\n"
-            msg += "The 'vlc_bundle' or installed VLC must be 64-bit to work with this Python version."
-        elif "Not Found" in specific_error:
-            msg += "VLC was not found in 'vlc_bundle' or standard system paths."
-        else:
-            msg += f"Detailed Error: {specific_error}"
-        
-        ctk.CTkLabel(err_frame, text=msg, font=ctk.CTkFont(size=14), wraplength=600, justify="center").pack(pady=10)
-        
-        btn_download = ctk.CTkButton(err_frame, text="Download VLC 64-bit", fg_color="#2b6bba", command=lambda: webbrowser.open("https://www.videolan.org/vlc/download-windows.html"))
-        btn_download.pack(pady=15)
-        
-        ctk.CTkButton(err_frame, text="Close Player", fg_color="transparent", border_width=1, command=self.destroy).pack(pady=5)
-
-    def on_closing(self):
-        if hasattr(self, '_is_closing') and self._is_closing:
-            return
-        self._is_closing = True
-        
-        try:
-            self.player.stop()
-            self.vlc_instance.release()
-        except Exception:
-            pass
-            
-        self.destroy()
-        sys.exit(0)
-
-def play_video(url, title="Video Player", audio_tracks_json=None):
-    # Ignoring audio_tracks_json as VLC handles internal tracks natively
-    app = VLCPlayer(url, title)
-    app.mainloop()
-
-if __name__ == "__main__":
-    def global_log(msg):
-        try:
-            import traceback
-            log_f = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player_error.log")
-            with open(log_f, "a", encoding="utf-8") as f:
-                f.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] PID {os.getpid()}: {msg}\n")
-                f.write(traceback.format_exc())
-            print(f"CRASH: Error written to {log_f}")
-        except:
-            pass
-
-    if len(sys.argv) > 1:
-        try:
-            u = sys.argv[1]
-            # Join all remaining arguments for the title (handles spaces)
-            t = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else "Video Player"
-            play_video(u, t)
-        except SystemExit:
-            pass
-        except BaseException as e:
-            # Catching BaseException to handle weird hardware/vlc aborts
-            global_log(f"CRASH: {e}")
-            sys.exit(1)
-    else:
-        # No args, just exit
-        sys.exit(0)
+if __name__ == "__main__": main()

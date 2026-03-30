@@ -136,8 +136,13 @@ class JsApi:
         print(f"[DEBUG] _get_stream_url -> link:{link}, type:{normal_type}")
         
         try:
+            # Synchronize headers with the player to bypass Cloudflare/Worker blocks
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                "Referer": "https://cloud.unblockedgames.world/"
+            }
             payload = {"provider": provider, "functionName": "getStream", "params": {"link": link, "type": normal_type}}
-            resp = requests.post(f"{API_STATE['server_url']}/fetch", json=payload, timeout=25)
+            resp = requests.post(f"{API_STATE['server_url']}/fetch", json=payload, headers=headers, timeout=25)
             if resp.status_code == 200:
                 streams = resp.json()
                 if streams:
@@ -180,18 +185,19 @@ class JsApi:
                 if not os.path.exists(player_script):
                     print(f"[ERROR] Player script not found: {player_script}")
                     return
-                cmd = [sys.executable, player_script, url, title]
+                # Sanitization: Ensure URL is properly encoded for the command line
+                import urllib.parse
+                safe_url = urllib.parse.quote(url, safe=":/%?=&")
+                
+                # Use regular python.exe to catch DLL errors during debugging
+                exe = sys.executable.replace("pythonw.exe", "python.exe")
+                cmd = [exe, player_script, safe_url, title]
 
                 
             print(f"[SYSTEM] Executing: {' '.join(cmd)}")
             
-            # Launch the player
+            # Set creationflags to 0 so the console window IS visible for debugging
             creation_flags = 0
-            if sys.platform == "win32":
-                # CREATE_NO_WINDOW = 0x08000000 
-                # Prevents a separate console window when launching the player
-                creation_flags = 0x08000000
-                
             process = subprocess.Popen(cmd, creationflags=creation_flags)
             API_STATE["player_process"] = process
             print(f"[SUCCESS] Player process started (PID: {process.pid})")

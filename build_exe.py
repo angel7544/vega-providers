@@ -6,7 +6,7 @@ import shutil
 # Install required build tools if not present
 def install_requirements():
     print("Checking build requirements...")
-    subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller", "pillow", "customtkinter", "pywebview", "requests", "python-vlc"], check=True)
+    subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller", "pillow", "customtkinter", "pywebview", "requests", "python-vlc", "PyQt5"], check=True)
 
 # Generate icon.ico from the provided PNG
 def generate_ico(png_path, ico_path):
@@ -20,10 +20,7 @@ def generate_ico(png_path, ico_path):
         print(f"Warning: Failed to convert icon: {e}")
 
 def run_build():
-    png_source = r"C:\Users\angel\.gemini\antigravity\brain\21dd77e0-ce88-4206-88e4-34fc46874708\orbix_play_icon_1774789305435.png"
-    if os.path.exists(png_source):
-        shutil.copy(png_source, "icon.png")
-    
+   
     if os.path.exists("icon.png"):
         generate_ico("icon.png", "icon.ico")
 
