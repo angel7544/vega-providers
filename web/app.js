@@ -677,14 +677,46 @@ async function getResolvedStreams(link, provider) {
         if (!resp.ok) {
             const errorData = await resp.json().catch(() => ({}));
             if (errorData.isCloudflare || resp.status === 403) {
-                console.error("🛑 CLOUDFLARE BLOCK ON RENDER:", provider);
-                alert(`🛑 Provider [${provider}] is blocked by Cloudflare on the Render server.\n\nSince Render uses data-center IPs, Cloudflare often blocks them. This provider might only work if you run the server on your Localhost.`);
+                console.warn("🛑 RENDER BLOCKED BY CLOUDFLARE. SWITCHING TO HYBRID EXTRACTION...");
+                return await tryHybridExtraction(link, provider);
             }
             return [];
         }
         return await resp.json();
     } catch (err) {
         console.error("Resolve error:", err);
+        return [];
+    }
+}
+
+async function tryHybridExtraction(link, provider) {
+    try {
+        setStatus("Bypassing Cloudflare...", "#3b82f6");
+        
+        // Use AllOrigins to fetch the HTML via user's browser IP
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(link)}`;
+        const browserResp = await fetch(proxyUrl);
+        const browserData = await browserResp.json();
+        const html = browserData.contents;
+
+        if (!html) throw new Error("Failed to fetch HTML via browser proxy");
+
+        // Send HTML to backend for parsing
+        const parseResp = await fetch(`${getApiUrl()}/parse`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                provider,
+                functionName: "getStream",
+                params: { link, type: currentMeta?.type },
+                html: html
+            })
+        });
+
+        if (!parseResp.ok) return [];
+        return await parseResp.json();
+    } catch (err) {
+        console.error("Hybrid Extraction failed:", err);
         return [];
     }
 }
@@ -916,10 +948,18 @@ function initPlayer(streams) {
                 }).catch(() => {});
         }
 
+        // Automated Source Fallback
         player.on('video:error', () => {
-            console.warn(`❌ Stream ${currentStreamIndex + 1} failed. Trying next...`);
-            currentStreamIndex++;
-            startPlayback();
+             if (currentStreamIndex < streams.length - 1) {
+                 console.warn(`❌ Stream ${currentStreamIndex + 1} failed. Trying alternative...`);
+                 currentStreamIndex++;
+                 setStatus(`Trying Source ${currentStreamIndex + 1}...`, "#f59e0b");
+                 startPlayback();
+             } else {
+                 console.error("❌ All streams failed.");
+                 alert("⚠️ All playback attempts failed.\n\nThis source might be fully geoblocked or have broken links on Render.\n\nPlease try another provider or check if you can play it on Localhost.");
+                 closePlayer();
+             }
         });
 
         // Initialize icons after setting up the player

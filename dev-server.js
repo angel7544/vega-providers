@@ -127,36 +127,30 @@ class DevServer {
     });
 
     // Execution endpoint
+    const getModule = (provider, functionName) => {
+      const modulePath = path.join(this.distDir, provider);
+      const moduleSubPath = {
+        getPosts: "posts.js",
+        getSearchPosts: "posts.js",
+        getMeta: "meta.js",
+        getEpisodes: "episodes.js",
+        getStream: "stream.js"
+      }[functionName];
+
+      if (!moduleSubPath) return null;
+      const fullModulePath = path.join(modulePath, moduleSubPath);
+      if (!fs.existsSync(fullModulePath)) return null;
+      return require(fullModulePath);
+    };
+
     this.app.post("/fetch", async (req, res) => {
       const { provider, functionName, params } = req.body;
       console.log(`🔍 Executing provider function: ${provider} - ${functionName}`);
 
       try {
-        const modulePath = path.join(this.distDir, provider);
-        let module;
-
-        const moduleSubPath = {
-          getPosts: "posts.js",
-          getSearchPosts: "posts.js",
-          getMeta: "meta.js",
-          getEpisodes: "episodes.js",
-          getStream: "stream.js"
-        }[functionName];
-
-        if (!moduleSubPath) {
-          return res.status(400).json({ error: `Unknown function: ${functionName}` });
-        }
-
-        const fullModulePath = path.join(modulePath, moduleSubPath);
-        if (!fs.existsSync(fullModulePath)) {
-          console.warn(`⚠️ Provider '${provider}' missing '${moduleSubPath}'. Skipping request.`);
-          return res.json([]);
-        }
-
-        module = require(fullModulePath);
-
-        if (!module[functionName]) {
-          return res.status(404).json({ error: `Function '${functionName}' not found in ${provider}` });
+        const module = getModule(provider, functionName);
+        if (!module || !module[functionName]) {
+          return res.status(404).json({ error: `Provider or function not found` });
         }
 
         // Add providerContext if not present
@@ -207,6 +201,52 @@ class DevServer {
             status: error.response?.status,
             isCloudflare: error.response?.data?.includes("Just a moment...") || error.response?.status === 403
         });
+      }
+    });
+
+    // Parse endpoint for Hybrid Extraction
+    this.app.post("/parse", async (req, res) => {
+      const { provider, functionName, params, html } = req.body;
+      console.log(`🧪 Hybrid Parsing for: ${provider} - ${functionName}`);
+
+      try {
+        const module = getModule(provider, functionName);
+        if (!module || !module[functionName]) {
+          return res.status(404).json({ error: `Provider or function not found` });
+        }
+
+        // --- MOCK AXIOS FOR INJECTION ---
+        // We create a wrapper that returns the provided HTML for the first request
+        const realAxios = require("axios");
+        const mockAxios = async (url, config) => {
+           console.log(`💉 Injecting HTML for URL: ${url}`);
+           return { data: html, status: 200, headers: {}, config: config || {} };
+        };
+        // Add common axios properties to satisfy providers
+        mockAxios.get = mockAxios;
+        mockAxios.post = mockAxios;
+        mockAxios.defaults = realAxios.defaults;
+        mockAxios.interceptors = realAxios.interceptors;
+
+        const fullParams = {
+          ...params,
+          providerValue: provider,
+          providerContext: {
+            axios: mockAxios,
+            cheerio: require("cheerio"),
+            getBaseUrl: require("./dist/getBaseUrl.js").getBaseUrl,
+            commonHeaders: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            },
+            Aes: {},
+          }
+        };
+
+        const result = await module[functionName](fullParams);
+        res.json(result);
+      } catch (error) {
+        console.error("Parse failed:", error);
+        res.status(500).json({ error: error.message });
       }
     });
 
