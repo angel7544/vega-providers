@@ -4,12 +4,19 @@
 let API_BASE = localStorage.getItem('vega_api_url') || "";
 
 const getApiUrl = () => {
-    // Re-check localStorage in case it changed
+    // 1. Manual User Override (Settings Menu)
     let savedBase = localStorage.getItem('vega_api_url') || "";
     if (savedBase) {
         if (savedBase.endsWith('/')) savedBase = savedBase.slice(0, -1);
         return savedBase;
     }
+
+    // 2. Environment Variable Override (Injected at build time on Vercel)
+    if (window.BACKEND_URL) {
+        return window.BACKEND_URL.endsWith('/') ? window.BACKEND_URL.slice(0, -1) : window.BACKEND_URL;
+    }
+
+    // 3. Current Hostname (Localhost or All-in-one Render)
     return window.location.origin;
 };
 
