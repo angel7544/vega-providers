@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orbix Play — Personal Entertainment Hub</title>
+  <meta name="description" content="Personal Entertainment Hub powered by Orbix Play" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ═══════════════ SIDEBAR ═══════════════ -->
+  <aside id="sidebar">
+    <div class="logo-section">
+      <div class="logo-icon">✨</div>
+      <div class="logo-text">Orbix Play</div>
+      <div class="logo-sub">Personal Entertainment Hub</div>
+    </div>
+    <nav class="nav-links">
+      <button class="nav-btn active" id="btn-home" onclick="navHome()">
+        <span class="nav-icon">🏠</span> Home
+      </button>
+      <button class="nav-btn" id="btn-trending" onclick="navTrending()">
+        <span class="nav-icon">📈</span> Trending
+      </button>
+      <button class="nav-btn" id="btn-settings" onclick="navSettings()">
+        <span class="nav-icon">⚙️</span> Settings
+      </button>
+    </nav>
+    <div class="sidebar-footer">v2.0 · PyWebView</div>
+  </aside>
+
+  <!-- ═══════════════ MAIN WRAPPER ═══════════════ -->
+  <div id="main-wrapper">
+
+    <!-- Top bar -->
+    <header id="topbar">
+      <div class="search-container">
+        <input type="text" id="search-input"
+               placeholder="🔍 Search movies, series, shows..."
+               onkeydown="if(event.key==='Enter') doSearch()" />
+        <button class="search-btn" onclick="doSearch()">Search</button>
+      </div>
+      <div class="status-pill" id="status-pill">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Connecting…</span>
+      </div>
+    </header>
+
+    <!-- Pages -->
+    <main id="content">
+
+      <!-- HOME -->
+      <div id="page-home" class="page active">
+        <div id="provider-bar">
+          <span class="provider-label">Provider</span>
+          <select id="provider-select" onchange="onProviderChange()">
+            <option>Loading…</option>
+          </select>
+        </div>
+        <div id="card-grid" class="card-grid"></div>
+      </div>
+
+      <!-- DETAIL -->
+      <div id="page-detail" class="page">
+        <div id="detail-container">
+          <div id="detail-left">
+            <button class="back-btn" onclick="goBack()">← Back to Home</button>
+            <div id="detail-poster-wrap">
+              <img id="detail-poster" src="" alt="Poster" />
+            </div>
+            <h1 id="detail-title"></h1>
+            <p id="detail-subtitle"></p>
+            <p id="detail-tags"></p>
+            <div class="imdb-box">
+              <span class="imdb-badge">IMDb</span>
+              <span id="imdb-rating">⭐ …</span>
+              <span id="imdb-votes" class="imdb-votes">Fetching…</span>
+            </div>
+            <div id="detail-extra"></div>
+          </div>
+          <div id="detail-right">
+            <h2 id="detail-right-title">Select Quality / Episodes</h2>
+            <div id="link-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SETTINGS -->
+      <div id="page-settings" class="page">
+        <div class="settings-container">
+          <h1 class="settings-heading">⚙️ Settings</h1>
+
+          <div class="settings-card">
+            <h3>🔌 Server Configuration</h3>
+            <label>Provider Backend URL</label>
+            <input type="text" id="server-url-input" placeholder="http://localhost:3001" />
+            <button class="btn-primary" onclick="saveServerUrl()">Save &amp; Reconnect</button>
+          </div>
+
+          <div class="settings-card">
+            <h3>🎬 Player Features</h3>
+            <ul class="feature-list">
+              <li>✅ Native VLC Engine — wide codec support</li>
+              <li>✅ Multi-Audio Support — dual audio track switching</li>
+              <li>✅ Browser Player — ArtPlayer with fullscreen</li>
+              <li>✅ Clipboard Copy — one-click link grabbing</li>
+              <li>✅ Zero-lag UI — browser-engine rendering (no tkinter)</li>
+            </ul>
+          </div>
+
+          <div class="settings-card">
+            <h3>⌨️ Keyboard Shortcuts</h3>
+            <table class="kbd-table">
+              <tr><td><kbd>Space</kbd></td><td>Play / Pause</td></tr>
+              <tr><td><kbd>F</kbd></td><td>Toggle Fullscreen</td></tr>
+              <tr><td><kbd>ESC</kbd></td><td>Exit Fullscreen</td></tr>
+              <tr><td><kbd>← / →</kbd></td><td>Seek −10s / +10s</td></tr>
+            </table>
+          </div>
+
+          <div class="settings-card">
+            <h3>🛠️ System Tools</h3>
+            <div class="ffmpeg-row">
+              <span id="ffmpeg-status">Checking FFmpeg…</span>
+              <button id="ffmpeg-btn" class="btn-primary" onclick="runInstallFfmpeg()">Install FFmpeg</button>
+            </div>
+            <div id="ffmpeg-progress-wrap" style="display:none">
+              <div class="progress-bar-bg">
+                <div id="ffmpeg-progress-bar" class="progress-bar-fill" style="width:0%"></div>
+              </div>
+              <p id="ffmpeg-progress-text">0%</p>
+            </div>
+          </div>
+
+          <div class="settings-card about-card">
+            <h3>👤 About Developer</h3>
+            <div class="about-content">
+              <div class="about-avatar">AMS</div>
+              <div class="about-info">
+                <h2>Angel Mehul Singh</h2>
+                <p class="about-role">Full-Stack Developer · @br31technologies</p>
+                <div class="about-links">
+                  <a href="#" onclick="pyOpenLink('https://github.com/angel7544');return false">GitHub</a>
+                  <a href="#" onclick="pyOpenLink('https://linkedin.com/in/angel3002');return false">LinkedIn</a>
+                  <a href="#" onclick="pyOpenLink('https://br31tech.live');return false">Website</a>
+                  <a href="#" onclick="pyOpenLink('mailto:angel@br31tech.live');return false">Email</a>
+                </div>
+              </div>
+            </div>
+            <p class="about-footer">Crafted with ❤️ in India</p>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Bottom bar -->
+    <footer id="bottom-bar">
+      <span class="footer-credit">Made with ❤️ by angel mehul singh &nbsp;·&nbsp; @br31technologies</span>
+    </footer>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

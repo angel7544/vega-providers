@@ -3,7 +3,6 @@ import atexit
 import sys
 import os
 import time
-import player_window
 
 import shutil
 
@@ -42,7 +41,7 @@ else:
     os.chdir(application_path)
     server_cmd = "npm run auto"
 
-from peott import PersonalEntertainmentApp
+import peott
 
 def run():
     server_process = None
@@ -83,20 +82,8 @@ def run():
         time.sleep(2)
     
     # Launch the app GUI
-    app = PersonalEntertainmentApp()
+    peott.main()
+    return  # main() is blocking (runs webview event loop)
     
-    # Modify the app closure protocol to also force-exit sys (which triggers atexit)
-    def on_closing():
-        app.destroy()
-        sys.exit(0)
-        
-    app.protocol("WM_DELETE_WINDOW", on_closing)
-    app.mainloop()
-
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == 'player_window':
-        url = sys.argv[2] if len(sys.argv) > 2 else ""
-        title = sys.argv[3] if len(sys.argv) > 3 else "Video Player"
-        player_window.play_video(url, title)
-        sys.exit(0)
     run()
