@@ -40,7 +40,7 @@ export async function getStream({
       const hubdriveText = hubdriveRes.data;
       const $$ = cheerio.load(hubdriveText);
       hubdriveLink =
-        $$(".btn.btn-primary.btn-user").attr("href") || hubdriveLink;
+        $$(".btn.btn-primary.btn-user.btn-success1").attr("href") || "";
     }
     console.log("hubdriveLink2", hubdriveLink);
   }
