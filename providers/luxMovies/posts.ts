@@ -35,7 +35,7 @@ export const getPosts = async ({
   providerContext: ProviderContext;
 }): Promise<Post[]> => {
   const { getBaseUrl, axios, cheerio } = providerContext;
-  const baseUrl = await getBaseUrl("Vega");
+  const baseUrl = await getBaseUrl("lux");
 
   console.log("vegaGetPosts baseUrl:", providerValue, baseUrl);
   const url = `${baseUrl}/${filter}/page/${page}/`;
@@ -139,6 +139,7 @@ async function posts(
             $(element).find("a").find("img").attr("data-lazy-src") ||
             $(element).find("a").find("img").attr("data-src") ||
             $(element).find("a").find("img").attr("src") ||
+            $(element).find("img").attr("data-src") ||
             $(element).find("img").attr("src") ||
             "",
         };
