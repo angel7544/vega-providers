@@ -24,6 +24,7 @@ else:
     USER_DIR = DATA_DIR
 
 CONFIG_FILE = os.path.join(USER_DIR, "config.json")
+HISTORY_FILE = os.path.join(USER_DIR, "history.json")
 UI_DIR = os.path.join(DATA_DIR, "ui")
 
 
@@ -66,6 +67,25 @@ class JsApi:
         API_STATE["server_url"] = API_STATE["settings"].get("server_url", "http://localhost:3001")
         save_settings_file()
         return {"ok": True}
+
+    def get_history(self):
+        print("[API] get_history")
+        if os.path.exists(HISTORY_FILE):
+            try:
+                with open(HISTORY_FILE, "r") as f:
+                    return json.load(f)
+            except: pass
+        return []
+
+    def save_history(self, history):
+        print(f"[API] save_history ({len(history)} items)")
+        try:
+            with open(HISTORY_FILE, "w") as f:
+                json.dump(history, f, indent=2)
+            return {"ok": True}
+        except Exception as e:
+            print(f"[ERROR] save_history: {e}")
+            return {"error": str(e)}
 
     def get_providers(self):
         print(f"[API] get_providers (server: {API_STATE['server_url']})")
@@ -160,26 +180,22 @@ class JsApi:
             print(f"[ERROR] _get_stream_url: {e}")
         return None
 
-    def play_app(self, provider, link, item_type, title=""):
-        print(f"[API] play_app -> {title}")
+    def play_app(self, provider, link, item_type, title="", start_time=0):
+        print(f"[API] play_app -> {title} (resume: {start_time})")
         url = self._get_stream_url(provider, link, item_type)
         if url:
-            threading.Thread(target=self._launch_player, args=(url, title), daemon=True).start()
+            threading.Thread(target=self._launch_player, args=(url, title, start_time, link), daemon=True).start()
             return {"ok": True}
         return {"error": "Link extraction failed (server or timeout)"}
 
-    def _launch_player(self, url, title):
-        print(f"[DEBUG] _launch_player(url={url[:60]}..., title={title})")
+    def _launch_player(self, url, title, start_time, link):
+        print(f"[DEBUG] _launch_player(url={url[:60]}..., title={title}, resume={start_time})")
         try:
-            # Enhanced Kill: Look for any running player_window.py processes
             self._force_terminate_player()
 
             if getattr(sys, 'frozen', False):
-                # We are compiled to an EXE
-                # In the new multi-EXE architecture, player.exe is a separate binary
-                # in the same root folder as OrbixPlay.exe
                 player_exe = os.path.join(USER_DIR, "player.exe")
-                cmd = [player_exe, url, title]
+                cmd = [player_exe, url, title, str(start_time)]
             else:
                 player_script = os.path.join(DATA_DIR, "player_window.py")
                 if not os.path.exists(player_script):
@@ -189,18 +205,31 @@ class JsApi:
                 import urllib.parse
                 safe_url = urllib.parse.quote(url, safe=":/%?=&")
                 
-                # Use regular python.exe to catch DLL errors during debugging
                 exe = sys.executable.replace("pythonw.exe", "python.exe")
-                cmd = [exe, player_script, safe_url, title]
+                cmd = [exe, player_script, safe_url, title, str(start_time)]
 
-                
             print(f"[SYSTEM] Executing: {' '.join(cmd)}")
             
-            # Set creationflags to 0 so the console window IS visible for debugging
-            creation_flags = 0
-            process = subprocess.Popen(cmd, creationflags=creation_flags)
+            # Start process with piped output to catch progress
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
+                                     text=True, bufsize=1, creationflags=0)
             API_STATE["player_process"] = process
-            print(f"[SUCCESS] Player process started (PID: {process.pid})")
+            print(f"[SUCCESS] Player started (PID: {process.pid})")
+
+            # Monitoring thread for stdout
+            def monitor_output(proc, media_link):
+                for line in iter(proc.stdout.readline, ""):
+                    if "PROGRESS:" in line:
+                        try:
+                            # Expected format: PROGRESS:1234:24000
+                            parts = line.strip().split(':')
+                            if len(parts) >= 3:
+                                cur, length = parts[1], parts[2]
+                                _evaluate_js(f"onPlayerProgress({json.dumps(media_link)}, {cur}, {length})")
+                        except: pass
+                proc.stdout.close()
+
+            threading.Thread(target=monitor_output, args=(process, link), daemon=True).start()
             
         except Exception as e:
             print(f"[ERROR] Player launch exception: {e}")

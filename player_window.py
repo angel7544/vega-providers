@@ -96,9 +96,10 @@ class VLCPlayer(QMainWindow):
     FADE_MS  = 16     # fade timer interval (~60 fps)
     HIDE_MS  = 3500   # idle-before-hide delay
 
-    def __init__(self, url, title="Video Player"):
+    def __init__(self, url, title="Video Player", start_time=0):
         super().__init__()
         self.url           = url
+        self.start_time    = start_time  # in ms
         self.instance      = None
         self.player        = None
         self.creation_time = time.time()
@@ -337,6 +338,11 @@ class VLCPlayer(QMainWindow):
             self.player.set_media(media)
             self.player.play()
             self.player.audio_set_volume(self.vol.value())
+            
+            # Resume if start_time > 0
+            if self.start_time > 0:
+                print(f"[PLAYER] Resuming at {self.start_time}ms")
+                self.player.set_time(int(self.start_time))
 
             self.ui_timer.start()
         except Exception as e:
@@ -363,6 +369,11 @@ class VLCPlayer(QMainWindow):
             ln = self.player.get_length()
             if ms >= 0:
                 self.time_lbl.setText(f"{_fmt(ms)} / {_fmt(ln)}")
+                
+                # Periodically report progress to stdout for the main app to catch
+                if int(time.time() * 4) % 8 == 0: # approx every 2 seconds
+                    print(f"PROGRESS:{ms}:{ln}")
+                    sys.stdout.flush()
         except: pass
 
     # ---------------------------------------------------------------------- #
@@ -466,11 +477,14 @@ def play_video(url, title="Video Player"):
 
 def main():
     if len(sys.argv) < 2:
-        print("[ERROR] Usage: player_window.py <url> [title...]"); return
+        print("[ERROR] Usage: player_window.py <url> [title] [start_time]"); return
     app   = QApplication(sys.argv)
     url   = sys.argv[1]
-    title = " ".join(sys.argv[2:]) if len(sys.argv) > 2 else "Video Player"
-    w = VLCPlayer(url, title); w.show()
+    title = sys.argv[2] if len(sys.argv) > 2 else "Video Player"
+    start = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+    
+    w = VLCPlayer(url, title, start_time=start)
+    w.show()
     QTimer.singleShot(1200, w.start_playback)
     sys.exit(app.exec_())
 

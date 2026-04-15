@@ -7,9 +7,10 @@
 // ─── State ────────────────────────────────────────────
 const S = {
   provider: null,
-  meta: null,
+      meta: null, 
   itemType: 'movie',
-  settings: {}
+  settings: {},
+  continueWatching: []
 };
 
 // ─── Pywebview API shim ───────────────────────────────
@@ -20,8 +21,12 @@ function api() { return window.pywebview.api; }
 window.addEventListener('pywebviewready', async () => {
   updateStatus('fetching', 'Connecting…');
   S.settings = await api().get_settings() || {};
+  
   const urlInput = document.getElementById('server-url-input');
   if (urlInput) urlInput.value = S.settings.server_url || 'http://localhost:3001';
+  
+  // Load history from JSON file
+  S.continueWatching = await api().get_history() || [];
 
   showSkeletons(16);
   const providers = await api().get_providers();
@@ -35,6 +40,7 @@ window.addEventListener('pywebviewready', async () => {
   }
 
   buildProviderDropdown(providers, S.settings.last_provider);
+  
   updateStatus('online', 'Online');
   checkFfmpegStatus();
   await loadHome();
@@ -70,8 +76,22 @@ function setPage(pageId, navId) {
 
 function navHome()     { setPage('page-home', 'btn-home'); loadHome(); }
 function navTrending() { setPage('page-home', 'btn-trending'); fetchMedia('trending', false); }
+function navContinue() { setPage('page-continue', 'btn-continue'); renderContinueWatching(); }
 function navSettings() { setPage('page-settings', 'btn-settings'); }
-function goBack()      { setPage('page-home', 'btn-home'); }
+function goBack()      {
+  if (document.getElementById('page-detail').classList.contains('active')) {
+    setPage('page-home', 'btn-home'); 
+  } else {
+    setPage('page-home', 'btn-home');
+  }
+}
+
+function setDetailTab(tabId, btn) {
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${tabId}`).classList.add('active');
+  btn.classList.add('active');
+}
 
 // ─── Search ───────────────────────────────────────────
 function doSearch() {
@@ -110,13 +130,17 @@ function showSkeletons(n) {
 }
 
 // ─── Card Rendering ───────────────────────────────────
-function renderCards(data) {
-  const grid = document.getElementById('card-grid');
+function renderCards(data, containerId = 'card-grid', isLandscape = false) {
+  const grid = document.getElementById(containerId);
   grid.innerHTML = '';
   if (!data.length) {
     grid.innerHTML = '<p style="color:var(--txt-2);padding:20px">No results found.</p>';
     return;
   }
+
+  if (isLandscape) grid.classList.add('landscape');
+  else grid.classList.remove('landscape');
+
   // Batch render: 8 cards per frame to keep UI snappy
   function batch(start) {
     const end = Math.min(start + 8, data.length);
@@ -126,14 +150,25 @@ function renderCards(data) {
       const displayT = cleanT.length > 30 ? cleanT.slice(0, 27) + '…' : cleanT;
 
       const card = document.createElement('div');
-      card.className = 'media-card';
+      card.className = `media-card ${isLandscape ? 'landscape' : ''}`;
       card.style.animationDelay = `${(i % 8) * 30}ms`;
+      
+      let progressHtml = '';
+      if (item.progress && item.progress > 5) {
+        progressHtml = `<div class="card-progress-wrap"><div class="card-progress-fill" style="width:${item.progress}%"></div></div>`;
+      }
+
+      const imgSrc = (isLandscape && item.backdrop) ? item.backdrop : (item.image || '');
+
       card.innerHTML = `
-        <img class="card-poster" src="${escHtml(item.image || '')}"
+        <img class="card-poster" src="${escHtml(imgSrc)}"
              alt="${escHtml(displayT)}" loading="lazy"
              onerror="this.style.display='none'" />
+        ${progressHtml}
         <div class="card-title">${escHtml(displayT)}</div>`;
-      card.addEventListener('click', () => openDetail(item.link, item));
+      card.addEventListener('click', () => {
+        openDetail(item.link, item);
+      });
       grid.appendChild(card);
     }
     if (end < data.length) requestAnimationFrame(() => batch(end));
@@ -143,6 +178,16 @@ function renderCards(data) {
 
 // ─── Detail View ──────────────────────────────────────
 async function openDetail(link, fallback = {}) {
+  const provider = fallback.provider || S.provider;
+  
+  // If clicking from Continue Watching with a different provider, switch active state
+  if (fallback.provider && fallback.provider !== S.provider) {
+    console.log(`[JS] Switching provider from ${S.provider} to ${provider}`);
+    S.provider = provider;
+    const sel = document.getElementById('provider-select');
+    if (sel) sel.value = provider;
+  }
+
   updateStatus('fetching', 'Loading…');
   let meta = await api().get_meta(S.provider, link);
   
@@ -172,7 +217,10 @@ async function openDetail(link, fallback = {}) {
 function renderDetail(info) {
   const cleanT = cleanTitle(info.title || '');
 
-  // Poster
+  // Hero Background (Blurry Poster)
+  const hero = document.getElementById('detail-hero');
+  if (info.image) hero.style.backgroundImage = `url(${info.image})`;
+  
   const poster = document.getElementById('detail-poster');
   poster.src = info.image || '';
   poster.onerror = () => { poster.style.display = 'none'; };
@@ -187,35 +235,58 @@ function renderDetail(info) {
     sub = year ? `${typ} · ${year}` : typ;
   }
   document.getElementById('detail-subtitle').textContent = sub;
-  document.getElementById('detail-tags').textContent =
-    `🏷️ ${info.tagsText || info.quality || 'HD'} · CC`;
+  
+  // Storyline
+  document.getElementById('detail-storyline').textContent = info.synopsis || info.description || "No storyline available for this title.";
 
-  // IMDb placeholder then async
-  document.getElementById('imdb-rating').textContent = '⭐ …';
-  document.getElementById('imdb-votes').textContent = 'Fetching…';
-  api().fetch_imdb(cleanT, S.itemType).then(r => {
-    document.getElementById('imdb-rating').textContent = `⭐ ${r.rating || 'N/A'}`;
-    document.getElementById('imdb-votes').textContent = r.votes ? `👥 ${r.votes}` : '👥 N/A';
+  // Meta Stats
+  document.getElementById('detail-lang').textContent = info.language || "Hindi / English";
+  const ratingText = info.maturity_rating || "U/A 13+";
+  document.getElementById('detail-maturity').textContent = ratingText;
+  document.getElementById('detail-released').textContent = info.year || info.releaseDate || "2024";
+
+  // IMDb
+  document.getElementById('imdb-rating').textContent = `⭐ ${info.rating || 'N/A'}`;
+  document.getElementById('imdb-votes').textContent = '👥 N/A';
+
+  // Team
+  document.getElementById('detail-cast').textContent = (info.cast && info.cast.length) ? info.cast.join(', ') : "Original Cast";
+  document.getElementById('detail-director').textContent = info.director || "Production Team";
+
+  // Genres
+  const genContainer = document.getElementById('detail-genres');
+  genContainer.innerHTML = '';
+  const tags = info.genres || info.tags || (info.tagsText ? info.tagsText.split('·') : ['Action', 'Drama', 'Premium']);
+  tags.forEach(t => {
+    const span = document.createElement('span');
+    span.className = 'genre-tag';
+    span.textContent = t.trim();
+    genContainer.appendChild(span);
   });
 
-  // Extra info
-  const extra = document.getElementById('detail-extra');
-  extra.innerHTML = '';
-  if (info.cast && info.cast.length) {
-    extra.innerHTML += `<div class="extra-section">
-      <div class="extra-label">Cast</div>
-      <div class="extra-value">${escHtml(info.cast.join(', '))}</div>
-    </div>`;
-  } else if (info.synopsis) {
-    const syn = info.synopsis.length > 220 ? info.synopsis.slice(0, 217) + '…' : info.synopsis;
-    extra.innerHTML += `<div class="extra-section">
-      <div class="extra-label">Synopsis</div>
-      <div class="extra-value">${escHtml(syn)}</div>
-    </div>`;
+  // Gallery - Only show if images exist
+  const galleryGrid = document.getElementById('gallery-grid');
+  const galleryTabBtn = document.getElementById('tab-btn-gallery');
+  galleryGrid.innerHTML = '';
+  
+  const screenshots = info.screenshots || info.thumbnails || info.gallery || [];
+  if (screenshots.length > 0) {
+    galleryTabBtn.style.display = 'block';
+    screenshots.forEach(src => {
+      const div = document.createElement('div');
+      div.className = 'gallery-item';
+      div.innerHTML = `<img src="${src}" loading="lazy" onerror="this.parentElement.style.display='none'" />`;
+      galleryGrid.appendChild(div);
+    });
+  } else {
+    galleryTabBtn.style.display = 'none';
   }
 
-  // Right panel
+  // Right panel (Links)
   renderLinkList(info);
+  
+  // Default to Details tab
+  setDetailTab('details', document.getElementById('tab-btn-details'));
 }
 
 // ─── Episode Discovery ────────────────────────────────
@@ -412,8 +483,12 @@ async function callPlay(linkData) {
     try { link = JSON.parse(link); } catch(e) {}
   }
   console.log("[JS] callPlay ->", link);
+  
+  // Track Continue Watching
+  await addToContinueWatching(S.meta, S.provider, link, 0);
+
   updateStatus('fetching', 'Extracting stream…');
-  const res = await api().play_app(S.provider, link, S.itemType, S.meta?.title || '');
+  const res = await api().play_app(S.provider, link, S.itemType, S.meta?.title || '', 0);
   updateStatus('online', 'Online');
   if (res.error) showToast(`❌ ${res.error}`);
   else showToast('▶ Launching player…');
@@ -425,6 +500,8 @@ async function callVlc(linkData) {
     try { link = JSON.parse(link); } catch(e) {}
   }
   console.log("[JS] callVlc ->", link);
+  await addToContinueWatching(S.meta, S.provider, link, 0);
+  
   updateStatus('fetching', 'Opening VLC…');
   const res = await api().play_vlc(S.provider, link, S.itemType);
   updateStatus('online', 'Online');
@@ -442,11 +519,84 @@ async function callBrowser(linkData, titleData) {
     try { title = JSON.parse(title); } catch(e) {}
   }
   console.log("[JS] callBrowser ->", title);
+  await addToContinueWatching(S.meta, link);
+
   updateStatus('fetching', 'Opening browser player…');
   const res = await api().open_browser(S.provider, link, S.itemType, title);
   updateStatus('online', 'Online');
   if (res.error) showToast(`❌ ${res.error}`);
   else showToast('🌐 Opened in browser');
+}
+
+// ─── Continue Watching Logic ─────────────────────────
+async function addToContinueWatching(meta, link, time = 0) {
+  if (!meta) return;
+  
+  const title = meta.title || "Unknown Title";
+
+  const item = {
+    title: title,
+    link: meta.link || link,
+    playbackLink: link,
+    image: meta.image || "",
+    type: meta.type || S.itemType,
+    provider: S.provider,
+    time: time,
+    duration: 0,
+    progress: (time > 0) ? 10 : 0, 
+    timestamp: Date.now(),
+    isContinue: true
+  };
+
+  // Remove existing entry for same title
+  S.continueWatching = S.continueWatching.filter(i => i.title !== item.title);
+  // Add to start
+  S.continueWatching.unshift(item);
+  
+  // Persist to JSON file
+  api().save_history(S.continueWatching);
+}
+
+function getResumeTime(link) {
+  const found = S.continueWatching.find(i => i.playbackLink === link || i.link === link);
+  return found ? found.time : 0;
+}
+
+function renderContinueWatching() {
+  // Always sort by timestamp before rendering
+  const sorted = [...S.continueWatching].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  renderCards(sorted, 'continue-grid', false); // No landscape anymore without TMDB
+}
+
+function clearContinueWatching() {
+  if (confirm("Clear all watch history?")) {
+    S.continueWatching = [];
+    api().save_history([]);
+    renderContinueWatching();
+    showToast("✨ History cleared");
+  }
+}
+
+// Called from Python to update progress
+function onPlayerProgress(link, time, duration) {
+  const item = S.continueWatching.find(i => i.playbackLink === link || i.link === link);
+  if (item) {
+    item.time = time;
+    item.duration = duration;
+    item.timestamp = Date.now(); // Move to top of recents
+    if (duration > 0) {
+      item.progress = Math.min(100, Math.floor((time / duration) * 100));
+    }
+    
+    // Periodically save progress to JSON (every ~2s call from Python player)
+    api().save_history(S.continueWatching);
+
+    // Refresh only if active
+    const contPg = document.getElementById('page-continue');
+    if (contPg && contPg.classList.contains('active')) {
+      renderContinueWatching();
+    }
+  }
 }
 
 async function callCopy(linkData) {
@@ -534,7 +684,6 @@ function onFfmpegProgress(stage, percent) {
 }
 
 // ─── External Links ───────────────────────────────────
-async function pyOpenLink(url) { await api().open_link(url); }
 
 // ─── Utility ──────────────────────────────────────────
 function updateStatus(type, text) {
@@ -570,5 +719,4 @@ function escHtml(str) {
 
 // ─── Native App Feel ──────────────────────────────────
 // Disable right-click to hide browser context menu
-window.addEventListener('contextmenu', e => e.preventDefault());
-
+  window.addEventListener('contextmenu', e => e.preventDefault());

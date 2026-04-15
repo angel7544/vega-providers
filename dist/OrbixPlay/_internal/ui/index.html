@@ -25,6 +25,9 @@
       <button class="nav-btn" id="btn-trending" onclick="navTrending()">
         <span class="nav-icon">📈</span> Trending
       </button>
+      <button class="nav-btn" id="btn-continue" onclick="navContinue()">
+        <span class="nav-icon">🕒</span> Continue
+      </button>
       <button class="nav-btn" id="btn-settings" onclick="navSettings()">
         <span class="nav-icon">⚙️</span> Settings
       </button>
@@ -62,28 +65,95 @@
         </div>
         <div id="card-grid" class="card-grid"></div>
       </div>
+      
+      <!-- CONTINUE WATCHING -->
+      <div id="page-continue" class="page">
+        <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <h1 style="font-size:24px;">🕒 Continue Watching</h1>
+          <button class="action-btn" onclick="clearContinueWatching()" style="background:var(--red); color:white;">Reset History</button>
+        </div>
+        <div id="continue-grid" class="card-grid"></div>
+      </div>
 
       <!-- DETAIL -->
       <div id="page-detail" class="page">
-        <div id="detail-container">
-          <div id="detail-left">
-            <button class="back-btn" onclick="goBack()">← Back to Home</button>
+        <div id="detail-hero" class="detail-hero">
+          <div class="detail-hero-content">
             <div id="detail-poster-wrap">
               <img id="detail-poster" src="" alt="Poster" />
             </div>
-            <h1 id="detail-title"></h1>
-            <p id="detail-subtitle"></p>
-            <p id="detail-tags"></p>
-            <div class="imdb-box">
-              <span class="imdb-badge">IMDb</span>
-              <span id="imdb-rating">⭐ …</span>
-              <span id="imdb-votes" class="imdb-votes">Fetching…</span>
+            <div class="hero-text">
+              <button class="back-btn" onclick="goBack()" style="width:auto; margin-bottom:15px; padding:8px 24px; border-radius:30px; font-size:12px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.05); color:white;">← Back</button>
+              <h1 id="detail-title"></h1>
+              <p id="detail-subtitle" style="font-size:16px; margin-bottom:10px; opacity:0.8;"></p>
+              <div class="imdb-box" style="margin-top:15px; width:fit-content; background:rgba(0,0,0,0.4); border:none;">
+                <span class="imdb-badge">IMDb</span>
+                <span id="imdb-rating">⭐ …</span>
+                <span id="imdb-votes" class="imdb-votes">Fetching…</span>
+              </div>
             </div>
-            <div id="detail-extra"></div>
           </div>
-          <div id="detail-right">
-            <h2 id="detail-right-title">Select Quality / Episodes</h2>
-            <div id="link-list"></div>
+        </div>
+
+        <div class="detail-main">
+          <nav class="detail-tabs">
+            <button class="tab-btn active" id="tab-btn-details" onclick="setDetailTab('details', this)">Details</button>
+            <button class="tab-btn" id="tab-btn-episodes" onclick="setDetailTab('episodes', this)">Episodes</button>
+            <button class="tab-btn" id="tab-btn-gallery" onclick="setDetailTab('gallery', this)">Gallery</button>
+          </nav>
+
+          <div id="tab-details" class="tab-content active">
+            <div class="details-grid">
+              <div class="left-col">
+                <section class="storyline-box">
+                  <h2>Storyline</h2>
+                  <p id="detail-storyline" class="storyline-text"></p>
+                </section>
+                <div class="meta-stats">
+                  <div class="stat-item">
+                    <span class="stat-label">Language</span>
+                    <span id="detail-lang" class="stat-value">English</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-label">Maturity</span>
+                    <span id="detail-maturity" class="stat-value">U/A 13+</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-label">Released</span>
+                    <span id="detail-released" class="stat-value">2024</span>
+                  </div>
+                </div>
+              </div>
+              <div class="right-col">
+                <div class="team-box">
+                  <div class="team-item">
+                    <span class="team-label">Cast</span>
+                    <span id="detail-cast" class="team-value">Fetching…</span>
+                  </div>
+                  <div class="team-item">
+                    <span class="team-label">Director</span>
+                    <span id="detail-director" class="team-value">Fetching…</span>
+                  </div>
+                </div>
+                <div class="genre-synergy">
+                  <div class="genre-title">Genre Synergy</div>
+                  <div id="detail-genres" class="genre-tags"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="tab-episodes" class="tab-content">
+            <div class="links-container">
+              <h2 id="detail-right-title" style="margin-bottom:20px; font-size:18px;">Select Quality / Episodes</h2>
+              <div id="link-list"></div>
+            </div>
+          </div>
+
+          <div id="tab-gallery" class="tab-content">
+            <div id="gallery-grid" class="gallery-grid">
+              <!-- Gallery items injected here -->
+            </div>
           </div>
         </div>
       </div>
@@ -100,8 +170,14 @@
             <button class="btn-primary" onclick="saveServerUrl()">Save &amp; Reconnect</button>
           </div>
 
-          <div class="settings-card">
-            <h3>🎬 Player Features</h3>
+          <div class="setting-item">
+            <label>TMDB API Key</label>
+            <input type="text" id="tmdb-key-input" placeholder="Enter API Key from themoviedb.org" />
+            <button class="action-btn" onclick="saveTmdbKey()">Save Key</button>
+          </div>
+
+          <div class="setting-item">
+            <label>FFmpeg Backend</label>
             <ul class="feature-list">
               <li>✅ Native VLC Engine — wide codec support</li>
               <li>✅ Multi-Audio Support — dual audio track switching</li>
