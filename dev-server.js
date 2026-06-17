@@ -173,16 +173,35 @@ class DevServer {
         // --- Centralized Proxy Wrapper ---
         if (functionName === "getStream" && Array.isArray(result)) {
            const processedResult = result.map(stream => {
-             const link = stream.link || "";
+             let link = stream.link || "";
+             const protocol = req.protocol;
+             const host = req.get('host');
+             const proxyBase = `${protocol}://${host}/stream`;
+
+             // Unwrap valhallastream proxy
+             if (link.includes("proxy.valhallastream.dpdns.org/proxy")) {
+                 try {
+                     const urlObj = new URL(link);
+                     const targetUrl = urlObj.searchParams.get("url");
+                     const headersStr = urlObj.searchParams.get("headers");
+                     let referer = "";
+                     if (headersStr) {
+                         const h = JSON.parse(decodeURIComponent(headersStr));
+                         if (h.Referer) referer = h.Referer;
+                         else if (h.origin) referer = h.origin;
+                     }
+                     const proxiedLink = `${proxyBase}?url=${encodeURIComponent(targetUrl)}&referer=${encodeURIComponent(referer)}`;
+                     console.log(`🛡️ Unwrapping valhallastream proxy to local: ${targetUrl}`);
+                     return { ...stream, link: proxiedLink, proxied: true };
+                 } catch (e) { console.error("Failed to unwrap valhallastream:", e); }
+             }
+
              const needsProxy = [
                "hubcloud", "filepress", "pixel", "fastdl", "fsl", "cloudflarestorage", 
                "workers.dev", "googleusercontent", "drive.google"
              ].some(domain => link.toLowerCase().includes(domain));
 
              if (needsProxy) {
-               const protocol = req.protocol;
-               const host = req.get('host');
-               const proxyBase = `${protocol}://${host}/stream`;
                const proxiedLink = `${proxyBase}?url=${encodeURIComponent(link)}&referer=${encodeURIComponent(link)}`;
                
                console.log(`🛡️ Proxying IP-locked source: ${stream.server}`);

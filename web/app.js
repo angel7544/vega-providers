@@ -953,6 +953,19 @@ function initPlayer(streams, initialIndex = 0) {
                         startPlayback(player.currentTime || 0); // Restart with proxy
                         return isTranscoding;
                     },
+                },
+                {
+                    html: 'Open in VLC (External)',
+                    icon: '<i data-lucide="monitor-play" style="width:16px;height:16px;color:#ef4444"></i>',
+                    onSelect: function (item) {
+                        fetch(`${getApiUrl()}/vlc`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ url: player.url })
+                        });
+                        alert("Attempting to open stream in VLC Media Player...");
+                        return item.html;
+                    },
                 }
             ],
             customType: {
