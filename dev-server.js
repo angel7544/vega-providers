@@ -204,6 +204,27 @@ class DevServer {
       }
     });
 
+    // Image Proxy endpoint to bypass hotlinking protection
+    this.app.get("/image-proxy", async (req, res) => {
+      const { url } = req.query;
+      if (!url) return res.status(400).send("url is required");
+      try {
+        const axios = require("axios");
+        const response = await axios.get(url, {
+          responseType: "stream",
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": new URL(url).origin
+          }
+        });
+        res.setHeader("Content-Type", response.headers["content-type"]);
+        res.setHeader("Cache-Control", "public, max-age=86400");
+        response.data.pipe(res);
+      } catch (err) {
+        res.status(500).send("Image proxy failed");
+      }
+    });
+
     // Parse endpoint for Hybrid Extraction
     this.app.post("/parse", async (req, res) => {
       const { provider, functionName, params, html } = req.body;

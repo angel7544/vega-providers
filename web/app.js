@@ -273,9 +273,13 @@ function renderGrid(items) {
             showDetails(item.link, provider);
         };
 
+        const proxiedImage = item.image && !item.image.includes('placeholder') && !item.image.includes('tmdb.org')
+            ? `${getApiUrl()}/image-proxy?url=${encodeURIComponent(item.image)}`
+            : item.image;
+
         card.innerHTML = `
             <div class="media-poster-container">
-                <img class="media-poster" src="${item.image}" loading="lazy"
+                <img class="media-poster" src="${proxiedImage}" loading="lazy"
                 onerror="handleImageError(this, '${(item.title || '').replace(/'/g, "\\'")}')">
                 <div class="media-overlay">
                     <div class="media-title">${item.title}</div>
@@ -1142,7 +1146,7 @@ async function handleImageError(img, title) {
             const validResult = results.find(i => i.image && !i.image.includes('placeholder'));
             
             if (validResult) {
-                img.src = validResult.image;
+                img.src = `${getApiUrl()}/image-proxy?url=${encodeURIComponent(validResult.image)}`;
                 return;
             }
         } catch (e) { console.error("Provider image fallback failed", e); }
