@@ -41,6 +41,7 @@
                 <a href="#" class="nav-link active" onclick="loadHome()">Home</a>
                 <a href="#" class="nav-link" onclick="loadMovies()">Movies</a>
                 <a href="#" class="nav-link" onclick="loadSeries()">Series</a>
+                <a href="#" class="nav-link" onclick="loadWishlist()">Wishlist <i data-lucide="heart" style="width:14px;height:14px;display:inline-block;margin-left:4px;"></i></a>
             </nav>
 
             <!-- SEARCH & PROVIDERS -->
@@ -104,6 +105,9 @@
                             <span id="detailProvider" class="provider-info"></span>
                         </div>
                         <p id="detailSynopsis" class="synopsis"></p>
+                        <button id="wishlistBtn" class="stream-btn" style="margin-top: 15px; width: fit-content;" onclick="toggleWishlist()">
+                            <i data-lucide="heart"></i> <span id="wishlistText">Add to Wishlist</span>
+                        </button>
                     </div>
 
                     <div id="gallerySection" class="episodes-section" style="display: none; margin-top: 30px;">

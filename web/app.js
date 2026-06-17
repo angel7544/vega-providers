@@ -79,6 +79,14 @@ function saveSettings() {
 function loadHome() { fetchData(""); updateActiveNav(0); switchPage('pageBrowse'); }
 function loadMovies() { fetchData("movie"); updateActiveNav(1); switchPage('pageBrowse'); }
 function loadSeries() { fetchData("tv"); updateActiveNav(2); switchPage('pageBrowse'); }
+function loadWishlist() { 
+    updateActiveNav(3); 
+    switchPage('pageBrowse'); 
+    catalogContainer.innerHTML = "";
+    const wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    renderGrid(wishlist);
+    setStatus(wishlist.length ? "Online" : "Wishlist is empty");
+}
 
 function updateActiveNav(index) {
     const links = document.querySelectorAll('.nav-link');
@@ -277,6 +285,10 @@ function renderGrid(items) {
             ? `${getApiUrl()}/image-proxy?url=${encodeURIComponent(item.image)}`
             : item.image;
 
+        const providerDisplayName = item.__provider && providersMap[item.__provider] 
+            ? providersMap[item.__provider].display_name 
+            : item.__provider;
+
         card.innerHTML = `
             <div class="media-poster-container">
                 <img class="media-poster" src="${proxiedImage}" loading="lazy"
@@ -285,7 +297,7 @@ function renderGrid(items) {
                     <div class="media-title">${item.title}</div>
                     <div class="media-meta">
                         <span>${item.type || 'Media'}</span>
-                        ${item.__provider ? `<span style="color:var(--accent)">${item.__provider}</span>` : ""}
+                        ${providerDisplayName ? `<span style="color:var(--accent)">${providerDisplayName}</span>` : ""}
                     </div>
                 </div>
             </div>
@@ -309,6 +321,7 @@ async function showDetails(link, provider) {
     document.getElementById("detailSynopsis").textContent = "";
     document.getElementById("detailPoster").src = "";
     document.getElementById("linksContainer").innerHTML = `<div class="loader"><div class="spinner"></div></div>`;
+    document.getElementById("wishlistBtn").style.display = "none";
 
     try {
         const resp = await fetch(`${getApiUrl()}/fetch`, {
@@ -345,6 +358,13 @@ async function showDetails(link, provider) {
         } else {
             document.getElementById("detailBackdrop").style.backgroundImage = 'none';
         }
+
+        // Attach wishlist metadata context to the global variable for saving later
+        currentMeta.__link = link;
+        currentMeta.__provider = provider;
+        
+        checkWishlistState();
+        document.getElementById("wishlistBtn").style.display = "flex";
 
         renderLinks(currentMeta);
         renderDownloads(currentMeta);
@@ -1100,6 +1120,49 @@ function setStatus(text, color = "#22c55e") {
 function search() {
     const q = searchInput.value.trim();
     if (q) fetchData(q, true);
+}
+
+// ============================
+// ❤️ WISHLIST
+// ============================
+function checkWishlistState() {
+    if (!currentMeta || !currentMeta.__link) return;
+    const wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    const isSaved = wishlist.some(item => item.link === currentMeta.__link);
+    const btn = document.getElementById("wishlistBtn");
+    const text = document.getElementById("wishlistText");
+    
+    if (isSaved) {
+        btn.style.background = "#ef4444";
+        btn.style.borderColor = "#ef4444";
+        text.textContent = "Remove from Wishlist";
+    } else {
+        btn.style.background = "rgba(139, 92, 246, 0.1)";
+        btn.style.borderColor = "var(--glass-border)";
+        text.textContent = "Add to Wishlist";
+    }
+}
+
+function toggleWishlist() {
+    if (!currentMeta || !currentMeta.__link) return;
+    
+    let wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    const index = wishlist.findIndex(item => item.link === currentMeta.__link);
+    
+    if (index > -1) {
+        wishlist.splice(index, 1);
+    } else {
+        wishlist.push({
+            title: parseMediaInfo(currentMeta.title).title || currentMeta.title,
+            image: currentMeta.image || "",
+            link: currentMeta.__link,
+            __provider: currentMeta.__provider,
+            type: currentMeta.type || "Media"
+        });
+    }
+    
+    localStorage.setItem('orbix_wishlist', JSON.stringify(wishlist));
+    checkWishlistState();
 }
 
 // ============================
