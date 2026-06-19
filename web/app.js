@@ -1,7 +1,7 @@
 // ============================
 // ⚙️ CONFIGURATION & STATE
 // ============================
-let API_BASE = localStorage.getItem('vega_api_url') || "http://localhost:3001";
+let API_BASE = localStorage.getItem('vega_api_url') || "";
 const getApiUrl = () => {
     let url = API_BASE ? API_BASE : window.location.origin;
     if (url.endsWith('/')) url = url.slice(0, -1);
