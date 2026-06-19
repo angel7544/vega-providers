@@ -4,7 +4,8 @@
   "outputDirectory": "web",
   "functions": {
     "api/**/*.js": {
-      "includeFiles": "{dist/**,manifest.json,providers/**}"
+      "includeFiles": "{dist/**,manifest.json,providers/**}",
+      "maxDuration": 60
     }
   },
   "rewrites": [

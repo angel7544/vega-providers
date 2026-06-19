@@ -145,6 +145,63 @@ class DevServer {
       }
     });
 
+    // Parse endpoint - similar to fetch but uses pre-fetched HTML
+    this.app.post("/parse", async (req, res) => {
+      try {
+        const { provider, functionName, params, html } = req.body;
+        
+        if (!provider || !functionName) {
+          return res.status(400).json({ error: "Missing provider or functionName" });
+        }
+
+        let moduleName = "";
+        if (["getPosts", "getSearchPosts"].includes(functionName)) {
+            moduleName = "posts.js";
+        } else if (functionName === "getMeta") {
+            moduleName = "meta.js";
+        } else if (functionName === "getStream") {
+            moduleName = "stream.js";
+        } else if (functionName === "getEpisodes") {
+            moduleName = "episodes.js";
+        } else if (functionName === "getCatalog") {
+            moduleName = "catalog.js";
+        } else {
+            return res.status(400).json({ error: "Unknown function" });
+        }
+
+        const modulePath = path.join(this.distDir, provider, moduleName);
+        if (!fs.existsSync(modulePath)) {
+            return res.status(404).json({ error: `Provider module ${provider}/${moduleName} not found` });
+        }
+
+        const module = require(modulePath);
+        if (typeof module[functionName] !== 'function') {
+            return res.status(400).json({ error: `Function ${functionName} not found in provider` });
+        }
+        
+        const axiosInstance = require('axios').create();
+        axiosInstance.interceptors.request.use(config => {
+            if (config.url) config.url = config.url.replace(/([^:]\/)\/+/g, "$1");
+            return config;
+        });
+
+        const providerContext = { 
+            axios: axiosInstance, 
+            cheerio: require('cheerio'),
+            getBaseUrl: require('./dist/getBaseUrl.js').getBaseUrl,
+            Aes: {}
+        };
+        const finalParams = { ...params, providerContext, providerValue: provider, html };
+
+        const result = await module[functionName](finalParams);
+        res.json(result);
+
+      } catch (error) {
+        console.error(`Error in /parse for ${req.body?.provider}:`, error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     // Catalog endpoint
     this.app.get("/catalog", async (req, res) => {
       try {
