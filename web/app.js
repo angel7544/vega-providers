@@ -19,6 +19,7 @@ let browseScrollPos = 0;
 let isBrowseCached = false;
 let currentFilter = "";
 let currentSearch = "";
+let currentCatalogItems = []; // Stores the current provider's catalog options
 
 // Init icons
 lucide.createIcons();
@@ -93,17 +94,27 @@ function saveSettings() {
     window.location.reload();
 }
 
+function getFilterForCategory(keyword, fallbackFilter) {
+    if (!currentCatalogItems || currentCatalogItems.length === 0) return fallbackFilter;
+    if (keyword === "") return currentCatalogItems[0]?.filter || fallbackFilter;
+    const match = currentCatalogItems.find(c => c.title.toLowerCase().includes(keyword.toLowerCase()));
+    return match ? match.filter : (currentCatalogItems[0]?.filter || fallbackFilter);
+}
+
 function loadHome() { 
-    if (currentFilter === "" && !currentSearch) { backToBrowse(); updateActiveNav(0); return; }
-    currentSearch = ""; isBrowseCached = false; fetchData(""); updateActiveNav(0); switchPage('pageBrowse'); 
+    const filter = getFilterForCategory("", "");
+    if (currentFilter === filter && !currentSearch) { backToBrowse(); updateActiveNav(0); return; }
+    currentSearch = ""; isBrowseCached = false; fetchData(filter); updateActiveNav(0); switchPage('pageBrowse'); 
 }
 function loadMovies() { 
-    if (currentFilter === "movie" && !currentSearch) { backToBrowse(); updateActiveNav(1); return; }
-    currentSearch = ""; isBrowseCached = false; fetchData("movie"); updateActiveNav(1); switchPage('pageBrowse'); 
+    const filter = getFilterForCategory("movie", "movie");
+    if (currentFilter === filter && !currentSearch) { backToBrowse(); updateActiveNav(1); return; }
+    currentSearch = ""; isBrowseCached = false; fetchData(filter); updateActiveNav(1); switchPage('pageBrowse'); 
 }
 function loadSeries() { 
-    if (currentFilter === "tv" && !currentSearch) { backToBrowse(); updateActiveNav(2); return; }
-    currentSearch = ""; isBrowseCached = false; fetchData("tv"); updateActiveNav(2); switchPage('pageBrowse'); 
+    const filter = getFilterForCategory("series", "tv");
+    if (currentFilter === filter && !currentSearch) { backToBrowse(); updateActiveNav(2); return; }
+    currentSearch = ""; isBrowseCached = false; fetchData(filter); updateActiveNav(2); switchPage('pageBrowse'); 
 }
 function loadWishlist() { 
     if (currentFilter === "wishlist") { backToBrowse(); updateActiveNav(3); return; }
@@ -163,7 +174,8 @@ async function loadProviders() {
 
         if (currentProvider) {
             await loadCatalog();
-            fetchData("");
+            const defaultFilter = currentCatalogItems[0] ? currentCatalogItems[0].filter : "";
+            fetchData(defaultFilter);
         }
 
         setStatus("Online");
@@ -185,10 +197,16 @@ async function loadCatalog() {
         if (!resp.ok) throw new Error();
 
         const data = await resp.json();
+        currentCatalogItems = [...(data.catalog || []), ...(data.genres || [])];
         renderCatalog(data.catalog || [], data.genres || []);
 
     } catch {
         // Fallback categories if API fails
+        currentCatalogItems = [
+            { title: "Home", filter: "" },
+            { title: "Movies", filter: "movie" },
+            { title: "Series", filter: "tv" }
+        ];
         renderCatalog([
             { title: "Home", filter: "" },
             { title: "Movies", filter: "movie" },
@@ -299,7 +317,8 @@ window.switchToProvider = async function(providerId) {
     currentProvider = providerId;
     localStorage.setItem('orbix_last_provider', currentProvider);
     await loadCatalog();
-    fetchData("");
+    const defaultFilter = currentCatalogItems[0] ? currentCatalogItems[0].filter : "";
+    fetchData(defaultFilter);
 };
 
 function renderGrid(data) {
