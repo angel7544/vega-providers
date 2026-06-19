@@ -594,17 +594,19 @@ function renderLinks(meta) {
          return;
     }
 
-    let seasonGroups = meta.linkList.filter(l => 
-        !l.title.toLowerCase().includes("download") && 
-        (l.episodesLink || /(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(l.title) || (l.directLinks && l.directLinks.length > 0))
-    );
+    let seasonGroups = meta.linkList.filter(l => {
+        const t = l.title || "Play";
+        return !t.toLowerCase().includes("download") && 
+        (l.episodesLink || /(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(t) || (l.directLinks && l.directLinks.length > 0));
+    });
     
-    let movieGroups = meta.linkList.filter(l => 
-        !l.title.toLowerCase().includes("download") && 
+    let movieGroups = meta.linkList.filter(l => {
+        const t = l.title || "Play";
+        return !t.toLowerCase().includes("download") && 
         !l.episodesLink && 
-        !/(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(l.title) && 
-        (!l.directLinks || l.directLinks.length === 0)
-    );
+        !/(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(t) && 
+        (!l.directLinks || l.directLinks.length === 0);
+    });
 
     if (seasonGroups.length > 0) {
         if (seasonSelector) seasonSelector.style.display = "flex";
@@ -647,6 +649,39 @@ function renderLinks(meta) {
             container.appendChild(btn);
         });
     }
+}
+
+function renderDownloads(meta) {
+    const container = document.getElementById("downloadContainer");
+    const tabBtn = document.getElementById("tabBtn-downloads");
+    
+    if (container) container.innerHTML = "";
+    
+    if (!meta || !meta.linkList) {
+        if (tabBtn) tabBtn.style.display = 'none';
+        return;
+    }
+    
+    let downloadGroups = meta.linkList.filter(l => {
+        const t = l.title || "";
+        return t.toLowerCase().includes("download");
+    });
+    
+    if (downloadGroups.length === 0) {
+        if (tabBtn) tabBtn.style.display = 'none';
+        return;
+    }
+    
+    if (tabBtn) tabBtn.style.display = 'inline-block';
+    
+    downloadGroups.forEach(group => {
+        let btn = document.createElement("a");
+        btn.className = "download-btn";
+        btn.href = group.link;
+        btn.target = "_blank";
+        btn.innerHTML = `<i data-lucide="download"></i> ${group.title}`;
+        container.appendChild(btn);
+    });
 }
 
 async function loadEpisodes(episodesUrl, provider) {
