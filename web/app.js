@@ -404,7 +404,7 @@ async function showDetails(link, provider) {
     } catch (err) {
         console.error("Details fetch error:", err);
         document.getElementById("detailTitle").textContent = "Failed to load Details";
-        document.getElementById("linksContainer").innerHTML = "<p>Stream retrieval failed.</p>";
+        document.getElementById("linksContainer").innerHTML = `<p>Stream retrieval failed.</p><pre style="color:red; font-size:12px; margin-top:10px; white-space:pre-wrap">${err.stack || err.message}</pre>`;
     }
 }
 
@@ -595,12 +595,14 @@ function renderLinks(meta) {
     }
 
     let seasonGroups = meta.linkList.filter(l => {
+        if (!l) return false;
         const t = l.title || "Play";
         return !t.toLowerCase().includes("download") && 
         (l.episodesLink || /(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(t) || (l.directLinks && l.directLinks.length > 0));
     });
     
     let movieGroups = meta.linkList.filter(l => {
+        if (!l) return false;
         const t = l.title || "Play";
         return !t.toLowerCase().includes("download") && 
         !l.episodesLink && 
@@ -663,6 +665,7 @@ function renderDownloads(meta) {
     }
     
     let downloadGroups = meta.linkList.filter(l => {
+        if (!l) return false;
         const t = l.title || "";
         return t.toLowerCase().includes("download");
     });
