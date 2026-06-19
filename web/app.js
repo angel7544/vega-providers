@@ -1,14 +1,14 @@
 // ============================
 // ⚙️ CONFIGURATION & STATE
 // ============================
-let API_BASE = localStorage.getItem('vega_api_url') || "";
+let API_BASE = localStorage.getItem('vega_api_url') || "http://localhost:3001";
 const getApiUrl = () => {
     let url = API_BASE ? API_BASE : window.location.origin;
     if (url.endsWith('/')) url = url.slice(0, -1);
     return url;
 };
 
-let currentProvider = localStorage.getItem('orbix_last_provider') || "__all__";
+let currentProvider = localStorage.getItem('orbix_last_provider') || "";
 let currentMeta = null;
 let player = null;
 let providersMap = {};
@@ -19,6 +19,7 @@ let browseScrollPos = 0;
 let isBrowseCached = false;
 let currentFilter = "";
 let currentSearch = "";
+let currentCatalogItems = []; // Stores the current provider's catalog options
 
 // Init icons
 lucide.createIcons();
@@ -93,17 +94,27 @@ function saveSettings() {
     window.location.reload();
 }
 
+function getFilterForCategory(keyword, fallbackFilter) {
+    if (!currentCatalogItems || currentCatalogItems.length === 0) return fallbackFilter;
+    if (keyword === "") return currentCatalogItems[0]?.filter || fallbackFilter;
+    const match = currentCatalogItems.find(c => c.title.toLowerCase().includes(keyword.toLowerCase()));
+    return match ? match.filter : (currentCatalogItems[0]?.filter || fallbackFilter);
+}
+
 function loadHome() { 
-    if (currentFilter === "" && !currentSearch) { backToBrowse(); updateActiveNav(0); return; }
-    currentSearch = ""; isBrowseCached = false; fetchData(""); updateActiveNav(0); switchPage('pageBrowse'); 
+    const filter = getFilterForCategory("", "");
+    if (currentFilter === filter && !currentSearch) { backToBrowse(); updateActiveNav(0); return; }
+    currentSearch = ""; isBrowseCached = false; fetchData(filter); updateActiveNav(0); switchPage('pageBrowse'); 
 }
 function loadMovies() { 
-    if (currentFilter === "movie" && !currentSearch) { backToBrowse(); updateActiveNav(1); return; }
-    currentSearch = ""; isBrowseCached = false; fetchData("movie"); updateActiveNav(1); switchPage('pageBrowse'); 
+    const filter = getFilterForCategory("movie", "movie");
+    if (currentFilter === filter && !currentSearch) { backToBrowse(); updateActiveNav(1); return; }
+    currentSearch = ""; isBrowseCached = false; fetchData(filter); updateActiveNav(1); switchPage('pageBrowse'); 
 }
 function loadSeries() { 
-    if (currentFilter === "tv" && !currentSearch) { backToBrowse(); updateActiveNav(2); return; }
-    currentSearch = ""; isBrowseCached = false; fetchData("tv"); updateActiveNav(2); switchPage('pageBrowse'); 
+    const filter = getFilterForCategory("series", "tv");
+    if (currentFilter === filter && !currentSearch) { backToBrowse(); updateActiveNav(2); return; }
+    currentSearch = ""; isBrowseCached = false; fetchData(filter); updateActiveNav(2); switchPage('pageBrowse'); 
 }
 function loadWishlist() { 
     if (currentFilter === "wishlist") { backToBrowse(); updateActiveNav(3); return; }
@@ -140,38 +151,33 @@ async function loadProviders() {
         providerSelect.innerHTML = "";
         providersMap = {};
 
-        const allOpt = document.createElement('option');
-        allOpt.value = "__all__";
-        allOpt.textContent = "All Providers 🌐";
-        providerSelect.appendChild(allOpt);
-
         providers.forEach(p => {
             providersMap[p.value] = p;
 
             const opt = document.createElement('option');
             opt.value = p.value;
             opt.textContent = p.display_name;
-            if (p.value === currentProvider) opt.selected = true;
             providerSelect.appendChild(opt);
         });
+
+        if (!currentProvider || currentProvider === "__all__" || !providersMap[currentProvider]) {
+            currentProvider = providers[0]?.value || "";
+            localStorage.setItem('orbix_last_provider', currentProvider);
+        }
+        providerSelect.value = currentProvider;
 
         providerSelect.onchange = async (e) => {
             currentProvider = e.target.value;
             localStorage.setItem('orbix_last_provider', currentProvider);
-
-            if (currentProvider === "__all__") {
-                catalogContainer.innerHTML = "";
-                fetchData("");
-            } else {
-                await loadCatalog();
-            }
+            window.location.reload();
         };
 
-        if (currentProvider !== "__all__") {
+        if (currentProvider) {
             await loadCatalog();
+            const defaultFilter = currentCatalogItems[0] ? currentCatalogItems[0].filter : "";
+            fetchData(defaultFilter);
         }
-        
-        fetchData("");
+
         setStatus("Online");
 
     } catch (err) {
@@ -191,10 +197,16 @@ async function loadCatalog() {
         if (!resp.ok) throw new Error();
 
         const data = await resp.json();
+        currentCatalogItems = [...(data.catalog || []), ...(data.genres || [])];
         renderCatalog(data.catalog || [], data.genres || []);
 
     } catch {
         // Fallback categories if API fails
+        currentCatalogItems = [
+            { title: "Home", filter: "" },
+            { title: "Movies", filter: "movie" },
+            { title: "Series", filter: "tv" }
+        ];
         renderCatalog([
             { title: "Home", filter: "" },
             { title: "Movies", filter: "movie" },
@@ -247,41 +259,13 @@ async function fetchData(filter, search = false) {
 
         let results = [];
 
-        if (currentProvider === "__all__") {
-            const providers = Object.keys(providersMap);
+        const resp = await fetch(`${getApiUrl()}/fetch`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ provider: currentProvider, functionName: func, params })
+        });
 
-            const all = await Promise.all(
-                providers.map(p =>
-                    fetch(`${getApiUrl()}/fetch`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ provider: p, functionName: func, params })
-                    })
-                        .then(r => r.json())
-                        .then(d => (Array.isArray(d) ? d : []).map(i => ({ ...i, __provider: p })))
-                        .catch(() => [])
-                )
-            );
-
-            results = all.flat();
-
-            const map = new Map();
-            results.forEach(i => {
-                const key = (i.title + (i.type || "")).toLowerCase();
-                if (!map.has(key)) map.set(key, i);
-            });
-
-            results = [...map.values()];
-
-        } else {
-            const resp = await fetch(`${getApiUrl()}/fetch`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ provider: currentProvider, functionName: func, params })
-            });
-
-            results = await resp.json();
-        }
+        results = await resp.json();
 
         renderGrid(results);
         setStatus(results.length ? "Online" : "No results");
@@ -295,10 +279,52 @@ async function fetchData(filter, search = false) {
 // ============================
 // 🖥️ GRID
 // ============================
-function renderGrid(items) {
+function createMediaCard(item) {
+    const card = document.createElement("div");
+    card.className = "media-card";
+
+    card.onclick = () => {
+        const provider = item.__provider || currentProvider;
+        showDetails(item.link, provider);
+    };
+
+    const proxiedImage = item.image && !item.image.includes('placeholder') && !item.image.includes('tmdb.org')
+        ? `${getApiUrl()}/image-proxy?url=${encodeURIComponent(item.image)}`
+        : item.image;
+
+    const providerDisplayName = item.__provider && providersMap[item.__provider] 
+        ? providersMap[item.__provider].display_name 
+        : item.__provider;
+
+    card.innerHTML = `
+        <div class="media-poster-container">
+            <img class="media-poster" src="${proxiedImage}" loading="lazy"
+            onerror="handleImageError(this, '${(item.title || '').replace(/'/g, "\\'")}')">
+            <div class="media-overlay">
+                <div class="media-title">${item.title}</div>
+                <div class="media-meta">
+                    <span>${item.type || 'Media'}</span>
+                    ${providerDisplayName ? `<span style="color:var(--accent)">${providerDisplayName}</span>` : ""}
+                </div>
+            </div>
+        </div>
+    `;
+    return card;
+}
+
+window.switchToProvider = async function(providerId) {
+    providerSelect.value = providerId;
+    currentProvider = providerId;
+    localStorage.setItem('orbix_last_provider', currentProvider);
+    await loadCatalog();
+    const defaultFilter = currentCatalogItems[0] ? currentCatalogItems[0].filter : "";
+    fetchData(defaultFilter);
+};
+
+function renderGrid(data) {
     contentGrid.innerHTML = "";
 
-    if (!items?.length) {
+    if (!data || (data.isGrouped && data.groups.length === 0) || (!data.isGrouped && data.length === 0)) {
         contentGrid.innerHTML = `
             <div style="grid-column: 1/-1; text-align:center; padding: 40px; color: var(--text-dim);">
                 <i data-lucide="ghost" style="width: 48px; height: 48px; margin-bottom: 16px;"></i>
@@ -309,39 +335,40 @@ function renderGrid(items) {
         return;
     }
 
-    items.forEach(item => {
-        const card = document.createElement("div");
-        card.className = "media-card";
-
-        card.onclick = () => {
-            const provider = item.__provider || currentProvider;
-            showDetails(item.link, provider);
-        };
-
-        const proxiedImage = item.image && !item.image.includes('placeholder') && !item.image.includes('tmdb.org')
-            ? `${getApiUrl()}/image-proxy?url=${encodeURIComponent(item.image)}`
-            : item.image;
-
-        const providerDisplayName = item.__provider && providersMap[item.__provider] 
-            ? providersMap[item.__provider].display_name 
-            : item.__provider;
-
-        card.innerHTML = `
-            <div class="media-poster-container">
-                <img class="media-poster" src="${proxiedImage}" loading="lazy"
-                onerror="handleImageError(this, '${(item.title || '').replace(/'/g, "\\'")}')">
-                <div class="media-overlay">
-                    <div class="media-title">${item.title}</div>
-                    <div class="media-meta">
-                        <span>${item.type || 'Media'}</span>
-                        ${providerDisplayName ? `<span style="color:var(--accent)">${providerDisplayName}</span>` : ""}
-                    </div>
-                </div>
-            </div>
-        `;
-
-        contentGrid.appendChild(card);
-    });
+    if (data.isGrouped) {
+        contentGrid.style.display = "block"; // override grid for vertical flow
+        data.groups.forEach(group => {
+            const groupDiv = document.createElement("div");
+            groupDiv.style.marginBottom = "40px";
+            
+            const providerName = providersMap[group.provider]?.display_name || group.provider;
+            
+            const header = document.createElement("div");
+            header.style.display = "flex";
+            header.style.justifyContent = "space-between";
+            header.style.alignItems = "center";
+            header.style.marginBottom = "16px";
+            
+            header.innerHTML = `
+                <h3 style="margin: 0; font-size: 20px;">${providerName}</h3>
+                <button class="catalog-btn" onclick="switchToProvider('${group.provider}')">View More</button>
+            `;
+            groupDiv.appendChild(header);
+            
+            const subGrid = document.createElement("div");
+            subGrid.className = "content-grid"; // reuse grid styles inside
+            subGrid.style.display = "grid"; // ensure it restores grid
+            
+            group.items.forEach(item => subGrid.appendChild(createMediaCard(item)));
+            
+            groupDiv.appendChild(subGrid);
+            contentGrid.appendChild(groupDiv);
+        });
+    } else {
+        contentGrid.style.display = "grid"; // restore global grid
+        data.forEach(item => contentGrid.appendChild(createMediaCard(item)));
+    }
+    lucide.createIcons();
 }
 
 // ============================
@@ -374,26 +401,32 @@ async function showDetails(link, provider) {
         currentMeta = await resp.json();
 
         // 🎬 Ultra-Minimalist UI
-        const parsed = parseMediaInfo(currentMeta.title);
+        let metaTitle = currentMeta.title || currentMeta.name || "Media Details";
+        const parsed = parseMediaInfo(metaTitle);
         document.getElementById("detailTitle").textContent = parsed.title;
         document.getElementById("detailSynopsis").textContent =
             currentMeta.description || currentMeta.synopsis || "No synopsis available.";
         
         const posterImg = currentMeta.image || "";
-        document.getElementById("detailPoster").src = posterImg;
+        const imgEl = document.getElementById("detailPoster");
+        imgEl.src = posterImg;
+        // Fix for detail page posters failing (like Vegamovies)
+        imgEl.onerror = () => handleImageError(imgEl, parsed.title);
 
         // Hide Rating/Year placeholders (already hidden in CSS/HTML but ensuring state here)
         document.getElementById("detailRating").textContent = "";
         document.getElementById("detailYear").textContent = "";
 
-        // Render Gallery
-        renderGallery(currentMeta);
-
-        // Update backdrop safely
+        // Update backdrop safely (Proxy it if it's an external url to bypass hotlinking)
+        const backdropEl = document.getElementById("detailBackdrop");
         if (posterImg) {
-            document.getElementById("detailBackdrop").style.backgroundImage = `url(${posterImg})`;
+            if (posterImg.startsWith('http') && !posterImg.includes('placeholder') && !posterImg.includes('image-proxy')) {
+                backdropEl.style.backgroundImage = `url(${getApiUrl()}/image-proxy?url=${encodeURIComponent(posterImg)})`;
+            } else {
+                backdropEl.style.backgroundImage = `url(${posterImg})`;
+            }
         } else {
-            document.getElementById("detailBackdrop").style.backgroundImage = 'none';
+            backdropEl.style.backgroundImage = 'none';
         }
 
         // Attach wishlist metadata context to the global variable for saving later
@@ -449,6 +482,12 @@ function parseMediaInfo(rawTitle) {
         title = title.replace(epMatch[0], "");
     }
 
+    const sizeMatch = title.match(/\b(\d+(?:\.\d+)?\s*(MB|GB))\b/gi);
+    if (sizeMatch) {
+        [...new Set(sizeMatch)].forEach(s => meta.push({ type: 'size', text: s.toUpperCase() }));
+        sizeMatch.forEach(s => title = title.replace(s, ""));
+    }
+
     title = title
         .replace(/\b(Series|Movie|JioHotstar|Netflix|Amazon|Hotstar|Zee5|SonyLiv|Disney\+|Apple\s*TV)\b/gi, "")
         .replace(/[\{\}\(\)\[\]]/g, " ") // replace stray brackets with space
@@ -459,69 +498,26 @@ function parseMediaInfo(rawTitle) {
     return { title: title || rawTitle, meta };
 }
 
-async function fetchTmdbMetadata(query) {
-    try {
-        const resp = await fetch(`https://api.themoviedb.org/3/search/multi?api_key=${tmdbKey}&query=${encodeURIComponent(query)}`);
-        const data = await resp.json();
-        const item = data.results?.[0];
-        if (!item) {
-            fetchTvMazeMetadata(query); // try TVMaze if TMDB fails
-            return;
-        }
-        // ... rest of the existing TMDB logic ...
-        applyMetadataToUi({
-            title: item.title || item.name,
-            overview: item.overview,
-            poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
-            backdrop: item.backdrop_path ? `https://image.tmdb.org/t/p/original${item.backdrop_path}` : null,
-            rating: item.vote_average,
-            year: (item.release_date || item.first_air_date || "").split('-')[0],
-            type: item.media_type === 'tv' ? 'Series' : 'Movie'
-        });
-    } catch (e) { fetchTvMazeMetadata(query); }
-}
-
-async function fetchTvMazeMetadata(query) {
-    try {
-        const resp = await fetch(`https://api.tvmaze.com/singlesearch/shows?q=${encodeURIComponent(query)}`);
-        if (!resp.ok) return;
-        const item = await resp.json();
-        
-        console.log("📺 TVMAZE MATCH:", item);
-        
-        applyMetadataToUi({
-            title: item.name,
-            overview: item.summary?.replace(/<[^>]*>/g, ""), // strip HTML
-            poster: item.image?.medium || item.image?.original,
-            backdrop: item.image?.original,
-            rating: item.rating?.average,
-            year: (item.premiered || "").split('-')[0],
-            type: 'Series'
-        });
-    } catch (e) { console.error("TVMaze error", e); }
-}
-
-function applyMetadataToUi(data) {
-    if (data.title) document.getElementById("detailTitle").textContent = data.title;
-    if (data.overview) document.getElementById("detailSynopsis").textContent = data.overview;
+function createStreamBadgeHtml(rawTitle, defaultIcon = "play-circle") {
+    const parsed = parseMediaInfo(rawTitle);
+    const badges = parsed.meta.map(m => {
+        let color = "rgba(255,255,255,0.1)";
+        if (m.type === 'quality') color = "#ef4444";
+        if (m.type === 'audio') color = "#8b5cf6";
+        if (m.type === 'season' || m.type === 'episode') color = "#22c55e";
+        if (m.type === 'size') color = "#3b82f6";
+        return `<span style="font-size: 10px; background: ${color}; color: #fff; padding: 2px 6px; border-radius: 4px; display: inline-block;">${m.text}</span>`;
+    }).join("");
     
-    if (data.poster) {
-        document.getElementById("detailPoster").src = data.poster;
-    }
-    
-    if (data.backdrop) {
-        document.getElementById("detailBackdrop").style.backgroundImage = 
-            `linear-gradient(to bottom, rgba(5,5,5,0.4), rgba(5,5,5,1)), url(${data.backdrop})`;
-    }
-    
-    if (data.rating) {
-        document.getElementById("detailRating").innerHTML = `<i data-lucide="star" style="width:12px;height:12px;display:inline-block;fill:#f59e0b;color:#f59e0b"></i> ${data.rating.toFixed(1)}`;
-    }
-    
-    if (data.year) document.getElementById("detailYear").textContent = data.year;
-    if (data.type) document.getElementById("detailProvider").textContent = data.type;
-
-    lucide.createIcons();
+    return `
+        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; text-align: left;">
+            <div style="display: flex; align-items: flex-start; gap: 8px; width: 100%;">
+                <i data-lucide="${defaultIcon}" style="width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px;"></i>
+                <span style="font-weight: 500; font-size: 14px; line-height: 1.4; word-break: break-word;">${parsed.title}</span>
+            </div>
+            ${badges ? `<div style="display: flex; flex-wrap: wrap; gap: 6px; width: 100%; padding-left: 26px;">${badges}</div>` : ''}
+        </div>
+    `;
 }
 
 function renderGallery(meta) {
@@ -593,10 +589,8 @@ function renderLinks(meta) {
          const searchBtn = document.createElement("button");
          searchBtn.className = "stream-btn";
          searchBtn.style.marginTop = "10px";
-         searchBtn.innerHTML = `<i data-lucide="search"></i> Search All Providers`;
+         searchBtn.innerHTML = `<i data-lucide="search"></i> Search This Provider`;
          searchBtn.onclick = () => {
-             currentProvider = "__all__";
-             document.getElementById('providerSelect').value = "__all__";
              fetchData(parseMediaInfo(meta.title).title, true);
          };
          container.appendChild(searchBtn);
@@ -625,7 +619,7 @@ function renderLinks(meta) {
         seasonGroups.forEach((group, index) => {
             const btn = document.createElement("button");
             btn.className = "season-tab" + (index === 0 ? " active" : "");
-            btn.textContent = group.title;
+            btn.innerHTML = createStreamBadgeHtml(group.title, "layers");
             btn.onclick = () => {
                 document.querySelectorAll('.season-tab').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
@@ -649,7 +643,7 @@ function renderLinks(meta) {
         movieGroups.forEach(group => {
             const btn = document.createElement("div");
             btn.className = "stream-btn";
-            btn.innerHTML = `<i data-lucide="play-circle"></i> ${group.title}`;
+            btn.innerHTML = createStreamBadgeHtml(group.title, "play-circle");
             btn.onclick = () => {
                 const link = group.directLinks?.[0]?.link || group.link;
                 if (link) {
@@ -665,12 +659,12 @@ function renderLinks(meta) {
 
 function renderDownloads(meta) {
     const container = document.getElementById("downloadContainer");
-    const tabBtn = document.getElementById("tabBtn-downloads");
+    const titleObj = document.getElementById("downloadSectionTitle");
     
     if (container) container.innerHTML = "";
     
     if (!meta || !meta.linkList) {
-        if (tabBtn) tabBtn.style.display = 'none';
+        if (titleObj) titleObj.style.display = 'none';
         return;
     }
     
@@ -681,18 +675,21 @@ function renderDownloads(meta) {
     });
     
     if (downloadGroups.length === 0) {
-        if (tabBtn) tabBtn.style.display = 'none';
+        if (titleObj) titleObj.style.display = 'none';
         return;
     }
     
-    if (tabBtn) tabBtn.style.display = 'inline-block';
+    if (titleObj) titleObj.style.display = 'block';
     
     downloadGroups.forEach(group => {
         let btn = document.createElement("a");
         btn.className = "download-btn";
-        btn.href = group.link;
-        btn.target = "_blank";
-        btn.innerHTML = `<i data-lucide="download"></i> ${group.title}`;
+        btn.href = "javascript:void(0)";
+        btn.onclick = (e) => {
+            e.preventDefault();
+            resolveDownload(group.link, currentProvider, group.title);
+        };
+        btn.innerHTML = createStreamBadgeHtml(group.title, "download");
         container.appendChild(btn);
     });
 }
@@ -755,7 +752,7 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
 
         const btn = document.createElement("button");
         btn.className = "ep-btn";
-        btn.textContent = ep.title || "Episode";
+        btn.innerHTML = createStreamBadgeHtml(ep.title || "Episode", "play-circle");
         btn.onclick = () => playStream(ep.link, provider);
         
         const dlBtn = document.createElement("button");
@@ -763,7 +760,6 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
         dlBtn.innerHTML = `<i data-lucide="download"></i>`;
         dlBtn.title = "Extract Download Links";
         dlBtn.onclick = () => {
-            document.getElementById("downloadSection").scrollIntoView({ behavior: 'smooth' });
             resolveDownload(ep.link, provider, ep.title);
         };
 
@@ -893,9 +889,7 @@ async function playStream(link, provider) {
     console.log("🎥 RESOLVED STREAMS:", streams);
 
     if (!streams || !streams.length) {
-        if (confirm("⚠️ No playable stream found for this provider. Would you like to search across all providers?")) {
-            currentProvider = "__all__";
-            document.getElementById('providerSelect').value = "__all__";
+        if (confirm("⚠️ No playable stream found for this provider. Would you like to search again?")) {
             fetchData(currentMeta ? parseMediaInfo(currentMeta.title).title : "", true);
         } else {
             setStatus("Online");
@@ -907,63 +901,108 @@ async function playStream(link, provider) {
     initPlayer(streams); // Pass entire array for fallback
 }
 
+function closeDownloadModal() {
+    const modal = document.getElementById("downloadModal");
+    modal.classList.remove('active');
+    setTimeout(() => {
+        modal.style.display = "none";
+        document.getElementById("dlModalLinksContainer").innerHTML = "";
+    }, 300);
+}
+
 async function resolveDownload(link, provider, title) {
-    const dlContainer = document.getElementById("downloadContainer");
-    dlContainer.innerHTML = `<div class="loader" style="min-height: 50px;"><div class="spinner" style="width:20px;height:20px;border-width:2px;"></div><p style="font-size:12px;">Extracting links for ${title}...</p></div>`;
+    const modal = document.getElementById("downloadModal");
+    modal.style.display = "flex";
+    setTimeout(() => modal.classList.add('active'), 10);
+    
+    document.getElementById("dlModalEpName").innerText = title || "Extracting Media";
+    document.getElementById("dlModalProvider").innerText = "Fetching links from " + provider + "...";
+    
+    const container = document.getElementById("dlModalLinksContainer");
+    container.innerHTML = `<div class="loader" style="min-height: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
+                        <div class="spinner" style="width: 24px; height: 24px;"></div>
+                        <p style="font-size: 13px; color: var(--text-dim);">Extracting direct links...</p>
+                    </div>`;
 
     const streams = await getResolvedStreams(link, provider);
     
-    dlContainer.innerHTML = "";
+    container.innerHTML = "";
     if (!streams || !streams.length) {
-        dlContainer.innerHTML = "<p style='color: #ef4444; font-size:13px;'>Failed to extract direct download links.</p>";
-        
-        const retryBtn = document.createElement("button");
-        retryBtn.className = "catalog-btn";
-        retryBtn.style.gridColumn = "1/-1";
-        retryBtn.style.marginTop = "10px";
-        retryBtn.innerHTML = `<i data-lucide="refresh-cw"></i> Try Again / Back`;
-        retryBtn.onclick = () => renderDownloads(currentMeta);
-        dlContainer.appendChild(retryBtn);
-        lucide.createIcons();
+        container.innerHTML = "<p style='color: #ef4444; font-size:13px; text-align:center;'>Failed to extract direct download links.</p>";
         return;
     }
 
-    // Add a back button
-    const backBtn = document.createElement("button");
-    backBtn.className = "catalog-btn";
-    backBtn.style.gridColumn = "1/-1";
-    backBtn.style.marginBottom = "10px";
-    backBtn.innerHTML = `<i data-lucide="arrow-left"></i> Back to Scan Buttons`;
-    backBtn.onclick = () => renderDownloads(currentMeta);
-    dlContainer.appendChild(backBtn);
+    document.getElementById("dlModalProvider").innerText = `Found ${streams.length} stream(s)`;
 
     streams.forEach((s, index) => {
-        const btnGroup = document.createElement("div");
-        btnGroup.className = "source-row";
-        btnGroup.style.display = "flex";
-        btnGroup.style.gap = "5px";
-        btnGroup.style.width = "100%";
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.justifyContent = "space-between";
+        row.style.alignItems = "center";
+        row.style.padding = "12px";
+        row.style.border = "1px solid var(--glass-border)";
+        row.style.borderRadius = "12px";
+        row.style.background = "rgba(255,255,255,0.02)";
 
-        const playBtn = document.createElement("button");
-        playBtn.className = "download-btn";
-        playBtn.style.flex = "1";
-        const qualityText = s.quality ? ` [${s.quality}p]` : "";
-        playBtn.innerHTML = `<i data-lucide="play"></i> Watch from ${s.server}${qualityText}`;
-        playBtn.onclick = () => {
-            closePlayer();
-            initPlayer(streams, index);
-        };
+        const info = document.createElement("div");
+        info.style.display = "flex";
+        info.style.flexDirection = "column";
+        info.style.gap = "4px";
         
-        const linkBtn = document.createElement("button");
-        linkBtn.className = "download-btn";
-        linkBtn.style.width = "50px";
-        linkBtn.innerHTML = `<i data-lucide="external-link"></i>`;
-        linkBtn.title = "Open Original Link";
-        linkBtn.onclick = () => window.open(s.link, '_blank');
+        const qText = s.quality ? s.quality + "p " : "Unknown Quality ";
+        const serverText = s.server ? `Server: ${s.server}` : "";
+        info.innerHTML = `
+            <div style="font-size: 14px; font-weight: 600; color: #fff;">${qText}</div>
+            <div style="font-size: 12px; color: var(--text-muted);">${serverText}</div>
+        `;
 
-        btnGroup.appendChild(playBtn);
-        btnGroup.appendChild(linkBtn);
-        dlContainer.appendChild(btnGroup);
+        const actions = document.createElement("div");
+        actions.style.display = "flex";
+        actions.style.gap = "8px";
+
+        // Download Button
+        const dlBtn = document.createElement("a");
+        dlBtn.href = s.link;
+        dlBtn.target = "_blank";
+        dlBtn.style.background = "var(--accent)";
+        dlBtn.style.color = "#fff";
+        dlBtn.style.padding = "8px 16px";
+        dlBtn.style.borderRadius = "8px";
+        dlBtn.style.fontSize = "13px";
+        dlBtn.style.fontWeight = "600";
+        dlBtn.style.textDecoration = "none";
+        dlBtn.style.display = "flex";
+        dlBtn.style.alignItems = "center";
+        dlBtn.style.gap = "6px";
+        dlBtn.innerHTML = `<i data-lucide="download" style="width: 16px; height: 16px;"></i> Download`;
+
+        // Copy Link Button
+        const copyBtn = document.createElement("button");
+        copyBtn.style.background = "rgba(139, 92, 246, 0.1)";
+        copyBtn.style.color = "var(--accent)";
+        copyBtn.style.border = "none";
+        copyBtn.style.width = "36px";
+        copyBtn.style.height = "36px";
+        copyBtn.style.borderRadius = "8px";
+        copyBtn.style.display = "flex";
+        copyBtn.style.alignItems = "center";
+        copyBtn.style.justifyContent = "center";
+        copyBtn.style.cursor = "pointer";
+        copyBtn.title = "Copy Link";
+        copyBtn.innerHTML = `<i data-lucide="copy" style="width: 16px; height: 16px;"></i>`;
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(s.link);
+            const originalHtml = copyBtn.innerHTML;
+            copyBtn.innerHTML = `<i data-lucide="check" style="width: 16px; height: 16px; color: #22c55e;"></i>`;
+            setTimeout(() => { copyBtn.innerHTML = originalHtml; lucide.createIcons(); }, 2000);
+        };
+
+        actions.appendChild(copyBtn);
+        actions.appendChild(dlBtn);
+
+        row.appendChild(info);
+        row.appendChild(actions);
+        container.appendChild(row);
     });
     
     lucide.createIcons();
@@ -1306,10 +1345,22 @@ function toggleWishlist() {
 // 🖼️ IMAGE FALLBACK
 // ============================
 async function handleImageError(img, title) {
-    if (img.dataset.failed) return;
+    if (img.dataset.failed === "true") return;
+
+    // 1. Try routing the original broken image through our proxy to bypass hotlinking protections (e.g. Vegamovies)
+    if (!img.dataset.proxied && img.src && !img.src.includes('placeholder') && !img.src.includes('image-proxy')) {
+        img.dataset.proxied = "true";
+        const originalSrc = img.src;
+        // If the src is a local broken link, don't proxy it
+        if (originalSrc.startsWith('http')) {
+            img.src = `${getApiUrl()}/image-proxy?url=${encodeURIComponent(originalSrc)}`;
+            return;
+        }
+    }
+
     img.dataset.failed = "true";
     
-    // 1. Try TMDB first
+    // 2. Try TMDB first
     if (tmdbKey && title) {
         try {
             const parsed = parseMediaInfo(title);
@@ -1323,35 +1374,7 @@ async function handleImageError(img, title) {
         } catch (e) { console.error("TMDB fallback failed", e); }
     }
     
-    // 2. Try fetching from other providers as a fallback
-    if (title && Object.keys(providersMap).length > 0) {
-        try {
-            const parsed = parseMediaInfo(title);
-            const providers = Object.keys(providersMap);
-            // Search all providers concurrently
-            const allResults = await Promise.all(
-                providers.map(p =>
-                    fetch(`${getApiUrl()}/fetch`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ provider: p, functionName: "getSearchPosts", params: { searchQuery: parsed.title, page: 1 } })
-                    })
-                    .then(r => r.json())
-                    .catch(() => [])
-                )
-            );
-            
-            // Find the first valid image from the results
-            const results = allResults.flat();
-            const validResult = results.find(i => i.image && !i.image.includes('placeholder'));
-            
-            if (validResult) {
-                img.src = `${getApiUrl()}/image-proxy?url=${encodeURIComponent(validResult.image)}`;
-                return;
-            }
-        } catch (e) { console.error("Provider image fallback failed", e); }
-    }
-    
+
     // 3. Nice CSS-based placeholder if all fails
     img.src = 'https://via.placeholder.com/300x450/16161a/8b5cf6?text=' + encodeURIComponent(title.substring(0, 20));
 }
