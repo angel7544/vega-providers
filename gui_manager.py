@@ -123,7 +123,11 @@ class ServerManagerApp:
     def open_portal(self):
         url_text = self.url_label.cget("text").replace("URL: ", "").strip()
         if url_text and url_text != "N/A":
-            webbrowser.open(url_text)
+            index_path = os.path.abspath(os.path.join("web", "index.html"))
+            if os.path.exists(index_path):
+                webbrowser.open(f"file://{index_path}")
+            else:
+                webbrowser.open(url_text)
         else:
             messagebox.showwarning("Not Running", "Start the server first to open the portal.")
 
