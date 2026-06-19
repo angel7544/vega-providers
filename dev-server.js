@@ -120,9 +120,16 @@ class DevServer {
             return res.status(400).json({ error: `Function ${functionName} not found in provider` });
         }
         
+        // Clean URLs of double slashes (e.g. domain.com//path -> domain.com/path)
+        const axiosInstance = require('axios').create();
+        axiosInstance.interceptors.request.use(config => {
+            if (config.url) config.url = config.url.replace(/([^:]\/)\/+/g, "$1");
+            return config;
+        });
+
         // Pass common context to provider if needed
         const providerContext = { 
-            axios: require('axios'), 
+            axios: axiosInstance, 
             cheerio: require('cheerio'),
             getBaseUrl: require('./dist/getBaseUrl.js').getBaseUrl,
             Aes: {}
@@ -157,8 +164,13 @@ class DevServer {
         }
         const module = require(modulePath);
         if (typeof module.getCatalog === 'function') {
+            const axiosInstance = require('axios').create();
+            axiosInstance.interceptors.request.use(config => {
+                if (config.url) config.url = config.url.replace(/([^:]\/)\/+/g, "$1");
+                return config;
+            });
             const providerContext = { 
-                axios: require('axios'), 
+                axios: axiosInstance, 
                 cheerio: require('cheerio'),
                 getBaseUrl: require('./dist/getBaseUrl.js').getBaseUrl,
                 Aes: {}
