@@ -283,4 +283,9 @@ class DevServer {
 
 // Start the server
 const server = new DevServer();
-server.start();
+
+if (process.env.VERCEL) {
+  module.exports = server.app;
+} else {
+  server.start();
+}
