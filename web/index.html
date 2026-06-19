@@ -160,6 +160,39 @@
     </div>
 
 
+    <!-- DOWNLOAD MODAL -->
+    <div id="downloadModal" class="modal-overlay" style="display: none;">
+        <div class="settings-dialog" style="max-width: 500px; width: 90%; background: #0a0a0c; border: 1px solid var(--glass-border); border-radius: 16px; display: flex; flex-direction: column; box-shadow: 0 20px 40px rgba(0,0,0,0.8);">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid var(--glass-border);">
+                <h3 id="dlModalTitle" style="margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="download-cloud" style="color: var(--accent);"></i> Download Episode
+                </h3>
+                <button class="close-modal" onclick="closeDownloadModal()" style="position: static; background: transparent; border: none; color: var(--text-muted); cursor: pointer;">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            
+            <div style="padding: 20px; max-height: 60vh; overflow-y: auto;">
+                <div id="dlModalMeta" style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.03); padding: 16px; border-radius: 12px; margin-bottom: 24px; border: 1px solid rgba(255,255,255,0.05);">
+                    <i data-lucide="play-circle" style="width: 24px; height: 24px; color: var(--text-dim);"></i>
+                    <div>
+                        <div id="dlModalEpName" style="font-weight: 600; font-size: 15px; margin-bottom: 4px;">Episode 1</div>
+                        <div id="dlModalProvider" style="font-size: 12px; color: var(--text-muted);">Fetching from Server...</div>
+                    </div>
+                </div>
+
+                <div style="font-size: 14px; font-weight: 600; color: var(--text-dim); margin-bottom: 16px;">Available Qualities</div>
+                <div id="dlModalLinksContainer" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- Links will be injected here -->
+                    <div class="loader" style="min-height: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
+                        <div class="spinner" style="width: 24px; height: 24px;"></div>
+                        <p style="font-size: 13px; color: var(--text-dim);">Extracting direct links...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- SETTINGS MODAL -->
     <div id="settingsModal" class="modal-overlay">
         <div class="settings-dialog">

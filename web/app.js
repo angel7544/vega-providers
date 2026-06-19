@@ -382,26 +382,32 @@ async function showDetails(link, provider) {
         currentMeta = await resp.json();
 
         // 🎬 Ultra-Minimalist UI
-        const parsed = parseMediaInfo(currentMeta.title);
+        let metaTitle = currentMeta.title || currentMeta.name || "Media Details";
+        const parsed = parseMediaInfo(metaTitle);
         document.getElementById("detailTitle").textContent = parsed.title;
         document.getElementById("detailSynopsis").textContent =
             currentMeta.description || currentMeta.synopsis || "No synopsis available.";
         
         const posterImg = currentMeta.image || "";
-        document.getElementById("detailPoster").src = posterImg;
+        const imgEl = document.getElementById("detailPoster");
+        imgEl.src = posterImg;
+        // Fix for detail page posters failing (like Vegamovies)
+        imgEl.onerror = () => handleImageError(imgEl, parsed.title);
 
         // Hide Rating/Year placeholders (already hidden in CSS/HTML but ensuring state here)
         document.getElementById("detailRating").textContent = "";
         document.getElementById("detailYear").textContent = "";
 
-        // Render Gallery
-        // renderGallery(currentMeta); // Disabled per user request
-
-        // Update backdrop safely
+        // Update backdrop safely (Proxy it if it's an external url to bypass hotlinking)
+        const backdropEl = document.getElementById("detailBackdrop");
         if (posterImg) {
-            document.getElementById("detailBackdrop").style.backgroundImage = `url(${posterImg})`;
+            if (posterImg.startsWith('http') && !posterImg.includes('placeholder') && !posterImg.includes('image-proxy')) {
+                backdropEl.style.backgroundImage = `url(${getApiUrl()}/image-proxy?url=${encodeURIComponent(posterImg)})`;
+            } else {
+                backdropEl.style.backgroundImage = `url(${posterImg})`;
+            }
         } else {
-            document.getElementById("detailBackdrop").style.backgroundImage = 'none';
+            backdropEl.style.backgroundImage = 'none';
         }
 
         // Attach wishlist metadata context to the global variable for saving later
@@ -659,8 +665,11 @@ function renderDownloads(meta) {
     downloadGroups.forEach(group => {
         let btn = document.createElement("a");
         btn.className = "download-btn";
-        btn.href = group.link;
-        btn.target = "_blank";
+        btn.href = "javascript:void(0)";
+        btn.onclick = (e) => {
+            e.preventDefault();
+            resolveDownload(group.link, currentProvider, group.title);
+        };
         btn.innerHTML = createStreamBadgeHtml(group.title, "download");
         container.appendChild(btn);
     });
@@ -732,8 +741,6 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
         dlBtn.innerHTML = `<i data-lucide="download"></i>`;
         dlBtn.title = "Extract Download Links";
         dlBtn.onclick = () => {
-            const dc = document.getElementById("downloadContainer");
-            if(dc) dc.scrollIntoView({ behavior: 'smooth', block: 'start' });
             resolveDownload(ep.link, provider, ep.title);
         };
 
@@ -875,67 +882,108 @@ async function playStream(link, provider) {
     initPlayer(streams); // Pass entire array for fallback
 }
 
+function closeDownloadModal() {
+    const modal = document.getElementById("downloadModal");
+    modal.classList.remove('active');
+    setTimeout(() => {
+        modal.style.display = "none";
+        document.getElementById("dlModalLinksContainer").innerHTML = "";
+    }, 300);
+}
+
 async function resolveDownload(link, provider, title) {
-    const dlContainer = document.getElementById("downloadContainer");
-    dlContainer.innerHTML = `<div class="loader" style="min-height: 50px;"><div class="spinner" style="width:20px;height:20px;border-width:2px;"></div><p style="font-size:12px;">Extracting links for ${title}...</p></div>`;
+    const modal = document.getElementById("downloadModal");
+    modal.style.display = "flex";
+    setTimeout(() => modal.classList.add('active'), 10);
+    
+    document.getElementById("dlModalEpName").innerText = title || "Extracting Media";
+    document.getElementById("dlModalProvider").innerText = "Fetching links from " + provider + "...";
+    
+    const container = document.getElementById("dlModalLinksContainer");
+    container.innerHTML = `<div class="loader" style="min-height: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
+                        <div class="spinner" style="width: 24px; height: 24px;"></div>
+                        <p style="font-size: 13px; color: var(--text-dim);">Extracting direct links...</p>
+                    </div>`;
 
     const streams = await getResolvedStreams(link, provider);
     
-    dlContainer.innerHTML = "";
+    container.innerHTML = "";
     if (!streams || !streams.length) {
-        dlContainer.innerHTML = "<p style='color: #ef4444; font-size:13px;'>Failed to extract direct download links.</p>";
-        
-        const retryBtn = document.createElement("button");
-        retryBtn.className = "catalog-btn";
-        retryBtn.style.gridColumn = "1/-1";
-        retryBtn.style.marginTop = "10px";
-        retryBtn.innerHTML = `<i data-lucide="refresh-cw"></i> Try Again / Back`;
-        retryBtn.onclick = () => renderDownloads(currentMeta);
-        dlContainer.appendChild(retryBtn);
-        lucide.createIcons();
+        container.innerHTML = "<p style='color: #ef4444; font-size:13px; text-align:center;'>Failed to extract direct download links.</p>";
         return;
     }
 
-    // Add a back button
-    const backBtn = document.createElement("button");
-    backBtn.className = "catalog-btn";
-    backBtn.style.gridColumn = "1/-1";
-    backBtn.style.marginBottom = "10px";
-    backBtn.innerHTML = `<i data-lucide="arrow-left"></i> Back to Scan Buttons`;
-    backBtn.onclick = () => renderDownloads(currentMeta);
-    dlContainer.appendChild(backBtn);
+    document.getElementById("dlModalProvider").innerText = `Found ${streams.length} stream(s)`;
 
     streams.forEach((s, index) => {
-        const btnGroup = document.createElement("div");
-        btnGroup.className = "source-row";
-        btnGroup.style.display = "flex";
-        btnGroup.style.gap = "5px";
-        btnGroup.style.width = "100%";
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.justifyContent = "space-between";
+        row.style.alignItems = "center";
+        row.style.padding = "12px";
+        row.style.border = "1px solid var(--glass-border)";
+        row.style.borderRadius = "12px";
+        row.style.background = "rgba(255,255,255,0.02)";
 
-        const playBtn = document.createElement("button");
-        playBtn.className = "download-btn";
-        playBtn.style.flex = "1";
-        const qualityText = s.quality ? ` [${s.quality}p]` : "";
-        playBtn.innerHTML = `<i data-lucide="play"></i> Watch from ${s.server}${qualityText}`;
-        playBtn.onclick = () => {
-            closePlayer();
-            initPlayer(streams, index);
-        };
+        const info = document.createElement("div");
+        info.style.display = "flex";
+        info.style.flexDirection = "column";
+        info.style.gap = "4px";
         
-        const linkBtn = document.createElement("a");
-        linkBtn.className = "download-btn";
-        linkBtn.style.width = "50px";
-        linkBtn.style.display = "flex";
-        linkBtn.style.alignItems = "center";
-        linkBtn.style.justifyContent = "center";
-        linkBtn.href = s.link;
-        linkBtn.target = "_blank";
-        linkBtn.innerHTML = `<i data-lucide="external-link"></i>`;
-        linkBtn.title = "Open Original Link";
+        const qText = s.quality ? s.quality + "p " : "Unknown Quality ";
+        const serverText = s.server ? `Server: ${s.server}` : "";
+        info.innerHTML = `
+            <div style="font-size: 14px; font-weight: 600; color: #fff;">${qText}</div>
+            <div style="font-size: 12px; color: var(--text-muted);">${serverText}</div>
+        `;
 
-        btnGroup.appendChild(playBtn);
-        btnGroup.appendChild(linkBtn);
-        dlContainer.appendChild(btnGroup);
+        const actions = document.createElement("div");
+        actions.style.display = "flex";
+        actions.style.gap = "8px";
+
+        // Download Button
+        const dlBtn = document.createElement("a");
+        dlBtn.href = s.link;
+        dlBtn.target = "_blank";
+        dlBtn.style.background = "var(--accent)";
+        dlBtn.style.color = "#fff";
+        dlBtn.style.padding = "8px 16px";
+        dlBtn.style.borderRadius = "8px";
+        dlBtn.style.fontSize = "13px";
+        dlBtn.style.fontWeight = "600";
+        dlBtn.style.textDecoration = "none";
+        dlBtn.style.display = "flex";
+        dlBtn.style.alignItems = "center";
+        dlBtn.style.gap = "6px";
+        dlBtn.innerHTML = `<i data-lucide="download" style="width: 16px; height: 16px;"></i> Download`;
+
+        // Copy Link Button
+        const copyBtn = document.createElement("button");
+        copyBtn.style.background = "rgba(139, 92, 246, 0.1)";
+        copyBtn.style.color = "var(--accent)";
+        copyBtn.style.border = "none";
+        copyBtn.style.width = "36px";
+        copyBtn.style.height = "36px";
+        copyBtn.style.borderRadius = "8px";
+        copyBtn.style.display = "flex";
+        copyBtn.style.alignItems = "center";
+        copyBtn.style.justifyContent = "center";
+        copyBtn.style.cursor = "pointer";
+        copyBtn.title = "Copy Link";
+        copyBtn.innerHTML = `<i data-lucide="copy" style="width: 16px; height: 16px;"></i>`;
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(s.link);
+            const originalHtml = copyBtn.innerHTML;
+            copyBtn.innerHTML = `<i data-lucide="check" style="width: 16px; height: 16px; color: #22c55e;"></i>`;
+            setTimeout(() => { copyBtn.innerHTML = originalHtml; lucide.createIcons(); }, 2000);
+        };
+
+        actions.appendChild(copyBtn);
+        actions.appendChild(dlBtn);
+
+        row.appendChild(info);
+        row.appendChild(actions);
+        container.appendChild(row);
     });
     
     lucide.createIcons();
@@ -1278,10 +1326,22 @@ function toggleWishlist() {
 // 🖼️ IMAGE FALLBACK
 // ============================
 async function handleImageError(img, title) {
-    if (img.dataset.failed) return;
+    if (img.dataset.failed === "true") return;
+
+    // 1. Try routing the original broken image through our proxy to bypass hotlinking protections (e.g. Vegamovies)
+    if (!img.dataset.proxied && img.src && !img.src.includes('placeholder') && !img.src.includes('image-proxy')) {
+        img.dataset.proxied = "true";
+        const originalSrc = img.src;
+        // If the src is a local broken link, don't proxy it
+        if (originalSrc.startsWith('http')) {
+            img.src = `${getApiUrl()}/image-proxy?url=${encodeURIComponent(originalSrc)}`;
+            return;
+        }
+    }
+
     img.dataset.failed = "true";
     
-    // 1. Try TMDB first
+    // 2. Try TMDB first
     if (tmdbKey && title) {
         try {
             const parsed = parseMediaInfo(title);
