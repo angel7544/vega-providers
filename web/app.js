@@ -526,17 +526,17 @@ function applyMetadataToUi(data) {
 
 function renderGallery(meta) {
     const container = document.getElementById("galleryContainer");
-    const section = document.getElementById("gallerySection");
-    container.innerHTML = "";
+    const tabBtn = document.getElementById("tabBtn-gallery");
+    if (container) container.innerHTML = "";
 
     const images = meta.images || meta.screenShots || meta.screenshots || [];
     
     if (!images || images.length === 0) {
-        section.style.display = "none";
+        if (tabBtn) tabBtn.style.display = "none";
         return;
     }
 
-    section.style.display = "block";
+    if (tabBtn) tabBtn.style.display = "inline-block";
     images.forEach(img => {
         const item = document.createElement("div");
         item.className = "gallery-item";
@@ -548,8 +548,13 @@ function renderGallery(meta) {
         image.loading = "lazy";
         
         item.appendChild(image);
-        container.appendChild(item);
+        if (container) container.appendChild(item);
     });
+}
+
+function refreshDetails() {
+    if (!currentMeta || !currentMeta.__link) return;
+    showDetails(currentMeta.__link, currentMeta.__provider);
 }
 
 // ============================
