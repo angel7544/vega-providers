@@ -17,6 +17,8 @@ let tmdbKey = localStorage.getItem('tmdb_api_key') || "";
 // Caching State
 let browseScrollPos = 0;
 let isBrowseCached = false;
+let currentFilter = "";
+let currentSearch = "";
 
 // Init icons
 lucide.createIcons();
@@ -223,6 +225,9 @@ function renderCatalog(catalog, genres) {
 // 🔍 FETCH DATA
 // ============================
 async function fetchData(filter, search = false) {
+    currentFilter = filter;
+    currentSearch = search ? filter : "";
+    
     setStatus("Fetching...", "#8b5cf6");
     switchPage('pageBrowse'); // Ensure we are on browse page
     isBrowseCached = false;
