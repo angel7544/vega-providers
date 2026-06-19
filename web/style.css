@@ -921,3 +921,228 @@ h1, h2, h3, .logo-text {
     margin-top: 10px;
   }
 }
+
+/* HERO HEADER LAYOUT */
+.hero-header {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-top: 10px;
+  margin-bottom: 30px;
+  border: 1px solid var(--glass-border);
+}
+
+.hero-backdrop {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: blur(10px) brightness(0.3);
+  z-index: 1;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 40px;
+  padding: 40px;
+  background: linear-gradient(to right, rgba(10,10,12,0.95) 0%, rgba(10,10,12,0.6) 50%, rgba(10,10,12,0.1) 100%);
+}
+
+.hero-poster {
+  width: 250px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+  border: 1px solid var(--glass-border);
+  flex-shrink: 0;
+}
+
+.hero-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.hero-meta h1 {
+  font-size: 42px;
+  line-height: 1.1;
+  margin-bottom: 16px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+.hero-actions {
+  margin-top: 24px;
+}
+
+.hero-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.floating-back-btn {
+  position: absolute;
+  top: -10px;
+  left: 0;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+}
+
+/* TABS */
+.details-tabs {
+  display: flex;
+  gap: 12px;
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 12px;
+  margin-bottom: 24px;
+}
+
+.detail-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 8px 16px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.detail-tab:hover {
+  color: var(--text-main);
+}
+
+.detail-tab.active {
+  color: var(--accent);
+}
+
+.detail-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -13px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--accent-gradient);
+  border-radius: 4px;
+}
+
+.detail-tab-content {
+  animation: fadeIn 0.3s ease;
+}
+
+/* SEASON SELECTOR */
+.season-tabs {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+}
+
+.season-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+.season-tabs::-webkit-scrollbar-thumb {
+  background: var(--glass-border);
+  border-radius: 4px;
+}
+
+.season-tab {
+  background: var(--surface-light);
+  border: 1px solid var(--glass-border);
+  color: var(--text-dim);
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.season-tab:hover, .season-tab.active {
+  background: var(--accent-glow);
+  color: var(--text-main);
+  border-color: var(--accent);
+}
+
+/* MOBILE BOTTOM NAV */
+.mobile-bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(10, 10, 12, 0.95);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--glass-border);
+  z-index: 2000;
+  justify-content: space-around;
+  padding: 10px 0;
+  padding-bottom: env(safe-area-inset-bottom, 10px);
+}
+
+.mobile-nav-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 10px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.mobile-nav-link i {
+  width: 20px;
+  height: 20px;
+}
+
+.mobile-nav-link.active, .mobile-nav-link:hover {
+  color: var(--accent);
+}
+
+@media (max-width: 768px) {
+  .mobile-bottom-nav {
+    display: flex;
+  }
+  
+  .main-container {
+    padding-bottom: 80px; /* space for bottom nav */
+  }
+
+  .hero-content {
+    flex-direction: column;
+    padding: 20px;
+    align-items: center;
+    background: linear-gradient(to bottom, rgba(10,10,12,0.8) 0%, rgba(10,10,12,0.95) 100%);
+  }
+
+  .hero-poster {
+    width: 160px;
+  }
+
+  .hero-meta h1 {
+    font-size: 28px;
+    text-align: center;
+  }
+  
+  .hero-meta .meta-tags {
+    justify-content: center;
+  }
+  
+  .hero-meta .synopsis {
+    text-align: center;
+  }
+  
+  .hero-actions {
+    display: flex;
+    justify-content: center;
+  }
+}

@@ -80,55 +80,74 @@
 
         <!-- DETAILS PAGE -->
         <div id="pageDetails" class="page-view">
-            <button class="back-btn" onclick="goBackToBrowse()">
-                <i data-lucide="arrow-left"></i> Back to Browse
+            <button class="back-btn floating-back-btn" onclick="backToBrowse()">
+                <i data-lucide="arrow-left"></i> Back
             </button>
             
-            <div class="modal-backdrop" id="detailBackdrop"></div>
-            
-            <div class="details-layout">
-                <!-- LEFT: POSTER & INFO -->
-                <div class="detail-sidebar">
-                    <div class="poster-container">
-                        <img id="detailPoster" class="detail-poster" src="" alt="">
-                        <div id="detailRating" class="rating-badge"></div>
-                    </div>
-                </div>
-
-                <!-- RIGHT: META & EPISODES -->
-                <div class="detail-main">
-                    <div class="meta-info">
-                        <h2 id="detailTitle"></h2>
-                        <div class="meta-tags" style="display: none !important;">
+            <!-- HERO HEADER -->
+            <div class="hero-header" id="detailHero">
+                <div class="hero-backdrop" id="detailBackdrop"></div>
+                <div class="hero-content">
+                    <img id="detailPoster" class="hero-poster" src="" alt="">
+                    <div class="hero-meta">
+                        <h1 id="detailTitle"></h1>
+                        <div class="meta-tags">
                             <span id="detailYear"></span>
                             <span id="detailType" class="type-tag"></span>
                             <span id="detailProvider" class="provider-info"></span>
+                            <div id="detailRating" class="rating-badge" style="display:inline-flex;margin-left:8px;"></div>
                         </div>
                         <p id="detailSynopsis" class="synopsis"></p>
-                        <button id="wishlistBtn" class="stream-btn" style="margin-top: 15px; width: fit-content;" onclick="toggleWishlist()">
-                            <i data-lucide="heart"></i> <span id="wishlistText">Add to Wishlist</span>
-                        </button>
+                        <div class="hero-actions">
+                            <button id="wishlistBtn" class="stream-btn hero-btn" onclick="toggleWishlist()">
+                                <i data-lucide="heart"></i> <span id="wishlistText">Add to Wishlist</span>
+                            </button>
+                        </div>
                     </div>
+                </div>
+            </div>
 
-                    <div id="gallerySection" class="episodes-section" style="display: none; margin-top: 30px;">
-                        <h3 style="color: var(--text-dim); font-size: 18px;">Episode Stills / Gallery</h3>
-                        <div id="galleryContainer" class="gallery-grid"></div>
-                    </div>
+            <!-- TABS & MAIN CONTENT -->
+            <div class="details-content">
+                <div class="details-tabs">
+                    <button id="tabBtn-episodes" class="detail-tab active" onclick="switchDetailTab('episodes')">Episodes & Streams</button>
+                    <button id="tabBtn-downloads" class="detail-tab" onclick="switchDetailTab('downloads')">Downloads</button>
+                    <button id="tabBtn-gallery" class="detail-tab" onclick="switchDetailTab('gallery')">Gallery</button>
+                </div>
 
-                    <div class="episodes-section">
-                        <h3 id="episodesTitle">Available Streams</h3>
-                        <div id="linksContainer" class="links-list"></div>
-                    </div>
+                <div id="tab-episodes" class="detail-tab-content active">
+                    <!-- Season Selector -->
+                    <div id="seasonSelector" class="season-tabs"></div>
+                    <div id="linksContainer" class="links-list"></div>
+                </div>
 
-                    <div class="episodes-section" id="downloadSection" style="margin-top: 30px;">
-                        <h3 style="color: var(--text-dim); font-size: 18px;">Download Links</h3>
-                        <div id="downloadContainer" class="links-list"></div>
-                    </div>
+                <div id="tab-downloads" class="detail-tab-content" style="display:none;">
+                    <div id="downloadContainer" class="links-list"></div>
+                </div>
+
+                <div id="tab-gallery" class="detail-tab-content" style="display:none;">
+                    <div id="galleryContainer" class="gallery-grid"></div>
                 </div>
             </div>
         </div>
 
     </main>
+
+    <!-- MOBILE BOTTOM NAVBAR -->
+    <nav class="mobile-bottom-nav">
+        <a href="#" class="mobile-nav-link active" onclick="loadHome()">
+            <i data-lucide="home"></i><span>Home</span>
+        </a>
+        <a href="#" class="mobile-nav-link" onclick="loadMovies()">
+            <i data-lucide="film"></i><span>Movies</span>
+        </a>
+        <a href="#" class="mobile-nav-link" onclick="loadSeries()">
+            <i data-lucide="tv"></i><span>Series</span>
+        </a>
+        <a href="#" class="mobile-nav-link" onclick="loadWishlist()">
+            <i data-lucide="heart"></i><span>Wishlist</span>
+        </a>
+    </nav>
 
     <!-- DEDICATED PLAYER PAGE -->
     <div id="pagePlayer" class="page-view player-fullscreen-wrapper">

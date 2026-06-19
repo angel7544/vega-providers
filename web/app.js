@@ -14,6 +14,10 @@ let player = null;
 let providersMap = {};
 let tmdbKey = localStorage.getItem('tmdb_api_key') || "";
 
+// Caching State
+let browseScrollPos = 0;
+let isBrowseCached = false;
+
 // Init icons
 lucide.createIcons();
 
@@ -38,6 +42,10 @@ const apiUrlInput = document.getElementById('apiUrlInput');
 // 🔄 PAGE ROUTING & SETTINGS
 // ============================
 function switchPage(pageId) {
+    if (document.getElementById('pageBrowse').classList.contains('active')) {
+        browseScrollPos = window.scrollY;
+    }
+
     document.querySelectorAll('.page-view').forEach(p => p.classList.remove('active'));
     document.getElementById(pageId).classList.add('active');
     
@@ -47,9 +55,16 @@ function switchPage(pageId) {
     } else {
         document.body.style.overflow = 'auto';
     }
+
+    if (pageId === 'pageBrowse' && isBrowseCached) {
+        window.scrollTo(0, browseScrollPos);
+    } else if (pageId !== 'pageBrowse') {
+        window.scrollTo(0, 0);
+    }
 }
 
-function goBackToBrowse() {
+function backToBrowse() {
+    isBrowseCached = true;
     switchPage('pageBrowse');
 }
 
@@ -76,10 +91,21 @@ function saveSettings() {
     window.location.reload();
 }
 
-function loadHome() { fetchData(""); updateActiveNav(0); switchPage('pageBrowse'); }
-function loadMovies() { fetchData("movie"); updateActiveNav(1); switchPage('pageBrowse'); }
-function loadSeries() { fetchData("tv"); updateActiveNav(2); switchPage('pageBrowse'); }
+function loadHome() { 
+    if (currentFilter === "" && !currentSearch) { backToBrowse(); updateActiveNav(0); return; }
+    currentSearch = ""; isBrowseCached = false; fetchData(""); updateActiveNav(0); switchPage('pageBrowse'); 
+}
+function loadMovies() { 
+    if (currentFilter === "movie" && !currentSearch) { backToBrowse(); updateActiveNav(1); return; }
+    currentSearch = ""; isBrowseCached = false; fetchData("movie"); updateActiveNav(1); switchPage('pageBrowse'); 
+}
+function loadSeries() { 
+    if (currentFilter === "tv" && !currentSearch) { backToBrowse(); updateActiveNav(2); return; }
+    currentSearch = ""; isBrowseCached = false; fetchData("tv"); updateActiveNav(2); switchPage('pageBrowse'); 
+}
 function loadWishlist() { 
+    if (currentFilter === "wishlist") { backToBrowse(); updateActiveNav(3); return; }
+    currentFilter = "wishlist"; currentSearch = ""; isBrowseCached = false;
     updateActiveNav(3); 
     switchPage('pageBrowse'); 
     catalogContainer.innerHTML = "";
@@ -89,8 +115,12 @@ function loadWishlist() {
 }
 
 function updateActiveNav(index) {
-    const links = document.querySelectorAll('.nav-link');
-    links.forEach((l, i) => i === index ? l.classList.add('active') : l.classList.remove('active'));
+    const links = document.querySelectorAll('.nav-link, .mobile-nav-link');
+    links.forEach((l, i) => {
+        // Because mobile links mirror desktop, index modulo handles both
+        if (i % 4 === index) l.classList.add('active');
+        else l.classList.remove('active');
+    });
 }
 
 // ============================
@@ -182,6 +212,7 @@ function renderCatalog(catalog, genres) {
         btn.onclick = () => {
             document.querySelectorAll('.catalog-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+            isBrowseCached = false;
             fetchData(section.filter);
         };
         catalogContainer.appendChild(btn);
@@ -194,6 +225,7 @@ function renderCatalog(catalog, genres) {
 async function fetchData(filter, search = false) {
     setStatus("Fetching...", "#8b5cf6");
     switchPage('pageBrowse'); // Ensure we are on browse page
+    isBrowseCached = false;
 
     contentGrid.innerHTML = `
         <div class="loader">
@@ -518,9 +550,28 @@ function renderGallery(meta) {
 // ============================
 // 🔗 LINKS & EPISODES
 // ============================
+function switchDetailTab(tabId) {
+    document.querySelectorAll('.detail-tab-content').forEach(c => {
+        if(c) c.style.display = 'none';
+    });
+    document.querySelectorAll('.detail-tab').forEach(c => {
+        if(c) c.classList.remove('active');
+    });
+    
+    const targetContent = document.getElementById(`tab-${tabId}`);
+    const targetBtn = document.getElementById(`tabBtn-${tabId}`);
+    
+    if (targetContent) targetContent.style.display = 'block';
+    if (targetBtn) targetBtn.classList.add('active');
+}
+
 function renderLinks(meta) {
     const container = document.getElementById("linksContainer");
+    const seasonSelector = document.getElementById("seasonSelector");
     container.innerHTML = "";
+    if (seasonSelector) seasonSelector.innerHTML = "";
+    
+    switchDetailTab('episodes');
 
     if (!meta.linkList || !meta.linkList.length) {
          if (meta.episodes || meta.seasons) {
@@ -543,34 +594,59 @@ function renderLinks(meta) {
          return;
     }
 
-    meta.linkList.forEach(group => {
-        const title = group.title || "Play";
-        const isSeries = group.episodesLink || /(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(title);
+    let seasonGroups = meta.linkList.filter(l => 
+        !l.title.toLowerCase().includes("download") && 
+        (l.episodesLink || /(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(l.title) || (l.directLinks && l.directLinks.length > 0))
+    );
+    
+    let movieGroups = meta.linkList.filter(l => 
+        !l.title.toLowerCase().includes("download") && 
+        !l.episodesLink && 
+        !/(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(l.title) && 
+        (!l.directLinks || l.directLinks.length === 0)
+    );
 
-        const btn = document.createElement("button");
-        btn.className = "stream-btn";
-        btn.textContent = title;
-
-        btn.onclick = () => {
-            if (isSeries) {
-                // If we already have direct links (like UHDMovies/Vegamovies), use them instantly!
+    if (seasonGroups.length > 0) {
+        if (seasonSelector) seasonSelector.style.display = "flex";
+        seasonGroups.forEach((group, index) => {
+            const btn = document.createElement("button");
+            btn.className = "season-tab" + (index === 0 ? " active" : "");
+            btn.textContent = group.title;
+            btn.onclick = () => {
+                document.querySelectorAll('.season-tab').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
                 if (group.directLinks && group.directLinks.length > 0) {
                     renderEpisodeList(group.directLinks, currentProvider);
                 } else {
                     loadEpisodes(group.episodesLink || group.link, currentProvider);
                 }
-            } else {
+            };
+            if (seasonSelector) seasonSelector.appendChild(btn);
+        });
+        
+        // Render first season automatically
+        if (seasonGroups[0].directLinks && seasonGroups[0].directLinks.length > 0) {
+            renderEpisodeList(seasonGroups[0].directLinks, currentProvider);
+        } else {
+            loadEpisodes(seasonGroups[0].episodesLink || seasonGroups[0].link, currentProvider);
+        }
+    } else {
+        if (seasonSelector) seasonSelector.style.display = "none";
+        movieGroups.forEach(group => {
+            const btn = document.createElement("div");
+            btn.className = "stream-btn";
+            btn.innerHTML = `<i data-lucide="play-circle"></i> ${group.title}`;
+            btn.onclick = () => {
                 const link = group.directLinks?.[0]?.link || group.link;
                 if (link) {
                     playStream(link, currentProvider);
                 } else {
                     alert("No direct link found.");
                 }
-            }
-        };
-
-        container.appendChild(btn);
-    });
+            };
+            container.appendChild(btn);
+        });
+    }
 }
 
 async function loadEpisodes(episodesUrl, provider) {
