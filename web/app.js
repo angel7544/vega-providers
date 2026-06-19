@@ -1293,7 +1293,7 @@ function setStatus(text, color = "#22c55e") {
     }
 }
 
-function search() {
+function executeSearch() {
     const q = searchInput.value.trim();
     if (q) fetchData(q, true);
 }
