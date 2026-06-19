@@ -50,6 +50,7 @@ var getBaseUrl = /* @__PURE__ */ __name((providerValue) => __async(null, null, f
     let baseUrl = "";
     const cacheKey = "CacheBaseUrl" + providerValue;
     const timeKey = "baseUrlTime" + providerValue;
+    if (providerValue === "1cinevood") return "https://cinevood.online";
     const baseUrlRes = yield fetch(
       "https://himanshu8443.github.io/providers/modflix.json"
     );

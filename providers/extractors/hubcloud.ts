@@ -5,6 +5,43 @@ const hubcloudDecode = function (value: string) {
   return atob(value.toString());
 };
 
+const extractUrlFromScript = (html: string): string => {
+  const doubleAtobMatch = html.match(
+    /var\s+url\s*=\s*atob\(atob\(['"]([^'"]+)['"]\)\)/,
+  );
+  if (doubleAtobMatch?.[1]) {
+    return atob(atob(doubleAtobMatch[1]));
+  }
+  const plainMatch = html.match(/var\s+url\s*=\s*['"]([^'"]+)['"]/);
+  return (
+    hubcloudDecode(plainMatch?.[1]?.split("r=")?.[1] ?? "") ||
+    plainMatch?.[1] ||
+    ""
+  );
+};
+
+const getPixelDrainUrl = (html: string) => {
+  const match = html.match(/var\s+pxl\s*=\s*['"]([^'"]+)['"];?/i);
+  return match?.[1] || "";
+};
+
+const getRedirectedPixelDrainUrl = (
+  ...htmlSources: Array<string | undefined>
+) => {
+  for (const html of htmlSources) {
+    if (!html) {
+      continue;
+    }
+
+    const redirectedUrl = getPixelDrainUrl(html);
+    if (redirectedUrl) {
+      return redirectedUrl;
+    }
+  }
+
+  return "";
+};
+
 export async function hubcloudExtractor(
   link: string,
   signal: AbortSignal,
@@ -13,86 +50,107 @@ export async function hubcloudExtractor(
   headers: Record<string, string>,
 ) {
   try {
-    const localHeaders = {
-      ...headers,
-      Cookie: "ext_name=ojplmecpdpgccookcobabopnaifgidhf; xla=s4t; cf_clearance=woQrFGXtLfmEMBEiGUsVHrUBMT8s3cmguIzmMjmvpkg-1770053679-1.2.1.1-xBrQdciOJsweUF6F2T_OtH6jmyanN_TduQ0yslc_XqjU6RcHSxI7.YOKv6ry7oYo64868HYoULnVyww536H2eVI3R2e4wKzsky6abjPdfQPxqpUaXjxfJ02o6jl3_Vkwr4uiaU7Wy596Vdst3y78HXvVmKdIohhtPvp.vZ9_L7wvWdce0GRixjh_6JiqWmWMws46hwEt3hboaS1e1e4EoWCvj5b0M_jVwvSxBOAW5emFzvT3QrnRh4nyYmKDERnY"
-    };
-    
+    if (!headers) headers = {};
+    headers["Cookie"] =
+      "ext_name=ojplmecpdpgccookcobabopnaifgidhf; xla=s4t; cf_clearance=woQrFGXtLfmEMBEiGUsVHrUBMT8s3cmguIzmMjmvpkg-1770053679-1.2.1.1-xBrQdciOJsweUF6F2T_OtH6jmyanN_TduQ0yslc_XqjU6RcHSxI7.YOKv6ry7oYo64868HYoULnVyww536H2eVI3R2e4wKzsky6abjPdfQPxqpUaXjxfJ02o6jl3_Vkwr4uiaU7Wy596Vdst3y78HXvVmKdIohhtPvp.vZ9_L7wvWdce0GRixjh_6JiqWmWMws46hwEt3hboaS1e1e4EoWCvj5b0M_jVwvSxBOAW5emFzvT3QrnRh4nyYmKDERnY";
     console.log("hubcloudExtractor", link);
-    if (!link) return [];
-
+    // console.log("headers", headers);
     const baseUrl = link.split("/").slice(0, 3).join("/");
     const streamLinks: any[] = [];
-    
-    const vLinkRes = await axios(`${link}`, { headers: localHeaders, signal });
+    const vLinkRes = await axios(`${link}`, { headers, signal });
     const vLinkText = vLinkRes.data;
     const $vLink = cheerio.load(vLinkText);
-    const vLinkRedirect = vLinkText.match(/var\s+url\s*=\s*'([^']+)';/) || [];
-    
     let vcloudLink =
-      hubcloudDecode(vLinkRedirect[1]?.split("r=")?.[1]) ||
-      vLinkRedirect[1] ||
+      extractUrlFromScript(vLinkText) ||
       $vLink(".fa-file-download.fa-lg").parent().attr("href") ||
       link;
-    
     console.log("vcloudLink", vcloudLink);
-    if (!vcloudLink) return [];
-
-    if (vcloudLink.startsWith("/")) {
+    if (vcloudLink?.startsWith("/")) {
       vcloudLink = `${baseUrl}${vcloudLink}`;
       console.log("New vcloudLink", vcloudLink);
     }
-    
-    const vcloudRes = await axios(vcloudLink, {
-      headers: localHeaders,
+    const vcloudRes = await fetch(vcloudLink, {
+      headers,
       signal,
+      redirect: "follow",
     });
-    const $ = cheerio.load(vcloudRes.data);
+    const vcloudText = await vcloudRes.text();
+    const $ = cheerio.load(vcloudText);
+    // console.log("vcloudRes", $.text());
 
     const linkClass = $(".btn-success.btn-lg.h6,.btn-danger,.btn-secondary");
     for (const element of linkClass) {
       const itm = $(element);
-      let itemLink = itm.attr("href") || "";
-      if (!itemLink) continue;
+      let link = itm.attr("href") || "";
 
       switch (true) {
-        case itemLink.includes("pixeld"):
-          if (!itemLink.includes("api")) {
-            const token = itemLink.split("/").pop();
-            const pixeldBaseUrl = itemLink.split("/").slice(0, -2).join("/");
-            itemLink = `${pixeldBaseUrl}/api/file/${token}?download`;
+        case link?.includes("pixeld"):
+          console.log("Pixeldrain link found:", link);
+          if (!link?.includes("api")) {
+            const redirectedPixelDrainUrl = getRedirectedPixelDrainUrl(
+              vLinkText,
+              vcloudText,
+            );
+            if (redirectedPixelDrainUrl) {
+              console.log(
+                "Special case for token negn6f",
+                redirectedPixelDrainUrl,
+              );
+              link = redirectedPixelDrainUrl;
+            }
+
+            const token = link.split("/").pop()?.split("?")[0];
+            const baseUrl = link.split("/").slice(0, -2).join("/");
+            link = `${baseUrl}/api/file/${token}`;
           }
-          streamLinks.push({ server: "Pixeldrain", link: itemLink, type: "mkv" });
+          streamLinks.push({ server: "Pixeldrain", link: link, type: "mkv" });
           break;
 
-        case itemLink.includes(".dev") && !itemLink.includes("/?id="):
-          streamLinks.push({ server: "Cf Worker", link: itemLink, type: "mkv" });
+        case link?.includes(".dev") && !link?.includes("/?id="):
+          streamLinks.push({ server: "Cf Worker", link: link, type: "mkv" });
           break;
 
-        case itemLink.includes("hubcloud") || itemLink.includes("/?id="):
+        case link?.includes("hubcloud") || link?.includes("/?id="):
           try {
-            const newLinkRes = await axios(itemLink, {
+            const newLinkRes = await fetch(link, {
               method: "HEAD",
-              headers: localHeaders,
+              headers,
               signal,
-              validateStatus: (status: number) => status >= 200 && status < 400,
-              maxRedirects: 0,
+              redirect: "manual",
             });
 
-            let newLink = newLinkRes.headers.location || itemLink;
-            if (newLink.includes("googleusercontent")) {
-              newLink = newLink.split("?link=")[1] || newLink;
+            // Check if response is a redirect (301, 302, etc.)
+            let newLink = link;
+            if (newLinkRes.status >= 300 && newLinkRes.status < 400) {
+              newLink = newLinkRes.headers.get("location") || link;
+            } else if (newLinkRes.url && newLinkRes.url !== link) {
+              // Fallback: check if URL changed (redirect was followed)
+              newLink = newLinkRes.url;
             } else {
-              const newLinkRes2 = await axios(newLink, {
+              newLink = newLinkRes.headers.get("location") || link;
+            }
+            if (newLink.includes("googleusercontent")) {
+              newLink = newLink.split("?link=")[1];
+            } else {
+              const newLinkRes2 = await fetch(newLink, {
                 method: "HEAD",
-                headers: localHeaders,
+                headers,
                 signal,
-                validateStatus: (status: number) => status >= 200 && status < 400,
-                maxRedirects: 0,
+                redirect: "manual",
               });
-              
-              if (newLinkRes2.headers.location) {
-                newLink = newLinkRes2.headers.location.split("?link=")[1] || newLinkRes2.headers.location;
+
+              // Check if response is a redirect
+              if (newLinkRes2.status >= 300 && newLinkRes2.status < 400) {
+                newLink =
+                  newLinkRes2.headers.get("location")?.split("?link=")[1] ||
+                  newLink;
+              } else if (newLinkRes2.url && newLinkRes2.url !== newLink) {
+                // Fallback: URL changed due to redirect
+                newLink = newLinkRes2.url.split("?link=")[1] || newLinkRes2.url;
+              } else {
+                newLink =
+                  newLinkRes2.headers.get("location")?.split("?link=")[1] ||
+                  newLink;
               }
             }
 
@@ -106,29 +164,29 @@ export async function hubcloudExtractor(
           }
           break;
 
-        case itemLink.includes("cloudflarestorage"):
-          streamLinks.push({ server: "CfStorage", link: itemLink, type: "mkv" });
+        case link?.includes("cloudflarestorage"):
+          streamLinks.push({ server: "CfStorage", link: link, type: "mkv" });
           break;
 
-        case itemLink.includes("fastdl") || itemLink.includes("fsl."):
-          streamLinks.push({ server: "FastDl", link: itemLink, type: "mkv" });
+        case link?.includes("fastdl") || link?.includes("fsl."):
+          streamLinks.push({ server: "FastDl", link: link, type: "mkv" });
           break;
 
-        case itemLink.includes("hubcdn") && !itemLink.includes("/?id="):
+        case link.includes("hubcdn") && !link.includes("/?id="):
           streamLinks.push({
             server: "HubCdn",
-            link: itemLink,
+            link: link,
             type: "mkv",
           });
           break;
 
         default:
-          if (itemLink.includes(".mkv") || itemLink.includes(".mp4") || itemLink.includes("?token=")) {
+          if (link?.includes(".mkv") || link?.includes("?token=")) {
             const serverName =
-              itemLink
+              link
                 .match(/^(?:https?:\/\/)?(?:www\.)?([^\/]+)/i)?.[1]
                 ?.replace(/\./g, " ") || "Unknown";
-            streamLinks.push({ server: serverName, link: itemLink, type: "mkv" });
+            streamLinks.push({ server: serverName, link: link, type: "mkv" });
           }
           break;
       }
@@ -141,4 +199,3 @@ export async function hubcloudExtractor(
     return [];
   }
 }
-
