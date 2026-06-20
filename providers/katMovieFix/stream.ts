@@ -31,12 +31,12 @@ export async function getStream({
     const $ = cheerio.load(response.data);
 
     // --- PixelDrain link scrape ---
-    $("a[href*='pixeldrain.dev/api/file/']").each((_, el) => {
+    $("a[href*='pixeldrain.dev/api/file/'], a[href*='pixeldrain.com/api/file/']").each((_, el) => {
       const href = $(el).attr("href")?.trim();
       if (href) {
         streamLinks.push({
           server: "pixeldrain",
-          link: href,
+          link: href.replace("pixeldrain.dev", "pixeldrain.com"),
           type: "mp4",
         });
       }

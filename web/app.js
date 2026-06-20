@@ -989,7 +989,7 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
         const btn = document.createElement("button");
         btn.className = "ep-btn";
         btn.innerHTML = createStreamBadgeHtml(ep.title || "Episode", "play-circle");
-        btn.onclick = () => playStream(ep.link, provider);
+        btn.onclick = () => playStream(ep.link, provider, ep.title);
         
         const dlBtn = document.createElement("button");
         dlBtn.className = "ep-btn-dl";
@@ -1089,7 +1089,7 @@ async function tryHybridExtraction(link, provider) {
     }
 }
 
-async function playStream(link, provider) {
+async function playStream(link, provider, episodeTitle = "") {
     setStatus("Extracting stream...", "#8b5cf6");
 
     const streams = await getResolvedStreams(link, provider);
@@ -1105,7 +1105,7 @@ async function playStream(link, provider) {
     }
 
     setStatus("Online", "#22c55e");
-    initPlayer(streams); // Pass entire array for fallback
+    initPlayer(streams, 0, episodeTitle); // Pass entire array for fallback
 }
 
 function closeDownloadModal() {
@@ -1218,7 +1218,7 @@ async function resolveDownload(link, provider, title) {
 // ============================
 // 🎬 PLAYER
 // ============================
-function initPlayer(streams, initialIndex = 0) {
+function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
     let currentStreamIndex = initialIndex;
     let isTranscoding = false;
     let currentAudioTrack = null;
@@ -1242,15 +1242,35 @@ function initPlayer(streams, initialIndex = 0) {
             return;
         }
 
-        // If local transcoding is enabled AND link isn't already proxied, route through server
-        if (isTranscoding && !streamUrl.includes("/stream?")) {
-            const baseUrl = getApiUrl();
-            const proxyUrl = `${baseUrl}/stream?url=${encodeURIComponent(streamUrl)}&transcode=true&referer=${encodeURIComponent(streamUrl)}`;
-            streamUrl = proxyUrl;
+        // If transcoding is active, we ensure the URL routes through our stream proxy
+        let isAlreadyProxied = streamUrl.includes("/stream?");
+        if (isTranscoding) {
+            if (isAlreadyProxied) {
+                // Ensure transcode=true is appended
+                if (!streamUrl.includes("transcode=")) {
+                    streamUrl += `&transcode=true`;
+                }
+                // Ensure audioIndex is appended
+                if (currentAudioTrack !== null && currentAudioTrack !== undefined && !streamUrl.includes("audioIndex=")) {
+                    streamUrl += `&audioIndex=${currentAudioTrack}`;
+                }
+            } else {
+                const baseUrl = getApiUrl();
+                let proxyUrl = `${baseUrl}/stream?url=${encodeURIComponent(streamUrl)}&transcode=true&referer=${encodeURIComponent(streamUrl)}`;
+                if (currentAudioTrack !== null && currentAudioTrack !== undefined) {
+                    proxyUrl += `&audioIndex=${currentAudioTrack}`;
+                }
+                streamUrl = proxyUrl;
+            }
         }
 
+        // Title display cleanup
+        const parsedMeta = parseMediaInfo(currentMeta?.title || "Video Player");
+        const cleanTitle = parsedMeta.title;
+        const displayTitle = episodeTitle ? `${cleanTitle} - ${episodeTitle}` : cleanTitle;
+
         document.getElementById("playerTitleDisplay").innerText = 
-            `[Source ${currentStreamIndex + 1}/${streams.length}] ` + (currentMeta?.title || "Video Player");
+            `[Source ${currentStreamIndex + 1}/${streams.length}] ` + displayTitle;
 
         const isM3u8 = streamUrl.toLowerCase().includes(".m3u8") && !isTranscoding;
         const isMp4 = streamUrl.toLowerCase().includes(".mp4") || streamUrl.includes("googleusercontent.com") || isTranscoding;
@@ -1275,7 +1295,7 @@ function initPlayer(streams, initialIndex = 0) {
         player = new Artplayer({
             container: '#artplayer-app',
             url: streamUrl,
-            title: currentMeta?.title || "Video Player",
+            title: displayTitle,
             type: isM3u8 ? 'm3u8' : (isMp4 ? 'mp4' : 'auto'),
             autoplay: true,
             autoSize: false,
@@ -1294,6 +1314,8 @@ function initPlayer(streams, initialIndex = 0) {
             muted: true, 
             volume: 0.7,
             autoOrientation: true,
+            lock: true,
+            gesture: true,
             theme: '#8b5cf6', 
             settings: [
                 {
@@ -1349,6 +1371,7 @@ function initPlayer(streams, initialIndex = 0) {
                         });
                         
                         hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                            // --- HLS Audio Tracks ---
                             const tracks = hls.audioTracks;
                             if (tracks && tracks.length > 1) {
                                 // Default to Hindi if found
@@ -1376,8 +1399,40 @@ function initPlayer(streams, initialIndex = 0) {
                                         return item.html;
                                     },
                                 });
-                                lucide.createIcons();
                             }
+
+                            // --- HLS Quality Selector ---
+                            const levels = hls.levels;
+                            if (levels && levels.length > 0) {
+                                const qualityItems = levels.map((level, index) => {
+                                    const label = level.height ? `${level.height}p` : `${Math.round(level.bitrate / 1000)}k`;
+                                    return {
+                                        html: label,
+                                        levelIndex: index,
+                                        default: index === hls.currentLevel
+                                    };
+                                });
+                                qualityItems.unshift({
+                                    html: 'Auto',
+                                    levelIndex: -1,
+                                    default: hls.currentLevel === -1
+                                });
+
+                                art.setting.add({
+                                    name: 'hls-quality',
+                                    html: 'Quality',
+                                    icon: '<i data-lucide="sliders" style="width:16px;height:16px"></i>',
+                                    selector: qualityItems,
+                                    onSelect: function (item) {
+                                        hls.currentLevel = item.levelIndex;
+                                        return item.html;
+                                    }
+                                });
+                            }
+
+                            setTimeout(() => {
+                                if (window.lucide) window.lucide.createIcons();
+                            }, 100);
                         });
 
                         hls.on(Hls.Events.ERROR, function (event, data) {
@@ -1403,6 +1458,20 @@ function initPlayer(streams, initialIndex = 0) {
                     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                         video.src = url;
                     }
+                }
+            }
+        });
+
+        // Toggle player header visibility in sync with Artplayer controls
+        player.on('control', (state) => {
+            const header = document.querySelector('.player-header');
+            if (header) {
+                if (state) {
+                    header.style.opacity = '1';
+                    header.style.pointerEvents = 'auto';
+                } else {
+                    header.style.opacity = '0';
+                    header.style.pointerEvents = 'none';
                 }
             }
         });
@@ -1485,6 +1554,12 @@ function closePlayer() {
         player.destroy(false);
         player = null;
         document.getElementById('artplayer-app').innerHTML = ''; 
+    }
+    // Make sure player header is reset to fully visible for next launch
+    const header = document.querySelector('.player-header');
+    if (header) {
+        header.style.opacity = '1';
+        header.style.pointerEvents = 'auto';
     }
     // Return to details screen
     switchPage('pageDetails');

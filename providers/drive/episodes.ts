@@ -30,7 +30,7 @@ export const getEpisodes = async function ({
     // If old format didn't work, try new format
     if (episodeLinks.length === 0) {
       // Find all anchor tags with href containing streaming services
-      const streamingServices = ["hubcloud", "gdflix"];
+      const streamingServices = ["hubcloud", "gdflix", "pixeldrain", "fastdl", "fsl"];
       let currentTitle = "";
 
       $('h5 span[style*="color"], h5').each((i, element) => {

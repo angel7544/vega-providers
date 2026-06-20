@@ -86,23 +86,20 @@ export async function hubcloudExtractor(
       switch (true) {
         case link?.includes("pixeld"):
           console.log("Pixeldrain link found:", link);
-          if (!link?.includes("api")) {
-            const redirectedPixelDrainUrl = getRedirectedPixelDrainUrl(
-              vLinkText,
-              vcloudText,
+          const redirectedPixelDrainUrl = getRedirectedPixelDrainUrl(
+            vLinkText,
+            vcloudText,
+          );
+          if (redirectedPixelDrainUrl) {
+            console.log(
+              "Special case for token negn6f",
+              redirectedPixelDrainUrl,
             );
-            if (redirectedPixelDrainUrl) {
-              console.log(
-                "Special case for token negn6f",
-                redirectedPixelDrainUrl,
-              );
-              link = redirectedPixelDrainUrl;
-            }
-
-            const token = link.split("/").pop()?.split("?")[0];
-            const baseUrl = link.split("/").slice(0, -2).join("/");
-            link = `${baseUrl}/api/file/${token}`;
+            link = redirectedPixelDrainUrl;
           }
+
+          const token = link.split("/").pop()?.split("?")[0];
+          link = `https://pixeldrain.com/api/file/${token}`;
           streamLinks.push({ server: "Pixeldrain", link: link, type: "mkv" });
           break;
 

@@ -654,6 +654,24 @@ h1, h2, h3, .logo-text {
   height: 100vh;
 }
 
+@media (max-width: 768px) {
+  .player-header {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  .close-player-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+  .player-title {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: calc(100% - 150px);
+  }
+}
+
 /* SETTINGS MODAL */
 .modal-overlay {
   position: fixed;
