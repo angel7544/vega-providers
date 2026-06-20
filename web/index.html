@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="referrer" content="no-referrer">
     <title>OrbixPlay | Personal Entertainment</title>
-    <link rel="icon" type="image/x-icon" href="../icon.ico">
-    <link rel="shortcut icon" type="image/png" href="../icon.png">
+    <link rel="icon" type="image/x-icon" href="icon.ico">
+    <link rel="shortcut icon" type="image/png" href="icon.png">
 
     <link rel="stylesheet" href="style.css">
 
@@ -25,29 +26,29 @@
 <body>
 
     <!-- NAVBAR -->
-    <header class="navbar" id="mainNavbar" style="flex-direction: column; height: auto;">
-        <div class="marquee-wrapper">
-            <div class="marquee-text">Browser only streams 1080p as 2k and 4k have no audio support via browser. @team_orbixplay</div>
-        </div>
-        <div class="nav-content" style="height: 80px; width: 100%;">
+    <header class="navbar" id="mainNavbar">
+        <div class="nav-content">
             <!-- LOGO -->
             <div class="logo" onclick="window.location.reload()">
-                <img src="../icon.png" alt="Logo" style="width: 32px; height: 32px; border-radius: 8px;">
+                <img src="icon.png" alt="Logo" style="width: 32px; height: 32px; border-radius: 8px;">
                 <span class="logo-text">OrbixPlay</span>
             </div>
 
             <!-- NAV LINKS -->
             <nav class="nav-links">
                 <a href="#" class="nav-link active" onclick="loadHome()">Home</a>
-                <a href="#" class="nav-link" onclick="loadMovies()">Movies</a>
-                <a href="#" class="nav-link" onclick="loadSeries()">Series</a>
+                <div class="nav-dropdown-wrapper" style="position: relative; display: flex; align-items: center;">
+                    <select id="categoriesDropdown" class="nav-dropdown" onchange="onCategorySelect(this.value)">
+                        <option value="" disabled selected>Categories</option>
+                    </select>
+                </div>
                 <a href="#" class="nav-link" onclick="loadWishlist()">Wishlist <i data-lucide="heart" style="width:14px;height:14px;display:inline-block;margin-left:4px;"></i></a>
             </nav>
 
             <!-- SEARCH & PROVIDERS -->
             <div class="nav-actions">
-                <form class="search-wrapper" onsubmit="event.preventDefault(); executeSearch();">
-                    <i data-lucide="search" onclick="executeSearch()" style="cursor: pointer;"></i>
+                <form class="search-wrapper" onsubmit="event.preventDefault(); search();">
+                    <i data-lucide="search" onclick="search()" style="cursor: pointer;"></i>
                     <input type="search" id="searchInput" placeholder="Search...">
                 </form>
                 
@@ -76,6 +77,16 @@
                     <p>Browsing the cosmos for content...</p>
                 </div>
             </section>
+
+            <!-- FOOTER -->
+            <footer class="app-footer" style="flex-direction: column; gap: 6px; padding: 10px 20px;">
+                <div class="marquee-wrapper" style="background: transparent; border: none; padding: 0; width: 100%; margin-bottom: 2px;">
+                    <div class="marquee-text" style="color: var(--text-dim); font-size: 11px;">Browser only streams 1080p as 2k and 4k have no audio support via browser. @team_orbixplay</div>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    Developed with <i data-lucide="heart" class="footer-heart"></i> by Angel (Mehul)
+                </div>
+            </footer>
         </div>
 
         <!-- DETAILS PAGE -->
@@ -88,7 +99,7 @@
             <div class="hero-header" id="detailHero">
                 <div class="hero-backdrop" id="detailBackdrop"></div>
                 <div class="hero-content">
-                    <img id="detailPoster" class="hero-poster" src="" alt="">
+                    <img id="detailPoster" class="hero-poster" src="" alt="" referrerpolicy="no-referrer">
                     <div class="hero-meta">
                         <h1 id="detailTitle"></h1>
                         <div class="meta-tags">
@@ -135,12 +146,14 @@
         <a href="#" class="mobile-nav-link active" onclick="loadHome()">
             <i data-lucide="home"></i><span>Home</span>
         </a>
-        <a href="#" class="mobile-nav-link" onclick="loadMovies()">
-            <i data-lucide="film"></i><span>Movies</span>
-        </a>
-        <a href="#" class="mobile-nav-link" onclick="loadSeries()">
-            <i data-lucide="tv"></i><span>Series</span>
-        </a>
+        <div class="mobile-nav-dropdown-wrapper" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; flex: 1;">
+            <select id="mobileCategoriesDropdown" class="mobile-nav-dropdown" onchange="onCategorySelect(this.value)" style="position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; z-index: 10;">
+                <option value="" disabled selected>Categories</option>
+            </select>
+            <div class="mobile-nav-link" style="pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <i data-lucide="grid" style="width:20px;height:20px;"></i><span>Browse</span>
+            </div>
+        </div>
         <a href="#" class="mobile-nav-link" onclick="loadWishlist()">
             <i data-lucide="heart"></i><span>Wishlist</span>
         </a>

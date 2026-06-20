@@ -21,6 +21,11 @@ let currentFilter = "";
 let currentSearch = "";
 let currentCatalogItems = []; // Stores the current provider's catalog options
 
+// Infinite Scroll State
+let currentPage = 1;
+let isFetchingNextPage = false;
+let hasMore = true;
+
 // Init icons
 lucide.createIcons();
 
@@ -102,24 +107,34 @@ function getFilterForCategory(keyword, fallbackFilter) {
 }
 
 function loadHome() { 
+    const desktopSelect = document.getElementById("categoriesDropdown");
+    const mobileSelect = document.getElementById("mobileCategoriesDropdown");
+    if (desktopSelect) {
+        desktopSelect.value = "";
+        desktopSelect.classList.remove("active");
+    }
+    if (mobileSelect) {
+        mobileSelect.value = "";
+    }
+
     const filter = getFilterForCategory("", "");
     if (currentFilter === filter && !currentSearch) { backToBrowse(); updateActiveNav(0); return; }
     currentSearch = ""; isBrowseCached = false; fetchData(filter); updateActiveNav(0); switchPage('pageBrowse'); 
 }
-function loadMovies() { 
-    const filter = getFilterForCategory("movie", "movie");
-    if (currentFilter === filter && !currentSearch) { backToBrowse(); updateActiveNav(1); return; }
-    currentSearch = ""; isBrowseCached = false; fetchData(filter); updateActiveNav(1); switchPage('pageBrowse'); 
-}
-function loadSeries() { 
-    const filter = getFilterForCategory("series", "tv");
-    if (currentFilter === filter && !currentSearch) { backToBrowse(); updateActiveNav(2); return; }
-    currentSearch = ""; isBrowseCached = false; fetchData(filter); updateActiveNav(2); switchPage('pageBrowse'); 
-}
 function loadWishlist() { 
-    if (currentFilter === "wishlist") { backToBrowse(); updateActiveNav(3); return; }
+    const desktopSelect = document.getElementById("categoriesDropdown");
+    const mobileSelect = document.getElementById("mobileCategoriesDropdown");
+    if (desktopSelect) {
+        desktopSelect.value = "";
+        desktopSelect.classList.remove("active");
+    }
+    if (mobileSelect) {
+        mobileSelect.value = "";
+    }
+
+    if (currentFilter === "wishlist") { backToBrowse(); updateActiveNav(1); return; }
     currentFilter = "wishlist"; currentSearch = ""; isBrowseCached = false;
-    updateActiveNav(3); 
+    updateActiveNav(1); 
     switchPage('pageBrowse'); 
     catalogContainer.innerHTML = "";
     const wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
@@ -131,9 +146,29 @@ function updateActiveNav(index) {
     const links = document.querySelectorAll('.nav-link, .mobile-nav-link');
     links.forEach((l, i) => {
         // Because mobile links mirror desktop, index modulo handles both
-        if (i % 4 === index) l.classList.add('active');
+        if (i % 2 === index) l.classList.add('active');
         else l.classList.remove('active');
     });
+}
+
+function onCategorySelect(value) {
+    if (!value) return;
+    
+    // Clear active classes from nav-links
+    const links = document.querySelectorAll('.nav-link, .mobile-nav-link');
+    links.forEach(l => l.classList.remove('active'));
+    
+    // Synchronize desktop and mobile select values
+    const desktopSelect = document.getElementById("categoriesDropdown");
+    const mobileSelect = document.getElementById("mobileCategoriesDropdown");
+    if (desktopSelect) desktopSelect.value = value;
+    if (mobileSelect) mobileSelect.value = value;
+    
+    // Add active styling to dropdown
+    desktopSelect?.classList.add("active");
+    
+    isBrowseCached = false;
+    fetchData(value);
 }
 
 // ============================
@@ -186,78 +221,114 @@ async function loadProviders() {
     }
 }
 
-// ============================
-// 📂 LOAD CATALOG
-// ============================
 async function loadCatalog() {
+    const desktopSelect = document.getElementById("categoriesDropdown");
+    const mobileSelect = document.getElementById("mobileCategoriesDropdown");
+    
+    const showLoading = () => {
+        const html = `<option value="" disabled selected>Loading...</option>`;
+        if (desktopSelect) desktopSelect.innerHTML = html;
+        if (mobileSelect) mobileSelect.innerHTML = html;
+    };
+
     try {
-        catalogContainer.innerHTML = `<div class="spinner" style="width:24px;height:24px;border-width:2px;margin:0"></div>`;
+        showLoading();
+
+        // Hide legacy catalog buttons container
+        if (catalogContainer) catalogContainer.style.display = "none";
 
         const resp = await fetch(`${getApiUrl()}/catalog?provider=${currentProvider}`);
         if (!resp.ok) throw new Error();
 
         const data = await resp.json();
         currentCatalogItems = [...(data.catalog || []), ...(data.genres || [])];
+        
         renderCatalog(data.catalog || [], data.genres || []);
 
     } catch {
-        // Fallback categories if API fails
+        // Fallback categories if API fails (just show Home category)
         currentCatalogItems = [
-            { title: "Home", filter: "" },
-            { title: "Movies", filter: "movie" },
-            { title: "Series", filter: "tv" }
+            { title: "Home", filter: "" }
         ];
         renderCatalog([
-            { title: "Home", filter: "" },
-            { title: "Movies", filter: "movie" },
-            { title: "Series", filter: "tv" }
+            { title: "Home", filter: "" }
         ], []);
         fetchData("");
     }
 }
 
 function renderCatalog(catalog, genres) {
-    catalogContainer.innerHTML = "";
+    const desktopSelect = document.getElementById("categoriesDropdown");
+    const mobileSelect = document.getElementById("mobileCategoriesDropdown");
+    
+    const buildOptionsHtml = () => {
+        let html = `<option value="" disabled selected>Categories</option>`;
+        
+        if (catalog && catalog.length > 0) {
+            html += `<optgroup label="Categories">`;
+            catalog.forEach(item => {
+                html += `<option value="${item.filter}">${item.title}</option>`;
+            });
+            html += `</optgroup>`;
+        }
+        
+        if (genres && genres.length > 0) {
+            html += `<optgroup label="Genres">`;
+            genres.forEach(item => {
+                html += `<option value="${item.filter}">${item.title}</option>`;
+            });
+            html += `</optgroup>`;
+        }
+        return html;
+    };
 
-    [...catalog, ...genres].forEach(section => {
-        const btn = document.createElement("button");
-        btn.className = "catalog-btn";
-        btn.textContent = section.title;
-        btn.onclick = () => {
-            document.querySelectorAll('.catalog-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            isBrowseCached = false;
-            fetchData(section.filter);
-        };
-        catalogContainer.appendChild(btn);
-    });
+    const optionsHtml = buildOptionsHtml();
+    
+    if (desktopSelect) {
+        desktopSelect.innerHTML = optionsHtml;
+        desktopSelect.value = currentFilter || "";
+        if (desktopSelect.value && desktopSelect.value !== "") {
+            desktopSelect.classList.add("active");
+        } else {
+            desktopSelect.value = "";
+            desktopSelect.classList.remove("active");
+        }
+    }
+    
+    if (mobileSelect) {
+        mobileSelect.innerHTML = optionsHtml;
+        mobileSelect.value = currentFilter || "";
+    }
 }
 
 // ============================
 // 🔍 FETCH DATA
 // ============================
-async function fetchData(filter, search = false) {
-    currentFilter = filter;
-    currentSearch = search ? filter : "";
-    
-    setStatus("Fetching...", "#8b5cf6");
-    switchPage('pageBrowse'); // Ensure we are on browse page
-    isBrowseCached = false;
+async function fetchData(filter, search = false, append = false) {
+    if (!append) {
+        currentPage = 1;
+        hasMore = true;
+        isFetchingNextPage = false;
+        currentFilter = filter;
+        currentSearch = search ? filter : "";
+        
+        setStatus("Fetching...", "#8b5cf6");
+        switchPage('pageBrowse'); // Ensure we are on browse page
+        isBrowseCached = false;
 
-    contentGrid.innerHTML = `
-        <div class="loader">
-            <div class="spinner"></div>
-            <p>Scanning library...</p>
-        </div>
-    `;
+        contentGrid.innerHTML = `
+            <div class="loader">
+                <div class="spinner"></div>
+                <p>Scanning library...</p>
+            </div>
+        `;
+    }
 
     try {
         const func = search ? "getSearchPosts" : "getPosts";
         const params = search
-            ? { searchQuery: filter, page: 1 }
-            : { filter, page: 1 };
-
-        let results = [];
+            ? { searchQuery: filter, page: currentPage }
+            : { filter, page: currentPage };
 
         const resp = await fetch(`${getApiUrl()}/fetch`, {
             method: "POST",
@@ -265,32 +336,78 @@ async function fetchData(filter, search = false) {
             body: JSON.stringify({ provider: currentProvider, functionName: func, params })
         });
 
-        results = await resp.json();
+        const results = await resp.json();
 
-        renderGrid(results);
-        setStatus(results.length ? "Online" : "No results");
+        if (append) {
+            const loaderEl = document.getElementById("page-loader");
+            if (loaderEl) loaderEl.remove();
+        }
+
+        if (results && results.length > 0) {
+            renderGrid(results, append);
+            setStatus("Online");
+        } else {
+            if (append) {
+                hasMore = false;
+                showScrollToast("No more content to load.");
+            } else {
+                renderGrid([]);
+                setStatus("No results");
+            }
+        }
 
     } catch (err) {
         console.error(err);
-        setStatus("Fetch Error", "#ef4444");
+        if (append) {
+            const loaderEl = document.getElementById("page-loader");
+            if (loaderEl) loaderEl.remove();
+            showScrollToast("Failed to load more content.");
+            currentPage--; // Revert page index on error
+        } else {
+            setStatus("Fetch Error", "#ef4444");
+        }
+    } finally {
+        if (append) {
+            isFetchingNextPage = false;
+        }
     }
 }
 
 // ============================
 // 🖥️ GRID
 // ============================
+function isValidImage(url) {
+    if (!url || typeof url !== 'string') return false;
+    
+    const lower = url.toLowerCase();
+    if (lower.includes('placeholder')) return false;
+    if (lower.includes('data:image/gif;base64')) return false;
+    if (lower.length < 100 && lower.startsWith('data:image/')) return false;
+    
+    if (lower.startsWith('data:image/')) return true;
+    
+    if (lower.startsWith('http')) {
+        const hasExt = lower.includes('.jpg') || lower.includes('.jpeg') || lower.includes('.png') || lower.includes('.webp');
+        const isKnown = lower.includes('tmdb.org') || lower.includes('tvmaze.com');
+        return hasExt || isKnown;
+    }
+    
+    return false;
+}
+
 function createMediaCard(item) {
     const card = document.createElement("div");
     card.className = "media-card";
 
     card.onclick = () => {
         const provider = item.__provider || currentProvider;
-        showDetails(item.link, provider);
+        const tmdbId = item.tmdbId || item.tmdb || item.tmdb_id || null;
+        const imdbId = item.imdbId || item.imdb || item.imdb_id || null;
+        showDetails(item.link, provider, item.image, tmdbId, item.type, imdbId);
     };
 
-    const proxiedImage = item.image && !item.image.includes('placeholder') && !item.image.includes('tmdb.org')
-        ? `${getApiUrl()}/image-proxy?url=${encodeURIComponent(item.image)}`
-        : item.image;
+    const validImg = isValidImage(item.image) ? item.image : null;
+    const proxiedImage = validImg || "missing.jpg";
 
     const providerDisplayName = item.__provider && providersMap[item.__provider] 
         ? providersMap[item.__provider].display_name 
@@ -298,7 +415,7 @@ function createMediaCard(item) {
 
     card.innerHTML = `
         <div class="media-poster-container">
-            <img class="media-poster" src="${proxiedImage}" loading="lazy"
+            <img class="media-poster" src="${proxiedImage}" loading="lazy" referrerpolicy="no-referrer"
             onerror="handleImageError(this, '${(item.title || '').replace(/'/g, "\\'")}')">
             <div class="media-overlay">
                 <div class="media-title">${item.title}</div>
@@ -321,17 +438,21 @@ window.switchToProvider = async function(providerId) {
     fetchData(defaultFilter);
 };
 
-function renderGrid(data) {
-    contentGrid.innerHTML = "";
+function renderGrid(data, append = false) {
+    if (!append) {
+        contentGrid.innerHTML = "";
+    }
 
     if (!data || (data.isGrouped && data.groups.length === 0) || (!data.isGrouped && data.length === 0)) {
-        contentGrid.innerHTML = `
-            <div style="grid-column: 1/-1; text-align:center; padding: 40px; color: var(--text-dim);">
-                <i data-lucide="ghost" style="width: 48px; height: 48px; margin-bottom: 16px;"></i>
-                <p>No results found</p>
-            </div>
-        `;
-        lucide.createIcons();
+        if (!append) {
+            contentGrid.innerHTML = `
+                <div style="grid-column: 1/-1; text-align:center; padding: 40px; color: var(--text-dim);">
+                    <i data-lucide="ghost" style="width: 48px; height: 48px; margin-bottom: 16px;"></i>
+                    <p>No results found</p>
+                </div>
+            `;
+            lucide.createIcons();
+        }
         return;
     }
 
@@ -374,7 +495,7 @@ function renderGrid(data) {
 // ============================
 // 📽️ DETAILS
 // ============================
-async function showDetails(link, provider) {
+async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId = null, explicitType = null, explicitImdbId = null) {
     window.scrollTo(0, 0); // scroll to top when opening details
     
     currentProvider = provider;
@@ -383,7 +504,7 @@ async function showDetails(link, provider) {
     // Clear old details while loading
     document.getElementById("detailTitle").textContent = "Loading...";
     document.getElementById("detailSynopsis").textContent = "";
-    document.getElementById("detailPoster").src = "";
+    document.getElementById("detailPoster").src = fallbackPoster || "";
     document.getElementById("linksContainer").innerHTML = `<div class="loader"><div class="spinner"></div></div>`;
     document.getElementById("wishlistBtn").style.display = "none";
 
@@ -407,9 +528,10 @@ async function showDetails(link, provider) {
         document.getElementById("detailSynopsis").textContent =
             currentMeta.description || currentMeta.synopsis || "No synopsis available.";
         
-        const posterImg = currentMeta.image || "";
+        const posterImg = isValidImage(currentMeta.image) ? currentMeta.image : (isValidImage(fallbackPoster) ? fallbackPoster : null);
         const imgEl = document.getElementById("detailPoster");
-        imgEl.src = posterImg;
+        
+        imgEl.src = posterImg || "missing.jpg";
         // Fix for detail page posters failing (like Vegamovies)
         imgEl.onerror = () => handleImageError(imgEl, parsed.title);
 
@@ -417,14 +539,10 @@ async function showDetails(link, provider) {
         document.getElementById("detailRating").textContent = "";
         document.getElementById("detailYear").textContent = "";
 
-        // Update backdrop safely (Proxy it if it's an external url to bypass hotlinking)
+        // Update backdrop safely
         const backdropEl = document.getElementById("detailBackdrop");
         if (posterImg) {
-            if (posterImg.startsWith('http') && !posterImg.includes('placeholder') && !posterImg.includes('image-proxy')) {
-                backdropEl.style.backgroundImage = `url(${getApiUrl()}/image-proxy?url=${encodeURIComponent(posterImg)})`;
-            } else {
-                backdropEl.style.backgroundImage = `url(${posterImg})`;
-            }
+            backdropEl.style.backgroundImage = `url(${posterImg})`;
         } else {
             backdropEl.style.backgroundImage = 'none';
         }
@@ -439,6 +557,12 @@ async function showDetails(link, provider) {
         renderLinks(currentMeta);
         renderDownloads(currentMeta);
 
+        // 🌟 Enrich missing metadata via TMDB/TVMaze
+        const metaTmdbId = currentMeta.tmdbId || currentMeta.tmdb || currentMeta.tmdb_id || explicitTmdbId;
+        const metaType = currentMeta.type || explicitType;
+        const metaImdbId = currentMeta.imdbId || currentMeta.imdb || currentMeta.imdb_id || explicitImdbId;
+        enrichMetadata(parsed.title, metaTmdbId, metaType, metaImdbId);
+
     } catch (err) {
         console.error("Details fetch error:", err);
         document.getElementById("detailTitle").textContent = "Failed to load Details";
@@ -449,6 +573,118 @@ async function showDetails(link, provider) {
 // ============================
 // 🌟 PREMIUM METADATA TOOLS
 // ============================
+async function enrichMetadata(title, explicitTmdbId = null, mediaType = null, explicitImdbId = null) {
+    if (!title) return;
+    const parsed = parseMediaInfo(title);
+    const q = encodeURIComponent(parsed.title);
+    let enriched = false;
+
+    // 1. Try TMDB
+    if (tmdbKey) {
+        try {
+            let item = null;
+            if (explicitImdbId && !explicitTmdbId) {
+                const res = await fetch(`https://api.themoviedb.org/3/find/${explicitImdbId}?api_key=${tmdbKey}&external_source=imdb_id`);
+                const data = await res.json();
+                item = data.movie_results?.[0] || data.tv_results?.[0];
+            } else if (explicitTmdbId) {
+                const t = (mediaType || "").toLowerCase();
+                if (t.includes("movie")) {
+                    const res = await fetch(`https://api.themoviedb.org/3/movie/${explicitTmdbId}?api_key=${tmdbKey}`);
+                    item = await res.json();
+                } else if (t.includes("series") || t.includes("tv")) {
+                    const res = await fetch(`https://api.themoviedb.org/3/tv/${explicitTmdbId}?api_key=${tmdbKey}`);
+                    item = await res.json();
+                } else {
+                    const [resM, resT] = await Promise.all([
+                        fetch(`https://api.themoviedb.org/3/movie/${explicitTmdbId}?api_key=${tmdbKey}`),
+                        fetch(`https://api.themoviedb.org/3/tv/${explicitTmdbId}?api_key=${tmdbKey}`)
+                    ]);
+                    const dataM = await resM.json();
+                    const dataT = await resT.json();
+                    item = dataM.id ? dataM : (dataT.id ? dataT : null);
+                }
+            }
+            
+            if (!item || !item.id) {
+                const resp = await fetch(`https://api.themoviedb.org/3/search/multi?api_key=${tmdbKey}&query=${q}`);
+                const data = await resp.json();
+                item = data.results?.[0];
+            }
+            
+            if (item && item.id) {
+                const synopsisEl = document.getElementById("detailSynopsis");
+                if (item.overview && (!synopsisEl.textContent || synopsisEl.textContent === "No synopsis available." || synopsisEl.textContent.trim() === "")) {
+                    synopsisEl.textContent = item.overview;
+                }
+                
+                const imgEl = document.getElementById("detailPoster");
+                if (item.poster_path && (!imgEl.src || imgEl.src.includes('placehold.co') || imgEl.dataset.failed === "true" || imgEl.src === window.location.href)) {
+                    imgEl.src = `https://image.tmdb.org/t/p/w500${item.poster_path}`;
+                    imgEl.dataset.enriched = "true";
+                }
+                
+                if (item.vote_average) {
+                    const ratingEl = document.getElementById("detailRating");
+                    ratingEl.innerHTML = `<i data-lucide="star" style="width:14px;height:14px;margin-right:4px;"></i> ${item.vote_average.toFixed(1)}`;
+                    ratingEl.style.display = "inline-flex";
+                    lucide.createIcons();
+                }
+                
+                const year = item.release_date ? item.release_date.split('-')[0] : (item.first_air_date ? item.first_air_date.split('-')[0] : "");
+                if (year) {
+                    const yearEl = document.getElementById("detailYear");
+                    yearEl.textContent = year;
+                    yearEl.style.display = "inline-block";
+                }
+
+                if (item.backdrop_path) {
+                    const backdropEl = document.getElementById("detailBackdrop");
+                    if (!backdropEl.style.backgroundImage || backdropEl.style.backgroundImage === 'none') {
+                        backdropEl.style.backgroundImage = `url(https://image.tmdb.org/t/p/w1280${item.backdrop_path})`;
+                    }
+                }
+                enriched = true;
+            }
+        } catch (e) { console.error("TMDB enrich failed", e); }
+    }
+
+    // 2. Try TVMaze if TMDB failed or not available
+    if (!enriched) {
+        try {
+            const resp = await fetch(`https://api.tvmaze.com/search/shows?q=${q}`);
+            const data = await resp.json();
+            const show = data?.[0]?.show;
+            if (show) {
+                const synopsisEl = document.getElementById("detailSynopsis");
+                if (show.summary && (!synopsisEl.textContent || synopsisEl.textContent === "No synopsis available." || synopsisEl.textContent.trim() === "")) {
+                    synopsisEl.innerHTML = show.summary; // TVMaze returns HTML
+                }
+                
+                const imgEl = document.getElementById("detailPoster");
+                if (show.image?.original && (!imgEl.src || imgEl.src.includes('placehold.co') || imgEl.dataset.failed === "true" || imgEl.src === window.location.href)) {
+                    imgEl.src = show.image.original;
+                    imgEl.dataset.enriched = "true";
+                }
+                
+                if (show.rating?.average) {
+                    const ratingEl = document.getElementById("detailRating");
+                    ratingEl.innerHTML = `<i data-lucide="star" style="width:14px;height:14px;margin-right:4px;"></i> ${show.rating.average}`;
+                    ratingEl.style.display = "inline-flex";
+                    lucide.createIcons();
+                }
+                
+                const year = show.premiered ? show.premiered.split('-')[0] : "";
+                if (year) {
+                    const yearEl = document.getElementById("detailYear");
+                    yearEl.textContent = year;
+                    yearEl.style.display = "inline-block";
+                }
+            }
+        } catch (e) { console.error("TVMaze enrich failed", e); }
+    }
+}
+
 function parseMediaInfo(rawTitle) {
     if (!rawTitle) return { title: "Unknown", meta: [] };
     let title = rawTitle.replace(/^Download\s+/i, "");
@@ -771,36 +1007,7 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
     lucide.createIcons();
 }
 
-function renderDownloads(meta) {
-    const container = document.getElementById("downloadContainer");
-    const section = document.getElementById("downloadSection");
-    container.innerHTML = "";
-
-    if (!meta.linkList || !meta.linkList.length) {
-        section.style.display = "none";
-        return;
-    }
-
-    section.style.display = "block";
-
-    meta.linkList.forEach(group => {
-        const title = group.title || "";
-        const isSeries = group.episodesLink || /(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(title);
-        
-        if (isSeries) return; // Downloads for episodes are handled inside loadEpisodes results
-
-        const firstLink = group.directLinks?.[0]?.link || group.link;
-        if (!firstLink) return;
-
-        const btn = document.createElement("button");
-        btn.className = "download-btn";
-        btn.innerHTML = `<i data-lucide="search-code"></i> ${group.title || "Scan Download Links"}`;
-        btn.onclick = () => resolveDownload(firstLink, currentProvider, group.title || "Media");
-        container.appendChild(btn);
-    });
-    
-    lucide.createIcons();
-}
+// Duplicate renderDownloads removed to fix TypeError on downloadSection.
 
 // ============================
 // 🎥 EXTRACT STREAM
@@ -1293,7 +1500,7 @@ function setStatus(text, color = "#22c55e") {
     }
 }
 
-function executeSearch() {
+function search() {
     const q = searchInput.value.trim();
     if (q) fetchData(q, true);
 }
@@ -1374,10 +1581,132 @@ async function handleImageError(img, title) {
         } catch (e) { console.error("TMDB fallback failed", e); }
     }
     
+    // 2.5 Try TVMaze for series as an open fallback without API Key
+    if (title) {
+        try {
+            const parsed = parseMediaInfo(title);
+            const resp = await fetch(`https://api.tvmaze.com/search/shows?q=${encodeURIComponent(parsed.title)}`);
+            const data = await resp.json();
+            if (data && data[0] && data[0].show && data[0].show.image && data[0].show.image.original) {
+                img.src = data[0].show.image.original;
+                return;
+            }
+        } catch (e) { console.error("TVMaze fallback failed", e); }
+    }
+    
 
     // 3. Nice CSS-based placeholder if all fails
-    img.src = 'https://via.placeholder.com/300x450/16161a/8b5cf6?text=' + encodeURIComponent(title.substring(0, 20));
+    const safeTitle = (title || "Unknown").substring(0, 20).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const svg = `
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450" viewBox="0 0 300 450">
+    <rect width="300" height="450" fill="#16161a"/>
+    <text x="50%" y="50%" font-family="sans-serif" font-size="24" fill="#8b5cf6" text-anchor="middle" dominant-baseline="middle">
+        ${safeTitle}
+    </text>
+</svg>`;
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg.trim());
 }
+
+// ============================
+// 📢 TOAST NOTIFICATIONS
+// ============================
+function showNoticeToast() {
+    const lastShown = localStorage.getItem('orbix_notice_time');
+    const now = Date.now();
+    // 30 minutes = 30 * 60 * 1000 = 1800000 ms
+    if (lastShown && (now - parseInt(lastShown)) < 1800000) {
+        return; 
+    }
+    
+    localStorage.setItem('orbix_notice_time', now.toString());
+
+    const toast = document.createElement('div');
+    toast.className = 'notice-toast';
+    toast.innerHTML = `
+        <div class="toast-content">
+            <i data-lucide="info" style="width:20px;height:20px;color:var(--accent);flex-shrink:0;margin-top:2px;"></i>
+            <div>
+                <strong style="font-size: 0.95rem; display: block; margin-bottom: 4px;">Important Notice</strong>
+                <p style="margin: 0; font-size: 0.8rem; color: var(--text-dim); line-height: 1.5;">
+                    Browser only streams up to 1080p (2K/4K lack audio support on web). Pixeldrain API links are fully supported on our Android and Desktop apps. <span style="color:var(--accent);">@team_orbixplay</span>
+                </p>
+            </div>
+            <button class="toast-close" style="flex-shrink:0;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    lucide.createIcons();
+    
+    // Animate in
+    setTimeout(() => toast.classList.add('show'), 100);
+    
+    // Auto remove after 5 seconds
+    const hideTimeout = setTimeout(() => hideToast(toast), 5000);
+    
+    // Close button
+    toast.querySelector('.toast-close').onclick = () => {
+        clearTimeout(hideTimeout);
+        hideToast(toast);
+    };
+}
+
+function hideToast(toast) {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+}
+
+// ============================
+// 📜 INFINITE SCROLL LOGIC
+// ============================
+async function fetchNextPage() {
+    if (isFetchingNextPage || !hasMore) return;
+    isFetchingNextPage = true;
+    currentPage++;
+    
+    // Show spinner at the bottom of the grid
+    const pageLoader = document.createElement("div");
+    pageLoader.id = "page-loader";
+    pageLoader.className = "loader";
+    pageLoader.style.gridColumn = "1/-1";
+    pageLoader.style.padding = "20px";
+    pageLoader.innerHTML = `
+        <div class="spinner" style="width:24px;height:24px;border-width:2px;margin:0 auto;"></div>
+    `;
+    contentGrid.appendChild(pageLoader);
+
+    await fetchData(currentSearch || currentFilter, !!currentSearch, true);
+}
+
+function showScrollToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'notice-toast';
+    toast.innerHTML = `
+        <div class="toast-content" style="padding: 4px 8px; align-items: center; gap: 8px;">
+            <i data-lucide="info" style="width:16px;height:16px;color:var(--accent);flex-shrink:0;"></i>
+            <span style="font-size: 0.85rem; color: var(--text-dim);">${message}</span>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    lucide.createIcons();
+    setTimeout(() => toast.classList.add('show'), 50);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+window.addEventListener('scroll', () => {
+    // Only scroll-load if we are on browse page
+    if (!pageBrowse.classList.contains('active')) return;
+    if (isFetchingNextPage || !hasMore) return;
+    if (currentFilter === "wishlist") return;
+
+    if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 500) {
+        fetchNextPage();
+    }
+});
 
 // 🚀 START
 loadProviders();
+setTimeout(() => showNoticeToast(), 1500);
