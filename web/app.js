@@ -11,6 +11,7 @@ const getApiUrl = () => {
 let currentProvider = localStorage.getItem('orbix_last_provider') || "";
 let currentMeta = null;
 let player = null;
+let currentPlayerType = 1; // 1 = Artplayer, 2 = Native HTML5/HLS.js player
 let providersMap = {};
 let tmdbKey = localStorage.getItem('tmdb_api_key') || "";
 
@@ -1222,9 +1223,14 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
     let currentStreamIndex = initialIndex;
     let isTranscoding = false;
     let currentAudioTrack = null;
+    let loadTimeout = null;
+
     switchPage('pagePlayer');
 
     function startPlayback(initialTime = 0) {
+        // Clear any previous loading timeouts
+        if (loadTimeout) clearTimeout(loadTimeout);
+
         if (currentStreamIndex >= streams.length) {
             alert(`⚠️ All playback attempts failed.\n\nThis source might be blocked by Cloudflare (Backend) or your Browser (Frontend).\n\nPossible fixes:\n1. Try another source if available.\n2. Enable "Premium Audio (Transcode)" to force server-side fetch.\n3. Make sure you are using the latest providers.`);
             closePlayer();
@@ -1275,164 +1281,360 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
         const isM3u8 = streamUrl.toLowerCase().includes(".m3u8") && !isTranscoding;
         const isMp4 = streamUrl.toLowerCase().includes(".mp4") || streamUrl.includes("googleusercontent.com") || isTranscoding;
 
+        // Destroy previous player type instances
         if (player) {
             player.destroy(false);
             player = null;
-            document.getElementById('artplayer-app').innerHTML = ''; 
         }
+        document.getElementById('artplayer-app').innerHTML = ''; 
 
-        console.log(`🎬 INITIALIZING ARTPLAYER (Source ${currentStreamIndex + 1}):`, streamUrl);
-
-        // Handle seeking for transcoded streams
-        if (isTranscoding && initialTime > 0) {
-            if (streamUrl.includes('?')) {
-                streamUrl += `&start=${initialTime}`;
-            } else {
-                streamUrl += `?start=${initialTime}`;
+        const nativeVideo = document.getElementById("native-player-app");
+        if (nativeVideo) {
+            nativeVideo.pause();
+            nativeVideo.src = "";
+            nativeVideo.removeAttribute("src");
+            nativeVideo.load();
+            if (nativeVideo.hls) {
+                nativeVideo.hls.destroy();
+                delete nativeVideo.hls;
             }
         }
 
-        player = new Artplayer({
-            container: '#artplayer-app',
-            url: streamUrl,
-            title: displayTitle,
-            type: isM3u8 ? 'm3u8' : (isMp4 ? 'mp4' : 'auto'),
-            autoplay: true,
-            autoSize: false,
-            autoMini: true,
-            playbackRate: true,
-            aspectRatio: true,
-            setting: true,
-            hotkey: true,
-            pip: true,
-            mutex: true,
-            fullscreen: true,
-            fullscreenWeb: true,
-            subtitleOffset: true,
-            miniProgressBar: true,
-            playsInline: true,
-            muted: true, 
-            volume: 0.7,
-            autoOrientation: true,
-            lock: true,
-            gesture: true,
-            theme: '#8b5cf6', 
-            settings: [
-                {
-                    html: 'Video Source',
-                    icon: '<i data-lucide="server" style="width:16px;height:16px"></i>',
-                    selector: streams.map((s, i) => ({
-                        html: `${i + 1}. ${s.server}`,
-                        index: i,
-                        default: i === currentStreamIndex,
-                    })),
-                    onSelect: function (item) {
-                        if (item.index === currentStreamIndex) return item.html;
-                        const currentTime = player.currentTime;
-                        console.log(`📡 Switching to Source ${item.index + 1}: ${item.html}`);
-                        currentStreamIndex = item.index;
-                        startPlayback(currentTime);
-                        return item.html;
-                    },
-                },
-                {
-                    html: 'Premium Audio (Transcode)',
-                    icon: '<i data-lucide="zap" style="width:16px;height:16px;color:#8b5cf6"></i>',
-                    switch: isTranscoding,
-                    onSwitch: function (item) {
-                        isTranscoding = !item.switch;
-                        console.log("🛠 Transcoding toggled:", isTranscoding);
-                        startPlayback(player.currentTime || 0); // Restart with proxy
-                        return isTranscoding;
-                    },
-                },
-                {
-                    html: 'Open in VLC (External)',
-                    icon: '<i data-lucide="monitor-play" style="width:16px;height:16px;color:#ef4444"></i>',
-                    onSelect: function (item) {
-                        fetch(`${getApiUrl()}/vlc`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ url: player.url })
-                        });
-                        alert("Attempting to open stream in VLC Media Player...");
-                        return item.html;
-                    },
+        // Update player switcher UI active states
+        const btn1 = document.getElementById("player-btn-1");
+        const btn2 = document.getElementById("player-btn-2");
+        if (btn1 && btn2) {
+            if (currentPlayerType === 1) {
+                btn1.classList.add("active");
+                btn1.style.background = "var(--accent)";
+                btn2.classList.remove("active");
+                btn2.style.background = "rgba(255, 255, 255, 0.1)";
+            } else {
+                btn1.classList.remove("active");
+                btn1.style.background = "rgba(255, 255, 255, 0.1)";
+                btn2.classList.add("active");
+                btn2.style.background = "var(--accent)";
+            }
+        }
+
+        // Set up the timeout for 10 seconds max load
+        loadTimeout = setTimeout(() => {
+            console.warn(`⏳ Source ${currentStreamIndex + 1} load timed out (10 seconds max).`);
+            handlePlaybackError();
+        }, 10000);
+
+        if (currentPlayerType === 1) {
+            // PLAYER 1: ARTPLAYER
+            document.getElementById('artplayer-app').style.display = 'block';
+            if (nativeVideo) nativeVideo.style.display = 'none';
+
+            console.log(`🎬 INITIALIZING ARTPLAYER (Source ${currentStreamIndex + 1}):`, streamUrl);
+
+            // Handle seeking for transcoded streams
+            if (isTranscoding && initialTime > 0) {
+                if (streamUrl.includes('?')) {
+                    streamUrl += `&start=${initialTime}`;
+                } else {
+                    streamUrl += `?start=${initialTime}`;
                 }
-            ],
-            customType: {
-                m3u8: function (video, url, art) {
+            }
+
+            player = new Artplayer({
+                container: '#artplayer-app',
+                url: streamUrl,
+                title: displayTitle,
+                type: isM3u8 ? 'm3u8' : (isMp4 ? 'mp4' : 'auto'),
+                autoplay: true,
+                autoSize: false,
+                autoMini: true,
+                playbackRate: true,
+                aspectRatio: true,
+                setting: true,
+                hotkey: true,
+                pip: true,
+                mutex: true,
+                fullscreen: true,
+                fullscreenWeb: true,
+                subtitleOffset: true,
+                miniProgressBar: true,
+                playsInline: true,
+                muted: true, 
+                volume: 0.7,
+                autoOrientation: true,
+                lock: true,
+                gesture: true,
+                theme: '#8b5cf6', 
+                settings: [
+                    {
+                        html: 'Video Source',
+                        icon: '<i data-lucide="server" style="width:16px;height:16px"></i>',
+                        selector: streams.map((s, i) => ({
+                            html: `${i + 1}. ${s.server}`,
+                            index: i,
+                            default: i === currentStreamIndex,
+                        })),
+                        onSelect: function (item) {
+                            if (item.index === currentStreamIndex) return item.html;
+                            const currentTime = player.currentTime;
+                            console.log(`📡 Switching to Source ${item.index + 1}: ${item.html}`);
+                            currentStreamIndex = item.index;
+                            startPlayback(currentTime);
+                            return item.html;
+                        },
+                    },
+                    {
+                        html: 'Premium Audio (Transcode)',
+                        icon: '<i data-lucide="zap" style="width:16px;height:16px;color:#8b5cf6"></i>',
+                        switch: isTranscoding,
+                        onSwitch: function (item) {
+                            isTranscoding = !item.switch;
+                            console.log("🛠 Transcoding toggled:", isTranscoding);
+                            startPlayback(player.currentTime || 0); // Restart with proxy
+                            return isTranscoding;
+                        },
+                    },
+                    {
+                        html: 'Open in VLC (External)',
+                        icon: '<i data-lucide="monitor-play" style="width:16px;height:16px;color:#ef4444"></i>',
+                        onSelect: function (item) {
+                            fetch(`${getApiUrl()}/vlc`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ url: player.url })
+                            });
+                            alert("Attempting to open stream in VLC Media Player...");
+                            return item.html;
+                        },
+                    }
+                ],
+                customType: {
+                    m3u8: function (video, url, art) {
+                        if (Hls.isSupported()) {
+                            if (art.hls) art.hls.destroy();
+                            const hls = new Hls({
+                                maxBufferLength: 120,
+                                maxMaxBufferLength: 600,
+                                maxBufferSize: 120 * 1000 * 1000,
+                            });
+                            
+                            hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                                // --- HLS Audio Tracks ---
+                                const tracks = hls.audioTracks;
+                                if (tracks && tracks.length > 1) {
+                                    // Default to Hindi if found
+                                    const hindiIndex = tracks.findIndex(t => 
+                                        t.name?.toLowerCase().includes('hindi') || 
+                                        t.lang?.toLowerCase().includes('hi') || 
+                                        t.lang?.toLowerCase().includes('hin')
+                                    );
+                                    if (hindiIndex !== -1 && hls.audioTrack !== hindiIndex) {
+                                        console.log("🧡 Auto-switching HLS to Hindi audio...");
+                                        hls.audioTrack = hindiIndex;
+                                    }
+
+                                    art.setting.add({
+                                        name: 'audio-tracks',
+                                        html: 'Audio Tracks',
+                                        icon: '<i data-lucide="languages" style="width:16px;height:16px"></i>',
+                                        selector: tracks.map((track, index) => ({
+                                            html: track.name || track.lang || `Track ${index + 1}`,
+                                            trackIndex: index,
+                                            default: index === hls.audioTrack,
+                                        })),
+                                        onSelect: function (item) {
+                                            hls.audioTrack = item.trackIndex;
+                                            return item.html;
+                                        },
+                                    });
+                                }
+
+                                // --- HLS Quality Selector ---
+                                const levels = hls.levels;
+                                if (levels && levels.length > 0) {
+                                    const qualityItems = levels.map((level, index) => {
+                                        const label = level.height ? `${level.height}p` : `${Math.round(level.bitrate / 1000)}k`;
+                                        return {
+                                            html: label,
+                                            levelIndex: index,
+                                            default: index === hls.currentLevel
+                                        };
+                                    });
+                                    qualityItems.unshift({
+                                        html: 'Auto',
+                                        levelIndex: -1,
+                                        default: hls.currentLevel === -1
+                                    });
+
+                                    art.setting.add({
+                                        name: 'hls-quality',
+                                        html: 'Quality',
+                                        icon: '<i data-lucide="sliders" style="width:16px;height:16px"></i>',
+                                        selector: qualityItems,
+                                        onSelect: function (item) {
+                                            hls.currentLevel = item.levelIndex;
+                                            return item.html;
+                                        }
+                                    });
+                                }
+
+                                setTimeout(() => {
+                                    if (window.lucide) window.lucide.createIcons();
+                                }, 100);
+                            });
+
+                            hls.on(Hls.Events.ERROR, function (event, data) {
+                                if (data.fatal) {
+                                    switch (data.type) {
+                                        case Hls.ErrorTypes.MEDIA_ERROR:
+                                            hls.recoverMediaError();
+                                            break;
+                                        case Hls.ErrorTypes.NETWORK_ERROR:
+                                            hls.startLoad();
+                                            break;
+                                        default:
+                                            hls.destroy();
+                                            break;
+                                    }
+                                }
+                            });
+
+                            hls.loadSource(url);
+                            hls.attachMedia(video);
+                            art.hls = hls;
+                            art.on('destroy', () => hls.destroy());
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                            video.src = url;
+                        }
+                    }
+                }
+            });
+
+            // Toggle player header visibility in sync with Artplayer controls
+            player.on('control', (state) => {
+                const header = document.querySelector('.player-header');
+                if (header) {
+                    if (state) {
+                        header.style.opacity = '1';
+                        header.style.pointerEvents = 'auto';
+                    } else {
+                        header.style.opacity = '0';
+                        header.style.pointerEvents = 'none';
+                    }
+                }
+            });
+
+            // Clear 10s load timeout when playback successfully starts or metadata is loaded
+            player.on('video:playing', () => {
+                console.log("🎬 Playback started, clearing load timeout.");
+                clearTimeout(loadTimeout);
+            });
+            player.on('video:canplay', () => {
+                clearTimeout(loadTimeout);
+            });
+
+            // Detect Audio Tracks for non-HLS streams via Backend
+            if (!isM3u8 && !isTranscoding) {
+                const audioInfoUrl = `${getApiUrl()}/audio-info?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent(streamUrl)}`;
+                fetch(audioInfoUrl)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.audioTracks && data.audioTracks.length > 1) {
+                            // Default to Hindi if found
+                            const hindiTrack = data.audioTracks.find(t => 
+                                t.title?.toLowerCase().includes('hindi') || 
+                                t.language?.toLowerCase().includes('hi') || 
+                                t.language?.toLowerCase().includes('hin')
+                            );
+
+                            if (hindiTrack && currentAudioTrack === null) {
+                                console.log("🧡 Auto-switching standard stream to Hindi audio via Transcode...");
+                                isTranscoding = true;
+                                currentAudioTrack = hindiTrack.index;
+                                startPlayback(player.currentTime || 0); // Restart with Hindi
+                                return;
+                            }
+
+                            player.setting.add({
+                                name: 'audio-tracks-manual',
+                                html: 'Select Audio Track',
+                                icon: '<i data-lucide="mic" style="width:16px;height:16px"></i>',
+                                selector: data.audioTracks.map(track => ({
+                                    html: `${track.title} (${track.codec})`,
+                                    audioIndex: track.index,
+                                })),
+                                onSelect: function (item) {
+                                    isTranscoding = true; // Must transcode to switch specific tracks on non-HLS
+                                    currentAudioTrack = item.audioIndex;
+                                    startPlayback();
+                                    return item.html;
+                                },
+                            });
+                            lucide.createIcons();
+                        }
+                    }).catch(() => {});
+            }
+
+            // Handle Seeks in Transcoding Mode
+            player.on('video:seeking', (event) => {
+                if (isTranscoding) {
+                    const targetTime = player.currentTime;
+                    console.log(`⏩ Seeking to ${targetTime} in Transcoding mode...`);
+                    startPlayback(targetTime);
+                }
+            });
+
+            // Automated Source Fallback on error
+            player.on('video:error', () => {
+                console.error("❌ Artplayer video error.");
+                handlePlaybackError();
+            });
+
+        } else if (currentPlayerType === 2) {
+            // PLAYER 2: NATIVE HTML5 / HLS.JS PLAYER
+            document.getElementById('artplayer-app').style.display = 'none';
+            if (nativeVideo) {
+                nativeVideo.style.display = 'block';
+                console.log(`🎬 INITIALIZING NATIVE PLAYER (Source ${currentStreamIndex + 1}):`, streamUrl);
+
+                // Set up event listeners for native video to clear load timeout
+                const cleanUpListeners = () => {
+                    nativeVideo.removeEventListener('playing', onPlaying);
+                    nativeVideo.removeEventListener('canplay', onPlaying);
+                    nativeVideo.removeEventListener('error', onError);
+                };
+
+                const onPlaying = () => {
+                    console.log("🎬 Native playback started, clearing load timeout.");
+                    clearTimeout(loadTimeout);
+                    cleanUpListeners();
+                };
+
+                const onError = (e) => {
+                    console.error("❌ Native video element error:", e);
+                    cleanUpListeners();
+                    handlePlaybackError();
+                };
+
+                nativeVideo.addEventListener('playing', onPlaying);
+                nativeVideo.addEventListener('canplay', onPlaying);
+                nativeVideo.addEventListener('error', onError);
+
+                // Load source
+                if (isM3u8) {
                     if (Hls.isSupported()) {
-                        if (art.hls) art.hls.destroy();
                         const hls = new Hls({
                             maxBufferLength: 120,
                             maxMaxBufferLength: 600,
                             maxBufferSize: 120 * 1000 * 1000,
                         });
-                        
-                        hls.on(Hls.Events.MANIFEST_PARSED, function () {
-                            // --- HLS Audio Tracks ---
-                            const tracks = hls.audioTracks;
-                            if (tracks && tracks.length > 1) {
-                                // Default to Hindi if found
-                                const hindiIndex = tracks.findIndex(t => 
-                                    t.name?.toLowerCase().includes('hindi') || 
-                                    t.lang?.toLowerCase().includes('hi') || 
-                                    t.lang?.toLowerCase().includes('hin')
-                                );
-                                if (hindiIndex !== -1 && hls.audioTrack !== hindiIndex) {
-                                    console.log("🧡 Auto-switching HLS to Hindi audio...");
-                                    hls.audioTrack = hindiIndex;
-                                }
+                        hls.loadSource(streamUrl);
+                        hls.attachMedia(nativeVideo);
+                        nativeVideo.hls = hls;
 
-                                art.setting.add({
-                                    name: 'audio-tracks',
-                                    html: 'Audio Tracks',
-                                    icon: '<i data-lucide="languages" style="width:16px;height:16px"></i>',
-                                    selector: tracks.map((track, index) => ({
-                                        html: track.name || track.lang || `Track ${index + 1}`,
-                                        trackIndex: index,
-                                        default: index === hls.audioTrack,
-                                    })),
-                                    onSelect: function (item) {
-                                        hls.audioTrack = item.trackIndex;
-                                        return item.html;
-                                    },
-                                });
+                        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                            if (initialTime > 0) {
+                                nativeVideo.currentTime = initialTime;
                             }
-
-                            // --- HLS Quality Selector ---
-                            const levels = hls.levels;
-                            if (levels && levels.length > 0) {
-                                const qualityItems = levels.map((level, index) => {
-                                    const label = level.height ? `${level.height}p` : `${Math.round(level.bitrate / 1000)}k`;
-                                    return {
-                                        html: label,
-                                        levelIndex: index,
-                                        default: index === hls.currentLevel
-                                    };
-                                });
-                                qualityItems.unshift({
-                                    html: 'Auto',
-                                    levelIndex: -1,
-                                    default: hls.currentLevel === -1
-                                });
-
-                                art.setting.add({
-                                    name: 'hls-quality',
-                                    html: 'Quality',
-                                    icon: '<i data-lucide="sliders" style="width:16px;height:16px"></i>',
-                                    selector: qualityItems,
-                                    onSelect: function (item) {
-                                        hls.currentLevel = item.levelIndex;
-                                        return item.html;
-                                    }
-                                });
-                            }
-
-                            setTimeout(() => {
-                                if (window.lucide) window.lucide.createIcons();
-                            }, 100);
                         });
 
                         hls.on(Hls.Events.ERROR, function (event, data) {
@@ -1446,115 +1648,109 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
                                         break;
                                     default:
                                         hls.destroy();
+                                        onError(new Error("Fatal HLS.js error"));
                                         break;
                                 }
                             }
                         });
-
-                        hls.loadSource(url);
-                        hls.attachMedia(video);
-                        art.hls = hls;
-                        art.on('destroy', () => hls.destroy());
-                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                        video.src = url;
-                    }
-                }
-            }
-        });
-
-        // Toggle player header visibility in sync with Artplayer controls
-        player.on('control', (state) => {
-            const header = document.querySelector('.player-header');
-            if (header) {
-                if (state) {
-                    header.style.opacity = '1';
-                    header.style.pointerEvents = 'auto';
-                } else {
-                    header.style.opacity = '0';
-                    header.style.pointerEvents = 'none';
-                }
-            }
-        });
-
-        // Detect Audio Tracks for non-HLS streams via Backend
-        if (!isM3u8 && !isTranscoding) {
-            const audioInfoUrl = `${getApiUrl()}/audio-info?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent(streamUrl)}`;
-            fetch(audioInfoUrl)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.audioTracks && data.audioTracks.length > 1) {
-                        // Default to Hindi if found
-                        const hindiTrack = data.audioTracks.find(t => 
-                            t.title?.toLowerCase().includes('hindi') || 
-                            t.language?.toLowerCase().includes('hi') || 
-                            t.language?.toLowerCase().includes('hin')
-                        );
-
-                        if (hindiTrack && currentAudioTrack === null) {
-                            console.log("🧡 Auto-switching standard stream to Hindi audio via Transcode...");
-                            isTranscoding = true;
-                            currentAudioTrack = hindiTrack.index;
-                            startPlayback(player.currentTime || 0); // Restart with Hindi
-                            return;
+                    } else if (nativeVideo.canPlayType('application/vnd.apple.mpegurl')) {
+                        nativeVideo.src = streamUrl;
+                        if (initialTime > 0) {
+                            nativeVideo.addEventListener('loadedmetadata', function onMeta() {
+                                nativeVideo.currentTime = initialTime;
+                                nativeVideo.removeEventListener('loadedmetadata', onMeta);
+                            });
                         }
-
-                        player.setting.add({
-                            name: 'audio-tracks-manual',
-                            html: 'Select Audio Track',
-                            icon: '<i data-lucide="mic" style="width:16px;height:16px"></i>',
-                            selector: data.audioTracks.map(track => ({
-                                html: `${track.title} (${track.codec})`,
-                                audioIndex: track.index,
-                            })),
-                            onSelect: function (item) {
-                                isTranscoding = true; // Must transcode to switch specific tracks on non-HLS
-                                currentAudioTrack = item.audioIndex;
-                                startPlayback();
-                                return item.html;
-                            },
-                        });
-                        lucide.createIcons();
                     }
-                }).catch(() => {});
-        }
-
-        // Handle Seeks in Transcoding Mode
-        player.on('video:seeking', (event) => {
-            if (isTranscoding) {
-                const targetTime = player.currentTime;
-                console.log(`⏩ Seeking to ${targetTime} in Transcoding mode...`);
-                startPlayback(targetTime);
+                } else {
+                    nativeVideo.src = streamUrl;
+                    if (initialTime > 0) {
+                        nativeVideo.addEventListener('loadedmetadata', function onMeta() {
+                            nativeVideo.currentTime = initialTime;
+                            nativeVideo.removeEventListener('loadedmetadata', onMeta);
+                        });
+                    }
+                }
             }
-        });
-
-        // Automated Source Fallback
-        player.on('video:error', () => {
-             if (currentStreamIndex < streams.length - 1) {
-                 console.warn(`❌ Stream ${currentStreamIndex + 1} failed. Trying alternative...`);
-                 currentStreamIndex++;
-                 setStatus(`Trying Source ${currentStreamIndex + 1}...`, "#f59e0b");
-                 startPlayback();
-             } else {
-                 console.error("❌ All streams failed.");
-                 alert("⚠️ All playback attempts failed.\n\nThis source might be fully geoblocked or have broken links on Render.\n\nPlease try another provider or check if you can play it on Localhost.");
-                 closePlayer();
-             }
-        });
+        }
 
         // Initialize icons after setting up the player
         setTimeout(() => lucide.createIcons(), 100);
     }
 
+    function handlePlaybackError() {
+        clearTimeout(loadTimeout);
+        
+        // Pause and reset both players
+        if (player) {
+            player.destroy(false);
+            player = null;
+        }
+        const nativeVideo = document.getElementById("native-player-app");
+        if (nativeVideo) {
+            nativeVideo.pause();
+            if (nativeVideo.hls) {
+                nativeVideo.hls.destroy();
+                delete nativeVideo.hls;
+            }
+        }
+
+        if (currentStreamIndex < streams.length - 1) {
+             console.warn(`❌ Stream ${currentStreamIndex + 1} failed or timed out. Trying alternative...`);
+             currentStreamIndex++;
+             setStatus(`Trying Source ${currentStreamIndex + 1}...`, "#f59e0b");
+             startPlayback();
+        } else {
+             console.error("❌ All streams failed.");
+             alert("⚠️ All playback attempts failed.\n\nThis source might be fully geoblocked or have broken links on Render.\n\nPlease try another provider or check if you can play it on Localhost.");
+             closePlayer();
+        }
+    }
+
+    // Expose dynamic switcher globally for this instance
+    window.switchPlayerType = function(type) {
+        if (type === currentPlayerType) return;
+        
+        // Save current timestamp
+        let currentTime = 0;
+        if (currentPlayerType === 1 && player) {
+            currentTime = player.currentTime;
+        } else if (currentPlayerType === 2) {
+            const nativeVideo = document.getElementById("native-player-app");
+            if (nativeVideo) currentTime = nativeVideo.currentTime;
+        }
+
+        currentPlayerType = type;
+        console.log(`🔌 Switching player type to Player ${currentPlayerType} at time ${currentTime}`);
+        startPlayback(currentTime);
+    };
+
     startPlayback();
 }
 
 function closePlayer() {
+    // Clear switchPlayerType global wrapper
+    delete window.switchPlayerType;
+
     if (player) {
         player.pause();
         player.destroy(false);
         player = null;
         document.getElementById('artplayer-app').innerHTML = ''; 
     }
+
+    const nativeVideo = document.getElementById("native-player-app");
+    if (nativeVideo) {
+        nativeVideo.pause();
+        nativeVideo.src = "";
+        nativeVideo.removeAttribute("src");
+        nativeVideo.load();
+        if (nativeVideo.hls) {
+            nativeVideo.hls.destroy();
+            delete nativeVideo.hls;
+        }
+    }
+
     // Make sure player header is reset to fully visible for next launch
     const header = document.querySelector('.player-header');
     if (header) {
