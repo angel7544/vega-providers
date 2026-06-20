@@ -13,9 +13,6 @@ export const getBaseUrl = async (providerValue: string) => {
     // if (cachedUrl && cachedTime && Date.now() - cachedTime < expireTime) {
     //   baseUrl = cachedUrl;
     // } else {
-    // Hardcoded overrides for domains that change rapidly
-    if (providerValue === "1cinevood") return "https://cinevood.online";
-
     const baseUrlRes = await fetch(
       "https://himanshu8443.github.io/providers/modflix.json"
     );

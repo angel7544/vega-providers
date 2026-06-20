@@ -4,18 +4,12 @@ import subprocess
 import threading
 import os
 import socket
-import webbrowser
 
 class ServerManagerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("OrbiPlay Vega Provider Server by Br31 Technology and Angel Mehul Singh")
-        self.root.geometry("480x450")
-        self.dark_mode = False
-        try:
-            self.root.iconbitmap(r"web\icon.ico")
-        except Exception:
-            pass
+        self.root.title("Vega Providers Server Manager")
+        self.root.geometry("400x350")
         
         self.server_process = None
         
@@ -25,14 +19,8 @@ class ServerManagerApp:
         self.setup_ui()
 
     def setup_ui(self):
-        # Title Frame
-        title_frame = tk.Frame(self.root)
-        title_frame.pack(pady=10, fill=tk.X)
-        
-        tk.Label(title_frame, text="OrbiPlay Vega Provider Server", font=("Helvetica", 14, "bold")).pack(side=tk.LEFT, padx=10)
-        
-        self.btn_help = tk.Button(title_frame, text=" i ", command=self.show_help, font=("Helvetica", 10, "bold"), fg="blue", bd=1)
-        self.btn_help.pack(side=tk.RIGHT, padx=10)
+        # Title
+        tk.Label(self.root, text="Node Server Manager", font=("Helvetica", 16, "bold")).pack(pady=10)
         
         # Status
         self.status_label = tk.Label(self.root, text="Status: Stopped", fg="red", font=("Helvetica", 12))
@@ -47,9 +35,6 @@ class ServerManagerApp:
         
         self.btn_copy_url = tk.Button(url_frame, text="Copy", command=self.copy_url, font=("Helvetica", 8))
         self.btn_copy_url.grid(row=0, column=1, padx=5)
-        
-        self.btn_open_url = tk.Button(url_frame, text="Open Portal", command=self.open_portal, font=("Helvetica", 8))
-        self.btn_open_url.grid(row=0, column=2, padx=5)
         
         # Buttons Frame
         btn_frame = tk.Frame(self.root)
@@ -71,65 +56,9 @@ class ServerManagerApp:
         self.log_area = tk.Text(self.root, height=8, width=45)
         self.log_area.pack(pady=10)
         
-        # Bottom controls: Theme toggle & Developer Info
-        bottom_frame = tk.Frame(self.root)
-        bottom_frame.pack(pady=5, fill=tk.X, padx=10)
-        
-        self.btn_theme = tk.Button(bottom_frame, text="🌙 Dark Mode", command=self.toggle_theme, font=("Helvetica", 8))
-        self.btn_theme.pack(side=tk.LEFT)
-        
-        dev_frame = tk.Frame(bottom_frame)
-        dev_frame.pack(side=tk.RIGHT)
-        
-        tk.Label(dev_frame, text="Dev Info:", font=("Helvetica", 8)).pack(side=tk.LEFT)
-        
-        btn_github = tk.Label(dev_frame, text="GitHub", font=("Helvetica", 8, "underline"), fg="blue", cursor="hand2")
-        btn_github.pack(side=tk.LEFT, padx=4)
-        btn_github.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/angel7544"))
-        
-        btn_linkedin = tk.Label(dev_frame, text="LinkedIn", font=("Helvetica", 8, "underline"), fg="blue", cursor="hand2")
-        btn_linkedin.pack(side=tk.LEFT, padx=4)
-        btn_linkedin.bind("<Button-1>", lambda e: webbrowser.open("https://www.linkedin.com/in/angel3002/"))
-        
-        btn_email = tk.Label(dev_frame, text="Email", font=("Helvetica", 8, "underline"), fg="blue", cursor="hand2")
-        btn_email.pack(side=tk.LEFT, padx=4)
-        btn_email.bind("<Button-1>", lambda e: webbrowser.open("mailto:ajktalent@gmail.com"))
-        
         # Check files on startup
         if not self.check_required_files():
             self.show_missing_files_error()
-
-    def toggle_theme(self):
-        self.dark_mode = not self.dark_mode
-        if self.dark_mode:
-            self.root.config(bg="#2b2b2b")
-            self.log_area.config(bg="#1e1e1e", fg="#00ff00", insertbackground="white")
-            self.btn_theme.config(text="☀️ Light Mode")
-        else:
-            self.root.config(bg="SystemButtonFace")
-            self.log_area.config(bg="white", fg="black", insertbackground="black")
-            self.btn_theme.config(text="🌙 Dark Mode")
-
-    def show_help(self):
-        help_text = (
-            "Required Files to run Server:\n"
-            "- package.json\n"
-            "- dev-server.js\n"
-            "- providers (folder)\n\n"
-            "This can be run on a mini PC as a 24*7 home entertainment server!"
-        )
-        messagebox.showinfo("Help / Info", help_text)
-
-    def open_portal(self):
-        url_text = self.url_label.cget("text").replace("URL: ", "").strip()
-        if url_text and url_text != "N/A":
-            index_path = os.path.abspath(os.path.join("web", "index.html"))
-            if os.path.exists(index_path):
-                webbrowser.open(f"file://{index_path}")
-            else:
-                webbrowser.open(url_text)
-        else:
-            messagebox.showwarning("Not Running", "Start the server first to open the portal.")
 
     def copy_url(self):
         url_text = self.url_label.cget("text").replace("URL: ", "").strip()
