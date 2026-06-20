@@ -1,7 +1,14 @@
 // ============================
 // ⚙️ CONFIGURATION & STATE
 // ============================
-let API_BASE = localStorage.getItem('vega_api_url') || "http://localhost:3001";
+let API_BASE = localStorage.getItem('vega_api_url');
+if (!API_BASE) {
+    if (typeof window !== 'undefined' && window.location && window.location.origin && !window.location.origin.startsWith('file:')) {
+        API_BASE = window.location.origin;
+    } else {
+        API_BASE = "http://localhost:3001";
+    }
+}
 const getApiUrl = () => {
     let url = API_BASE ? API_BASE : window.location.origin;
     if (url.endsWith('/')) url = url.slice(0, -1);

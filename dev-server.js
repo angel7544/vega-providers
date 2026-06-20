@@ -11,7 +11,7 @@ const os = require("os");
 class DevServer {
   constructor() {
     this.app = express();
-    this.port = 3001;
+    this.port = process.env.PORT || 3001;
     this.distDir = path.join(__dirname, "dist");
     this.currentDir = path.join(__dirname);
 
@@ -74,7 +74,7 @@ class DevServer {
     this.app.post("/build", (req, res) => {
       try {
         console.log("🔨 Triggering rebuild...");
-        execSync("node build.js", { stdio: "inherit" });
+        execSync("node build-bundled.js", { stdio: "inherit" });
         res.json({ success: true, message: "Build completed" });
       } catch (error) {
         console.error("Build failed:", error);
@@ -145,6 +145,117 @@ class DevServer {
       }
     });
 
+    // Parse endpoint - executes provider functions using pre-fetched HTML from the frontend
+    this.app.post("/parse", async (req, res) => {
+      try {
+        const { provider, functionName, params, html } = req.body;
+        
+        if (!provider || !functionName) {
+          return res.status(400).json({ error: "Missing provider or functionName" });
+        }
+
+        let moduleName = "";
+        if (["getPosts", "getSearchPosts"].includes(functionName)) {
+            moduleName = "posts.js";
+        } else if (functionName === "getMeta") {
+            moduleName = "meta.js";
+        } else if (functionName === "getStream") {
+            moduleName = "stream.js";
+        } else if (functionName === "getEpisodes") {
+            moduleName = "episodes.js";
+        } else if (functionName === "getCatalog") {
+            moduleName = "catalog.js";
+        } else {
+            return res.status(400).json({ error: "Unknown function" });
+        }
+
+        const modulePath = path.join(this.distDir, provider, moduleName);
+        if (!fs.existsSync(modulePath)) {
+            return res.status(404).json({ error: `Provider module ${provider}/${moduleName} not found` });
+        }
+
+        const module = require(modulePath);
+        if (typeof module[functionName] !== 'function') {
+            return res.status(400).json({ error: `Function ${functionName} not found in provider` });
+        }
+        
+        // Mock axios instance to return pre-fetched HTML for the target URL
+        const axiosInstance = require('axios').create();
+        axiosInstance.interceptors.request.use(config => {
+            if (config.url) config.url = config.url.replace(/([^:]\/)\/+/g, "$1");
+            return config;
+        });
+
+        if (html) {
+          const originalAdapter = require('axios').defaults.adapter;
+          axiosInstance.defaults.adapter = async (config) => {
+            const requestedUrl = config.url;
+            const targetUrl = params?.link || params?.url || params?.searchQuery;
+            
+            const normalize = (u) => u ? u.replace(/^https?:\/\//, '').replace(/\/$/, '') : '';
+            
+            if (targetUrl && normalize(requestedUrl) === normalize(targetUrl)) {
+              return {
+                data: html,
+                status: 200,
+                statusText: 'OK',
+                headers: { 'content-type': 'text/html' },
+                config,
+                request: {}
+              };
+            }
+            return originalAdapter(config);
+          };
+        }
+
+        const providerContext = { 
+            axios: axiosInstance, 
+            cheerio: require('cheerio'),
+            getBaseUrl: require('./dist/getBaseUrl.js').getBaseUrl,
+            Aes: {}
+        };
+        const finalParams = { ...params, providerContext, providerValue: provider };
+
+        const result = await module[functionName](finalParams);
+        res.json(result);
+
+      } catch (error) {
+        console.error(`Error in /parse for ${req.body?.provider}:`, error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // Image proxy endpoint to fetch and proxy images securely (bypassing hotlinking protections)
+    this.app.get("/image-proxy", async (req, res) => {
+      try {
+        const imageUrl = req.query.url;
+        if (!imageUrl) {
+          return res.status(400).json({ error: "Missing url parameter" });
+        }
+
+        const parsedUrl = new URL(imageUrl);
+        const headers = {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Referer": parsedUrl.origin
+        };
+
+        const axios = require("axios");
+        const response = await axios.get(imageUrl, {
+          headers,
+          responseType: "arraybuffer",
+          timeout: 10000
+        });
+
+        const contentType = response.headers["content-type"] || "image/jpeg";
+        res.setHeader("Content-Type", contentType);
+        res.setHeader("Cache-Control", "public, max-age=86400"); // Cache for 1 day
+        res.send(response.data);
+      } catch (error) {
+        console.error("Image proxy error:", error.message);
+        res.status(500).json({ error: "Failed to fetch image" });
+      }
+    });
+
     // Catalog endpoint
     this.app.get("/catalog", async (req, res) => {
       try {
@@ -208,18 +319,26 @@ class DevServer {
       res.json({ status: "healthy", timestamp: new Date().toISOString() });
     });
 
-    // Root endpoint
+    // Root endpoint - serves web portal if index.html exists, else fallback JSON
     this.app.get("/", (req, res) => {
-      res.json({
-        message: "Vega Providers Dev Server is running",
-        endpoints: {
-          manifest: "/manifest.json",
-          status: "/status",
-          providers: "/providers",
-          health: "/health"
-        }
-      });
+      const indexPath = path.join(this.currentDir, "web", "index.html");
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.json({
+          message: "Vega Providers Dev Server is running",
+          endpoints: {
+            manifest: "/manifest.json",
+            status: "/status",
+            providers: "/providers",
+            health: "/health"
+          }
+        });
+      }
     });
+
+    // Serve static files from web directory (for web portal assets like style.css, app.js, etc.)
+    this.app.use(express.static(path.join(this.currentDir, "web")));
 
     // 404 handler
     this.app.use((req, res) => {
