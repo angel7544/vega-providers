@@ -878,18 +878,41 @@ function renderLinks(meta) {
     } else {
         if (seasonSelector) seasonSelector.style.display = "none";
         movieGroups.forEach(group => {
-            const btn = document.createElement("div");
-            btn.className = "stream-btn";
-            btn.innerHTML = createStreamBadgeHtml(group.title, "play-circle");
-            btn.onclick = () => {
+            const row = document.createElement("div");
+            row.className = "ep-row";
+            row.style.width = "100%";
+
+            const btn1 = document.createElement("button");
+            btn1.className = "ep-btn";
+            btn1.innerHTML = createStreamBadgeHtml(group.title, "play-circle");
+            btn1.onclick = () => {
                 const link = group.directLinks?.[0]?.link || group.link;
                 if (link) {
+                    currentPlayerType = 1;
                     playStream(link, currentProvider);
                 } else {
                     alert("No direct link found.");
                 }
             };
-            container.appendChild(btn);
+
+            const btn2 = document.createElement("button");
+            btn2.className = "ep-btn-dl";
+            btn2.style.color = "var(--accent)";
+            btn2.innerHTML = `<i data-lucide="play"></i>`;
+            btn2.title = "Play with Player 2 (Native)";
+            btn2.onclick = () => {
+                const link = group.directLinks?.[0]?.link || group.link;
+                if (link) {
+                    currentPlayerType = 2;
+                    playStream(link, currentProvider);
+                } else {
+                    alert("No direct link found.");
+                }
+            };
+
+            row.appendChild(btn1);
+            row.appendChild(btn2);
+            container.appendChild(row);
         });
     }
 }
@@ -987,11 +1010,24 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
         const row = document.createElement("div");
         row.className = "ep-row";
 
-        const btn = document.createElement("button");
-        btn.className = "ep-btn";
-        btn.innerHTML = createStreamBadgeHtml(ep.title || "Episode", "play-circle");
-        btn.onclick = () => playStream(ep.link, provider, ep.title);
+        const btn1 = document.createElement("button");
+        btn1.className = "ep-btn";
+        btn1.innerHTML = createStreamBadgeHtml(ep.title || "Episode", "play-circle");
+        btn1.onclick = () => {
+            currentPlayerType = 1;
+            playStream(ep.link, provider, ep.title);
+        };
         
+        const btn2 = document.createElement("button");
+        btn2.className = "ep-btn-dl";
+        btn2.style.color = "var(--accent)";
+        btn2.innerHTML = `<i data-lucide="play"></i>`;
+        btn2.title = "Play with Player 2 (Native)";
+        btn2.onclick = () => {
+            currentPlayerType = 2;
+            playStream(ep.link, provider, ep.title);
+        };
+
         const dlBtn = document.createElement("button");
         dlBtn.className = "ep-btn-dl";
         dlBtn.innerHTML = `<i data-lucide="download"></i>`;
@@ -1000,7 +1036,8 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
             resolveDownload(ep.link, provider, ep.title);
         };
 
-        row.appendChild(btn);
+        row.appendChild(btn1);
+        row.appendChild(btn2);
         row.appendChild(dlBtn);
         container.appendChild(row);
     });
@@ -1172,6 +1209,7 @@ async function resolveDownload(link, provider, title) {
         const dlBtn = document.createElement("a");
         dlBtn.href = s.link;
         dlBtn.target = "_blank";
+        dlBtn.rel = "noreferrer";
         dlBtn.style.background = "var(--accent)";
         dlBtn.style.color = "#fff";
         dlBtn.style.padding = "8px 16px";
@@ -1364,6 +1402,9 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
                 lock: true,
                 gesture: true,
                 theme: '#8b5cf6', 
+                moreVideoAttr: {
+                    referrerPolicy: 'no-referrer',
+                },
                 settings: [
                     {
                         html: 'Video Source',
