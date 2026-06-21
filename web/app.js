@@ -107,6 +107,139 @@ const pagePlayer = document.getElementById('pagePlayer');
 
 // Settings Elements
 const settingsModal = document.getElementById('settingsModal');
+// ============================
+// 🎭 CUSTOM SELECT DROPDOWN HANDLER
+// ============================
+function initCustomDropdownEvents() {
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', (e) => {
+        document.querySelectorAll('.custom-dropdown').forEach(container => {
+            const trigger = container.querySelector('.custom-dropdown-trigger');
+            const menu = container.querySelector('.custom-dropdown-menu');
+            if (trigger && menu && !container.contains(e.target)) {
+                trigger.setAttribute('aria-expanded', 'false');
+                menu.classList.remove('show');
+            }
+        });
+    });
+
+    // Toggle menu dropdown on click
+    document.querySelectorAll('.custom-dropdown').forEach(container => {
+        const trigger = container.querySelector('.custom-dropdown-trigger');
+        const menu = container.querySelector('.custom-dropdown-menu');
+        if (!trigger || !menu) return;
+
+        trigger.onclick = (e) => {
+            e.stopPropagation();
+            const isExpanded = trigger.getAttribute('aria-expanded') === 'true';
+            
+            // Close other custom dropdowns
+            document.querySelectorAll('.custom-dropdown').forEach(other => {
+                if (other !== container) {
+                    other.querySelector('.custom-dropdown-trigger')?.setAttribute('aria-expanded', 'false');
+                    other.querySelector('.custom-dropdown-menu')?.classList.remove('show');
+                }
+            });
+
+            trigger.setAttribute('aria-expanded', !isExpanded ? 'true' : 'false');
+            menu.classList.toggle('show', !isExpanded);
+        };
+    });
+}
+
+function syncCustomDropdown(containerId, nativeSelectId) {
+    const container = document.getElementById(containerId);
+    const select = document.getElementById(nativeSelectId);
+    if (!container || !select) return;
+
+    const trigger = container.querySelector('.custom-dropdown-trigger');
+    const menu = container.querySelector('.custom-dropdown-menu');
+    const labelEl = trigger.querySelector('.custom-dropdown-value');
+    if (!trigger || !menu || !labelEl) return;
+
+    // Set active style class if selected value is not empty
+    if (select.value && select.value !== "") {
+        trigger.classList.add('active');
+    } else {
+        trigger.classList.remove('active');
+    }
+
+    menu.innerHTML = "";
+    const children = Array.from(select.children);
+    const hasOptGroups = children.some(child => child.tagName === 'OPTGROUP');
+
+    // Sync trigger label text
+    let selectedText = select.options[select.selectedIndex]?.textContent || "Select...";
+    if (select.selectedIndex === -1 || (select.selectedIndex === 0 && select.options[0].disabled)) {
+        selectedText = select.options[0]?.textContent || "Select...";
+    }
+    labelEl.textContent = selectedText;
+
+    const buildItem = (opt) => {
+        if (opt.disabled) return null;
+        const item = document.createElement('div');
+        item.className = 'custom-dropdown-item';
+        if (select.value === opt.value) {
+            item.classList.add('selected');
+        }
+        item.dataset.value = opt.value;
+
+        const textSpan = document.createElement('span');
+        textSpan.textContent = opt.textContent;
+        item.appendChild(textSpan);
+
+        if (select.value === opt.value) {
+            const checkIcon = document.createElement('i');
+            checkIcon.setAttribute('data-lucide', 'check');
+            checkIcon.style.width = '14px';
+            checkIcon.style.height = '14px';
+            item.appendChild(checkIcon);
+        }
+
+        item.onclick = (e) => {
+            e.stopPropagation();
+            select.value = opt.value;
+            select.dispatchEvent(new Event('change'));
+            
+            trigger.setAttribute('aria-expanded', 'false');
+            menu.classList.remove('show');
+            syncCustomDropdown(containerId, nativeSelectId);
+        };
+
+        return item;
+    };
+
+    if (hasOptGroups) {
+        children.forEach(child => {
+            if (child.tagName === 'OPTGROUP') {
+                const header = document.createElement('span');
+                header.className = 'custom-dropdown-header';
+                header.textContent = child.label;
+                menu.appendChild(header);
+
+                Array.from(child.children).forEach(opt => {
+                    const item = buildItem(opt);
+                    if (item) menu.appendChild(item);
+                });
+            } else if (child.tagName === 'OPTION') {
+                const item = buildItem(child);
+                if (item) menu.appendChild(item);
+            }
+        });
+    } else {
+        children.forEach(opt => {
+            const item = buildItem(opt);
+            if (item) menu.appendChild(item);
+        });
+    }
+
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
+}
+
+// Call global dropdown event registers
+setTimeout(initCustomDropdownEvents, 100);
 
 
 // ============================
@@ -208,6 +341,7 @@ function loadHome() {
     if (mobileSelect) {
         mobileSelect.value = "";
     }
+    syncCustomDropdown("categoriesDropdownContainer", "categoriesDropdown");
 
     const filter = getFilterForCategory("", "");
     if (currentFilter === filter && !currentSearch) { backToBrowse(); updateActiveNav(0); return; }
@@ -223,6 +357,7 @@ function loadWishlist() {
     if (mobileSelect) {
         mobileSelect.value = "";
     }
+    syncCustomDropdown("categoriesDropdownContainer", "categoriesDropdown");
 
     if (currentFilter === "wishlist") { backToBrowse(); updateActiveNav(1); return; }
     currentFilter = "wishlist"; currentSearch = ""; isBrowseCached = false;
@@ -258,6 +393,8 @@ function onCategorySelect(value) {
     
     // Add active styling to dropdown
     desktopSelect?.classList.add("active");
+    
+    syncCustomDropdown("categoriesDropdownContainer", "categoriesDropdown");
     
     isBrowseCached = false;
     fetchData(value);
@@ -301,6 +438,7 @@ async function loadProviders() {
             localStorage.setItem('orbix_last_provider', currentProvider);
         }
         providerSelect.value = currentProvider;
+        syncCustomDropdown("providerDropdownContainer", "providerSelect");
 
         providerSelect.onchange = async (e) => {
             currentProvider = e.target.value;
@@ -400,6 +538,7 @@ function renderCatalog(catalog, genres) {
         mobileSelect.innerHTML = optionsHtml;
         mobileSelect.value = currentFilter || "";
     }
+    syncCustomDropdown("categoriesDropdownContainer", "categoriesDropdown");
 }
 
 // ============================
@@ -532,6 +671,7 @@ function createMediaCard(item) {
 
 window.switchToProvider = async function(providerId) {
     providerSelect.value = providerId;
+    syncCustomDropdown("providerDropdownContainer", "providerSelect");
     currentProvider = providerId;
     localStorage.setItem('orbix_last_provider', currentProvider);
     await loadCatalog();

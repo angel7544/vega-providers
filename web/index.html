@@ -44,12 +44,18 @@
                     <i data-lucide="home" style="width:16px;height:16px;"></i>
                     <span>Home</span>
                 </a>
-                <div class="nav-dropdown-wrapper">
-                    <i data-lucide="grid" class="dropdown-icon-left" style="width:16px;height:16px;"></i>
-                    <select id="categoriesDropdown" class="nav-dropdown" onchange="onCategorySelect(this.value)">
+                <div class="custom-dropdown" id="categoriesDropdownContainer">
+                    <select id="categoriesDropdown" class="nav-dropdown-hidden" onchange="onCategorySelect(this.value)" style="display: none;">
                         <option value="" disabled selected>Categories</option>
                     </select>
-                    <i data-lucide="chevron-down" class="dropdown-icon-right" style="width:16px;height:16px;"></i>
+                    <button class="custom-dropdown-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+                        <i data-lucide="grid" class="dropdown-icon-left" style="width:16px;height:16px;"></i>
+                        <span class="custom-dropdown-value">Categories</span>
+                        <i data-lucide="chevron-down" class="dropdown-icon-right" style="width:16px;height:16px;"></i>
+                    </button>
+                    <div class="custom-dropdown-menu">
+                        <!-- Populated dynamically by JS -->
+                    </div>
                 </div>
                 <a href="#" class="nav-link" onclick="loadWishlist()" id="navWishlist">
                     <i data-lucide="heart" style="width:16px;height:16px;"></i>
@@ -65,10 +71,16 @@
                     <input type="search" id="searchInput" placeholder="Search movies, series...">
                 </form>
                 
-                <div class="provider-dropdown-wrapper">
-                    <i data-lucide="film" class="dropdown-icon-left" style="width:16px;height:16px;"></i>
-                    <select id="providerSelect" class="provider-dropdown"></select>
-                    <i data-lucide="chevron-down" class="dropdown-icon-right" style="width:16px;height:16px;"></i>
+                <div class="custom-dropdown" id="providerDropdownContainer">
+                    <select id="providerSelect" class="provider-dropdown-hidden" style="display: none;"></select>
+                    <button class="custom-dropdown-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+                        <i data-lucide="film" class="dropdown-icon-left" style="width:16px;height:16px;"></i>
+                        <span class="custom-dropdown-value">Providers</span>
+                        <i data-lucide="chevron-down" class="dropdown-icon-right" style="width:16px;height:16px;"></i>
+                    </button>
+                    <div class="custom-dropdown-menu">
+                        <!-- Populated dynamically by JS -->
+                    </div>
                 </div>
 
                 <div id="statusIndicator" class="status">
@@ -141,12 +153,12 @@
 
         <!-- DETAILS PAGE -->
         <div id="pageDetails" class="page-view">
-            <button class="back-btn floating-back-btn" onclick="backToBrowse()">
-                <i data-lucide="arrow-left"></i> Back
-            </button>
             
             <!-- HERO HEADER -->
             <div class="hero-header" id="detailHero">
+                <button class="back-btn details-back-btn" onclick="backToBrowse()">
+                    <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Back
+                </button>
                 <div class="hero-backdrop" id="detailBackdrop"></div>
                 <div class="hero-content">
                     <img id="detailPoster" class="hero-poster" src="" alt="" referrerpolicy="no-referrer">
