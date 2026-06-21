@@ -13,7 +13,70 @@ let currentMeta = null;
 let player = null;
 let currentPlayerType = 1; // 1 = Artplayer, 2 = Native HTML5/HLS.js player
 let providersMap = {};
+let allProviders = []; // Stores all providers from manifest.json
 let tmdbKey = localStorage.getItem('tmdb_api_key') || "";
+
+// ============================
+// 🎨 THEME & UI MANAGER
+// ============================
+function initTheme() {
+    const savedTheme = localStorage.getItem('orbix_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeUI(savedTheme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('orbix_theme', newTheme);
+    updateThemeUI(newTheme);
+}
+
+function updateThemeUI(theme) {
+    const btnIcon = document.getElementById('themeBtnIcon');
+    const btnText = document.getElementById('themeBtnText');
+    if (btnIcon) {
+        if (theme === 'light') {
+            btnIcon.setAttribute('data-lucide', 'moon');
+        } else {
+            btnIcon.setAttribute('data-lucide', 'sun');
+        }
+    }
+    if (btnText) {
+        if (theme === 'light') {
+            btnText.textContent = "Dark Mode";
+        } else {
+            btnText.textContent = "Light Mode";
+        }
+    }
+    if (btnIcon || btnText) {
+        if (window.lucide) window.lucide.createIcons();
+    }
+}
+
+// ============================
+// 📱 PWA SERVICE WORKER
+// ============================
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+            .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+            .catch(err => console.log('Service Worker registration failed:', err));
+    });
+}
+
+// ============================
+// ❤️ WISHLIST BADGE
+// ============================
+function updateWishlistBadge() {
+    const wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    const badge = document.getElementById("wishlistBadge");
+    if (badge) {
+        badge.textContent = wishlist.length;
+        badge.style.display = wishlist.length > 0 ? "inline-flex" : "none";
+    }
+}
 
 // Caching State
 let browseScrollPos = 0;
@@ -44,7 +107,6 @@ const pagePlayer = document.getElementById('pagePlayer');
 
 // Settings Elements
 const settingsModal = document.getElementById('settingsModal');
-const apiUrlInput = document.getElementById('apiUrlInput');
 
 
 // ============================
@@ -78,7 +140,9 @@ function backToBrowse() {
 }
 
 function openSettingsModal() {
-    apiUrlInput.value = localStorage.getItem('vega_api_url') || "";
+    // Render active providers checklist
+    renderSettingsProviders();
+    
     settingsModal.style.display = "flex";
     setTimeout(() => settingsModal.classList.add('active'), 10);
 }
@@ -89,15 +153,42 @@ function closeSettingsModal() {
 }
 
 function saveSettings() {
-    let val = apiUrlInput.value.trim();
-    if (val.endsWith('/')) val = val.slice(0, -1);
-    localStorage.setItem('vega_api_url', val);
-    
-    let tmdbVal = document.getElementById('tmdbKeyInput')?.value.trim() || "";
-    localStorage.setItem('tmdb_api_key', tmdbVal);
+    // Save disabled providers list
+    const checkboxes = document.querySelectorAll("#settingsProvidersList input[type='checkbox']");
+    const disabledList = [];
+    checkboxes.forEach(chk => {
+        if (!chk.checked) {
+            disabledList.push(chk.dataset.providerId);
+        }
+    });
+    localStorage.setItem('orbix_disabled_providers', JSON.stringify(disabledList));
 
     closeSettingsModal();
     window.location.reload();
+}
+
+function renderSettingsProviders() {
+    const container = document.getElementById("settingsProvidersList");
+    if (!container) return;
+    
+    container.innerHTML = "";
+    const disabledProviders = JSON.parse(localStorage.getItem('orbix_disabled_providers') || '[]');
+    
+    allProviders.forEach(p => {
+        const item = document.createElement("div");
+        item.style.display = "flex";
+        item.style.alignItems = "center";
+        item.style.gap = "8px";
+        item.style.fontSize = "13px";
+        
+        const isChecked = !disabledProviders.includes(p.value);
+        
+        item.innerHTML = `
+            <input type="checkbox" id="prov-chk-${p.value}" data-provider-id="${p.value}" ${isChecked ? 'checked' : ''} style="cursor:pointer; accent-color: var(--accent);">
+            <label for="prov-chk-${p.value}" style="cursor:pointer; color: var(--text-dim); font-weight: 500;">${p.display_name}</label>
+        `;
+        container.appendChild(item);
+    });
 }
 
 function getFilterForCategory(keyword, fallbackFilter) {
@@ -183,21 +274,30 @@ async function loadProviders() {
         if (!resp.ok) throw new Error("Manifest not accessible");
         
         const providers = await resp.json();
+        allProviders = providers; // Keep full list for Settings panel
 
         providerSelect.innerHTML = "";
         providersMap = {};
 
+        // Track and map all providers
         providers.forEach(p => {
             providersMap[p.value] = p;
+        });
 
+        // Filter out disabled providers from user selection dropdown
+        const disabledProviders = JSON.parse(localStorage.getItem('orbix_disabled_providers') || '[]');
+        const enabledProviders = providers.filter(p => !disabledProviders.includes(p.value));
+
+        enabledProviders.forEach(p => {
             const opt = document.createElement('option');
             opt.value = p.value;
             opt.textContent = p.display_name;
             providerSelect.appendChild(opt);
         });
 
-        if (!currentProvider || currentProvider === "__all__" || !providersMap[currentProvider]) {
-            currentProvider = providers[0]?.value || "";
+        const isCurrentProviderDisabled = disabledProviders.includes(currentProvider);
+        if (!currentProvider || currentProvider === "__all__" || !providersMap[currentProvider] || isCurrentProviderDisabled) {
+            currentProvider = enabledProviders[0]?.value || "";
             localStorage.setItem('orbix_last_provider', currentProvider);
         }
         providerSelect.value = currentProvider;
@@ -1817,6 +1917,40 @@ function search() {
     if (q) fetchData(q, true);
 }
 
+// Mobile responsive search expand
+window.toggleSearchMobile = function(event) {
+    if (window.innerWidth <= 1024) {
+        const wrapper = document.querySelector('.search-wrapper');
+        const input = document.getElementById('searchInput');
+        
+        if (wrapper && input) {
+            if (!wrapper.classList.contains('expanded')) {
+                event.preventDefault();
+                event.stopPropagation();
+                wrapper.classList.add('expanded');
+                input.focus();
+            } else if (!input.value.trim()) {
+                event.preventDefault();
+                event.stopPropagation();
+                wrapper.classList.remove('expanded');
+                input.blur();
+            }
+        }
+    }
+};
+
+document.addEventListener('click', (e) => {
+    if (window.innerWidth <= 1024) {
+        const wrapper = document.querySelector('.search-wrapper');
+        const input = document.getElementById('searchInput');
+        if (wrapper && input && wrapper.classList.contains('expanded')) {
+            if (!wrapper.contains(e.target) && !input.value.trim()) {
+                wrapper.classList.remove('expanded');
+            }
+        }
+    }
+});
+
 // ============================
 // ❤️ WISHLIST
 // ============================
@@ -1858,6 +1992,7 @@ function toggleWishlist() {
     
     localStorage.setItem('orbix_wishlist', JSON.stringify(wishlist));
     checkWishlistState();
+    updateWishlistBadge();
 }
 
 // ============================
@@ -2020,5 +2155,7 @@ window.addEventListener('scroll', () => {
 });
 
 // 🚀 START
+initTheme();
+updateWishlistBadge();
 loadProviders();
 setTimeout(() => showNoticeToast(), 1500);

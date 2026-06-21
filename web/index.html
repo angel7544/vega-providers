@@ -9,6 +9,10 @@
     <link rel="shortcut icon" type="image/png" href="icon.png">
 
     <link rel="stylesheet" href="style.css">
+    
+    <!-- PWA support -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#9333ea">
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,28 +40,49 @@
 
             <!-- NAV LINKS -->
             <nav class="nav-links">
-                <a href="#" class="nav-link active" onclick="loadHome()">Home</a>
-                <div class="nav-dropdown-wrapper" style="position: relative; display: flex; align-items: center;">
+                <a href="#" class="nav-link active" onclick="loadHome()" id="navHome">
+                    <i data-lucide="home" style="width:16px;height:16px;"></i>
+                    <span>Home</span>
+                </a>
+                <div class="nav-dropdown-wrapper">
+                    <i data-lucide="grid" class="dropdown-icon-left" style="width:16px;height:16px;"></i>
                     <select id="categoriesDropdown" class="nav-dropdown" onchange="onCategorySelect(this.value)">
                         <option value="" disabled selected>Categories</option>
                     </select>
+                    <i data-lucide="chevron-down" class="dropdown-icon-right" style="width:16px;height:16px;"></i>
                 </div>
-                <a href="#" class="nav-link" onclick="loadWishlist()">Wishlist <i data-lucide="heart" style="width:14px;height:14px;display:inline-block;margin-left:4px;"></i></a>
+                <a href="#" class="nav-link" onclick="loadWishlist()" id="navWishlist">
+                    <i data-lucide="heart" style="width:16px;height:16px;"></i>
+                    <span>Wishlist</span>
+                    <span class="wishlist-badge" id="wishlistBadge" style="display: none;">0</span>
+                </a>
             </nav>
 
             <!-- SEARCH & PROVIDERS -->
             <div class="nav-actions">
                 <form class="search-wrapper" onsubmit="event.preventDefault(); search();">
-                    <i data-lucide="search" onclick="search()" style="cursor: pointer;"></i>
-                    <input type="search" id="searchInput" placeholder="Search...">
+                    <i data-lucide="search" onclick="toggleSearchMobile(event)" style="cursor: pointer;"></i>
+                    <input type="search" id="searchInput" placeholder="Search movies, series...">
                 </form>
                 
-                <select id="providerSelect" class="provider-dropdown"></select>
+                <div class="provider-dropdown-wrapper">
+                    <i data-lucide="film" class="dropdown-icon-left" style="width:16px;height:16px;"></i>
+                    <select id="providerSelect" class="provider-dropdown"></select>
+                    <i data-lucide="chevron-down" class="dropdown-icon-right" style="width:16px;height:16px;"></i>
+                </div>
 
                 <div id="statusIndicator" class="status">
                     <span id="statusDot">●</span>
                     <span id="statusText">Online</span>
                 </div>
+                
+                <button id="themeToggleBtn" onclick="toggleTheme()" class="nav-theme-btn" title="Toggle Theme">
+                    <i data-lucide="sun" id="themeBtnIcon" style="width:18px;height:18px;"></i>
+                </button>
+                
+                <button class="nav-settings-btn" onclick="openSettingsModal()" title="Settings">
+                    <i data-lucide="settings" style="width:18px;height:18px;"></i>
+                </button>
             </div>
         </div>
     </header>
@@ -79,12 +104,37 @@
             </section>
 
             <!-- FOOTER -->
-            <footer class="app-footer" style="flex-direction: column; gap: 6px; padding: 10px 20px;">
-                <div class="marquee-wrapper" style="background: transparent; border: none; padding: 0; width: 100%; margin-bottom: 2px;">
-                    <div class="marquee-text" style="color: var(--text-dim); font-size: 11px;">Browser only streams 1080p as 2k and 4k have no audio support via browser. @team_orbixplay</div>
+            <footer class="app-footer">
+                <div class="footer-item">
+                    <i data-lucide="monitor" class="footer-icon" style="width:20px;height:20px;"></i>
+                    <div class="footer-text">
+                        <span class="footer-title">1080p as 2k</span>
+                        <span class="footer-subtitle">Best Quality</span>
+                    </div>
                 </div>
-                <div style="display: flex; align-items: center; justify-content: center; gap: 6px;">
-                    Developed with <i data-lucide="heart" class="footer-heart"></i> by Angel (Mehul)
+                <div class="footer-separator"></div>
+                <div class="footer-item">
+                    <i data-lucide="volume-x" class="footer-icon" style="width:20px;height:20px;"></i>
+                    <div class="footer-text">
+                        <span class="footer-title">No Audio</span>
+                        <span class="footer-subtitle">In Browser</span>
+                    </div>
+                </div>
+                <div class="footer-separator"></div>
+                <div class="footer-item">
+                    <i data-lucide="shield-check" class="footer-icon" style="width:20px;height:20px;"></i>
+                    <div class="footer-text">
+                        <span class="footer-title">Browser Only</span>
+                        <span class="footer-subtitle">No External Player</span>
+                    </div>
+                </div>
+                <div class="footer-separator"></div>
+                <div class="footer-item">
+                    <i data-lucide="heart" class="footer-icon footer-heart" style="width:20px;height:20px;"></i>
+                    <div class="footer-text">
+                        <span class="footer-title">Made with</span>
+                        <span class="footer-subtitle author-highlight">by Angel (Mehul)</span>
+                    </div>
                 </div>
             </footer>
         </div>
@@ -125,7 +175,6 @@
             <div class="details-content">
                 <div class="details-tabs">
                     <button id="tabBtn-episodes" class="detail-tab active" onclick="switchDetailTab('episodes')">Episodes & Streams</button>
-                    <button id="tabBtn-downloads" class="detail-tab" onclick="switchDetailTab('downloads')">Downloads</button>
                 </div>
 
                 <div id="tab-episodes" class="detail-tab-content active">
@@ -156,6 +205,9 @@
         </div>
         <a href="#" class="mobile-nav-link" onclick="loadWishlist()">
             <i data-lucide="heart"></i><span>Wishlist</span>
+        </a>
+        <a href="#" class="mobile-nav-link" onclick="openSettingsModal()">
+            <i data-lucide="settings"></i><span>Settings</span>
         </a>
     </nav>
 
@@ -209,20 +261,48 @@
 
     <!-- SETTINGS MODAL -->
     <div id="settingsModal" class="modal-overlay">
-        <div class="settings-dialog">
-            <button class="close-modal" onclick="closeSettingsModal()">
-                <i data-lucide="x"></i>
-            </button>
-            <h2>API Settings <i data-lucide="server"></i></h2>
-            <p>Configure your serverless backend API URL.</p>
-            <div class="settings-form">
-                <label>Backend URL</label>
-                <input type="text" id="apiUrlInput" placeholder="e.g. https://my-vega-api.vercel.app">
-                <label style="margin-top: 10px;">TMDB API Key (Optional)</label>
-                <input type="text" id="tmdbKeyInput" placeholder="Enter your TMDB API Key">
-                <p class="hint">Used for premium posters, backdrops, and IMDB ratings.</p>
-                <button class="save-btn" onclick="saveSettings()">Save & Reload</button>
+        <div class="settings-dialog" style="max-width: 750px; width: 95%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid var(--glass-border); margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px;">
+                    Settings & System Info <i data-lucide="settings" style="color: var(--accent);"></i>
+                </h2>
+                <button class="close-modal" onclick="closeSettingsModal()" style="position: static; background: transparent; border: none; color: var(--text-muted); cursor: pointer;">
+                    <i data-lucide="x"></i>
+                </button>
             </div>
+            
+            <!-- 2-Column Rectangular Layout -->
+            <div class="settings-grid" style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; align-items: start; margin-bottom: 20px;">
+                <!-- Left Column: Active Providers -->
+                <div>
+                    <h3 style="font-size: 14px; margin-bottom: 10px; color: var(--text-main); font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                        <i data-lucide="layers" style="width: 16px; height: 16px; color: var(--accent);"></i> Active Providers
+                    </h3>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">Toggle search and browse providers to clean up the navigation list.</p>
+                    <div id="settingsProvidersList" style="display: grid; grid-template-columns: 1fr; gap: 10px; background: rgba(255, 255, 255, 0.02); border: 1px solid var(--glass-border); padding: 14px; border-radius: var(--radius-md); max-height: 240px; overflow-y: auto;">
+                        <!-- Checkboxes will be injected dynamically -->
+                    </div>
+                </div>
+
+                <!-- Right Column: Risk Disclaimer & Notes -->
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <h3 style="font-size: 14px; margin-bottom: 0px; color: var(--text-main); font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                        <i data-lucide="shield-alert" style="width: 16px; height: 16px; color: #ef4444;"></i> Risk Disclaimer & Info
+                    </h3>
+                    
+                    <div style="background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.2); padding: 12px; border-radius: var(--radius-md); display: flex; gap: 10px; align-items: flex-start; font-size: 12px; color: var(--text-dim); line-height: 1.5;">
+                         <i data-lucide="info" style="width: 16px; height: 16px; color: #ef4444; flex-shrink: 0; margin-top: 2px;"></i>
+                         <span><strong>Disclaimer:</strong> OrbixPlay is a scraping search engine. We do not host, store, download, or index any video files. Streams are scraped from public services.</span>
+                    </div>
+                    
+                    <div style="background: rgba(147, 51, 234, 0.06); border: 1px solid rgba(147, 51, 234, 0.2); padding: 12px; border-radius: var(--radius-md); display: flex; gap: 10px; align-items: flex-start; font-size: 12px; color: var(--text-dim); line-height: 1.5;">
+                         <i data-lucide="help-circle" style="width: 16px; height: 16px; color: var(--accent); flex-shrink: 0; margin-top: 2px;"></i>
+                         <span><strong>2K/4K Streams:</strong> Browser players only support up to 1080p audio natively. For 2K/4K, please use the <strong>Download</strong> option to get the full audio track.</span>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="save-btn" onclick="saveSettings()" style="width: 100%;">Save & Reload</button>
         </div>
     </div>
 
