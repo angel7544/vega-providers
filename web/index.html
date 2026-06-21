@@ -156,22 +156,9 @@
             
             <!-- HERO HEADER -->
             <div class="hero-header" id="detailHero">
-                <button class="back-btn details-back-btn" onclick="backToBrowse()">
-                    <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Back
-                </button>
                 <div class="hero-backdrop" id="detailBackdrop"></div>
                 <div class="hero-content">
-                    <div class="poster-container-wrapper">
-                        <img id="detailPoster" class="hero-poster" src="" alt="" referrerpolicy="no-referrer">
-                        <div class="hero-actions">
-                            <button id="wishlistBtn" class="stream-btn hero-btn" onclick="toggleWishlist()">
-                                <i data-lucide="heart"></i> <span id="wishlistText">Add to Wishlist</span>
-                            </button>
-                            <button id="refreshBtn" class="stream-btn hero-btn" style="background: rgba(139, 92, 246, 0.1); border-color: var(--glass-border);" onclick="refreshDetails()">
-                                <i data-lucide="refresh-cw"></i> <span>Refresh</span>
-                            </button>
-                        </div>
-                    </div>
+                    <img id="detailPoster" class="hero-poster" src="" alt="" referrerpolicy="no-referrer">
                     <div class="hero-meta">
                         <h1 id="detailTitle"></h1>
                         <div class="meta-tags">
@@ -180,7 +167,21 @@
                             <span id="detailProvider" class="provider-info"></span>
                             <div id="detailRating" class="rating-badge" style="display:inline-flex;margin-left:8px;"></div>
                         </div>
-                        <p id="detailSynopsis" class="synopsis"></p>
+                        <div class="synopsis-wrapper" style="position: relative; width: 100%;">
+                            <p id="detailSynopsis" class="synopsis collapsed"></p>
+                            <button id="readMoreBtn" class="read-more-btn" onclick="toggleReadMore()" style="display: none;">.. readmore</button>
+                        </div>
+                        <div class="hero-actions">
+                            <button id="backBtn" class="stream-btn hero-btn" onclick="backToBrowse()">
+                                <i data-lucide="arrow-left"></i><span>Back</span>
+                            </button>
+                            <button id="wishlistBtn" class="stream-btn hero-btn" onclick="toggleWishlist()">
+                                <i data-lucide="heart"></i> <span id="wishlistText">Add to Wishlist</span>
+                            </button>
+                            <button id="refreshBtn" class="stream-btn hero-btn" style="background: rgba(139, 92, 246, 0.1); border-color: var(--glass-border);" onclick="refreshDetails()">
+                                <i data-lucide="refresh-cw"></i> <span>Refresh</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
