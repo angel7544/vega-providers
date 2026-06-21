@@ -1042,16 +1042,16 @@ function createStreamBadgeHtml(rawTitle, defaultIcon = "play-circle") {
         if (m.type === 'audio') color = "#8b5cf6";
         if (m.type === 'season' || m.type === 'episode') color = "#22c55e";
         if (m.type === 'size') color = "#3b82f6";
-        return `<span style="font-size: 10px; background: ${color}; color: #fff; padding: 2px 6px; border-radius: 4px; display: inline-block;">${m.text}</span>`;
+        return `<span style="font-size: 10px; background: ${color}; color: #fff; padding: 2px 5px; border-radius: 4px; display: inline-block; white-space: nowrap;">${m.text}</span>`;
     }).join("");
     
     return `
-        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; text-align: left;">
-            <div style="display: flex; align-items: flex-start; gap: 8px; width: 100%;">
+        <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; min-width: 0; text-align: left; overflow: hidden;">
+            <div style="display: flex; align-items: flex-start; gap: 8px; width: 100%; min-width: 0;">
                 <i data-lucide="${defaultIcon}" style="width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px;"></i>
-                <span style="font-weight: 500; font-size: 14px; line-height: 1.4; word-break: break-word;">${parsed.title}</span>
+                <span style="font-weight: 500; font-size: 14px; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; min-width: 0;">${parsed.title}</span>
             </div>
-            ${badges ? `<div style="display: flex; flex-wrap: wrap; gap: 6px; width: 100%; padding-left: 26px;">${badges}</div>` : ''}
+            ${badges ? `<div style="display: flex; flex-wrap: wrap; gap: 4px; width: 100%; padding-left: 26px;">${badges}</div>` : ''}
         </div>
     `;
 }
