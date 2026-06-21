@@ -161,7 +161,17 @@
                 </button>
                 <div class="hero-backdrop" id="detailBackdrop"></div>
                 <div class="hero-content">
-                    <img id="detailPoster" class="hero-poster" src="" alt="" referrerpolicy="no-referrer">
+                    <div class="poster-container-wrapper">
+                        <img id="detailPoster" class="hero-poster" src="" alt="" referrerpolicy="no-referrer">
+                        <div class="hero-actions">
+                            <button id="wishlistBtn" class="stream-btn hero-btn" onclick="toggleWishlist()">
+                                <i data-lucide="heart"></i> <span id="wishlistText">Add to Wishlist</span>
+                            </button>
+                            <button id="refreshBtn" class="stream-btn hero-btn" style="background: rgba(139, 92, 246, 0.1); border-color: var(--glass-border);" onclick="refreshDetails()">
+                                <i data-lucide="refresh-cw"></i> <span>Refresh</span>
+                            </button>
+                        </div>
+                    </div>
                     <div class="hero-meta">
                         <h1 id="detailTitle"></h1>
                         <div class="meta-tags">
@@ -171,14 +181,6 @@
                             <div id="detailRating" class="rating-badge" style="display:inline-flex;margin-left:8px;"></div>
                         </div>
                         <p id="detailSynopsis" class="synopsis"></p>
-                        <div class="hero-actions">
-                            <button id="wishlistBtn" class="stream-btn hero-btn" onclick="toggleWishlist()">
-                                <i data-lucide="heart"></i> <span id="wishlistText">Add to Wishlist</span>
-                            </button>
-                            <button id="refreshBtn" class="stream-btn hero-btn" style="background: rgba(139, 92, 246, 0.1); border-color: var(--glass-border);" onclick="refreshDetails()">
-                                <i data-lucide="refresh-cw"></i> <span>Refresh</span>
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -204,6 +206,10 @@
 
     <!-- MOBILE BOTTOM NAVBAR -->
     <nav class="mobile-bottom-nav">
+        <a href="#" class="mobile-nav-logo" onclick="window.location.reload()">
+            <img src="icon.png" alt="Logo">
+            <span>OrbixPlay</span>
+        </a>
         <a href="#" class="mobile-nav-link active" onclick="loadHome()">
             <i data-lucide="home"></i><span>Home</span>
         </a>

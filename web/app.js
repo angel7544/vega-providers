@@ -376,10 +376,21 @@ function loadWishlist() {
 }
 
 function updateActiveNav(index) {
-    const links = document.querySelectorAll('.nav-link, .mobile-nav-link');
-    links.forEach((l, i) => {
-        // Because mobile links mirror desktop, index modulo handles both
-        if (i % 2 === index) l.classList.add('active');
+    const desktopLinks = document.querySelectorAll('.nav-links .nav-link');
+    const mobileLinks = document.querySelectorAll('.mobile-bottom-nav .mobile-nav-link');
+    
+    desktopLinks.forEach((l, i) => {
+        if (i === index) l.classList.add('active');
+        else l.classList.remove('active');
+    });
+    
+    mobileLinks.forEach((l, i) => {
+        // i=0 is Home, i=1 is Browse, i=2 is Wishlist, i=3 is Settings
+        let shouldBeActive = false;
+        if (index === 0 && i === 0) shouldBeActive = true;
+        if (index === 1 && i === 2) shouldBeActive = true;
+        
+        if (shouldBeActive) l.classList.add('active');
         else l.classList.remove('active');
     });
 }
@@ -387,9 +398,16 @@ function updateActiveNav(index) {
 function onCategorySelect(value) {
     if (!value) return;
     
-    // Clear active classes from nav-links
-    const links = document.querySelectorAll('.nav-link, .mobile-nav-link');
-    links.forEach(l => l.classList.remove('active'));
+    // Clear active classes from desktop links
+    const desktopLinks = document.querySelectorAll('.nav-links .nav-link');
+    desktopLinks.forEach(l => l.classList.remove('active'));
+
+    // Set Browse (index 1) as active on mobile and clear others
+    const mobileLinks = document.querySelectorAll('.mobile-bottom-nav .mobile-nav-link');
+    mobileLinks.forEach((l, i) => {
+        if (i === 1) l.classList.add('active');
+        else l.classList.remove('active');
+    });
     
     // Synchronize desktop and mobile select values
     const desktopSelect = document.getElementById("categoriesDropdown");
@@ -1098,22 +1116,122 @@ function renderLinks(meta) {
     });
 
     if (seasonGroups.length > 0) {
-        if (seasonSelector) seasonSelector.style.display = "flex";
-        seasonGroups.forEach((group, index) => {
-            const btn = document.createElement("button");
-            btn.className = "season-tab" + (index === 0 ? " active" : "");
-            btn.innerHTML = createStreamBadgeHtml(group.title, "layers");
-            btn.onclick = () => {
-                document.querySelectorAll('.season-tab').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                if (group.directLinks && group.directLinks.length > 0) {
-                    renderEpisodeList(group.directLinks, currentProvider);
-                } else {
-                    loadEpisodes(group.episodesLink || group.link, currentProvider);
+        if (seasonSelector) {
+            seasonSelector.style.display = "block";
+            seasonSelector.innerHTML = "";
+            
+            // Create custom colorful dropdown container
+            const dropdown = document.createElement("div");
+            dropdown.className = "colorful-dropdown";
+            
+            const trigger = document.createElement("button");
+            trigger.className = "colorful-dropdown-trigger";
+            trigger.type = "button";
+            trigger.setAttribute("aria-haspopup", "listbox");
+            trigger.setAttribute("aria-expanded", "false");
+            
+            // Trigger content container
+            const valueSpan = document.createElement("div");
+            valueSpan.className = "colorful-dropdown-value";
+            valueSpan.style.width = "100%";
+            valueSpan.innerHTML = createStreamBadgeHtml(seasonGroups[0].title, "layers");
+            
+            // Centering helper: overwrite default align-items for trigger badge layout
+            const centerBadgeLayout = (container) => {
+                const innerContainer = container.querySelector('div');
+                if (innerContainer) {
+                    innerContainer.style.alignItems = 'center';
+                    innerContainer.style.textAlign = 'center';
+                    innerContainer.style.justifyContent = 'center';
+                    const firstRow = innerContainer.querySelector('div');
+                    if (firstRow) {
+                        firstRow.style.justifyContent = 'center';
+                    }
+                    const badgesDiv = innerContainer.querySelector('div:nth-child(2)');
+                    if (badgesDiv) {
+                        badgesDiv.style.justifyContent = 'center';
+                        badgesDiv.style.paddingLeft = '0';
+                    }
                 }
             };
-            if (seasonSelector) seasonSelector.appendChild(btn);
-        });
+            centerBadgeLayout(valueSpan);
+            
+            const chevron = document.createElement("i");
+            chevron.setAttribute("data-lucide", "chevron-down");
+            chevron.className = "dropdown-chevron";
+            chevron.style.width = "18px";
+            chevron.style.height = "18px";
+            
+            trigger.appendChild(valueSpan);
+            trigger.appendChild(chevron);
+            
+            const menu = document.createElement("div");
+            menu.className = "colorful-dropdown-menu";
+            
+            // Function to close dropdown
+            const closeDropdown = () => {
+                trigger.setAttribute("aria-expanded", "false");
+                menu.classList.remove("show");
+            };
+            
+            // Toggle dropdown
+            trigger.onclick = (e) => {
+                e.stopPropagation();
+                const isExpanded = trigger.getAttribute("aria-expanded") === "true";
+                document.querySelectorAll('.custom-dropdown, .colorful-dropdown').forEach(other => {
+                    if (other !== dropdown) {
+                        const otherTrigger = other.querySelector('.custom-dropdown-trigger, .colorful-dropdown-trigger');
+                        const otherMenu = other.querySelector('.custom-dropdown-menu, .colorful-dropdown-menu');
+                        if (otherTrigger) otherTrigger.setAttribute('aria-expanded', 'false');
+                        if (otherMenu) otherMenu.classList.remove('show');
+                    }
+                });
+                trigger.setAttribute("aria-expanded", !isExpanded ? "true" : "false");
+                menu.classList.toggle("show", !isExpanded);
+            };
+            
+            // Add items to menu
+            seasonGroups.forEach((group, index) => {
+                const item = document.createElement("div");
+                item.className = "colorful-dropdown-item" + (index === 0 ? " selected" : "");
+                item.innerHTML = createStreamBadgeHtml(group.title, "layers");
+                centerBadgeLayout(item);
+                
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    
+                    menu.querySelectorAll(".colorful-dropdown-item").forEach(el => el.classList.remove("selected"));
+                    item.classList.add("selected");
+                    
+                    valueSpan.innerHTML = createStreamBadgeHtml(group.title, "layers");
+                    centerBadgeLayout(valueSpan);
+                    if (window.lucide) window.lucide.createIcons();
+                    
+                    closeDropdown();
+                    
+                    if (group.directLinks && group.directLinks.length > 0) {
+                        renderEpisodeList(group.directLinks, currentProvider);
+                    } else {
+                        loadEpisodes(group.episodesLink || group.link, currentProvider);
+                    }
+                };
+                
+                menu.appendChild(item);
+            });
+            
+            dropdown.appendChild(trigger);
+            dropdown.appendChild(menu);
+            seasonSelector.appendChild(dropdown);
+            
+            // Register close dropdown on clicking outside
+            document.addEventListener('click', (e) => {
+                if (!dropdown.contains(e.target)) {
+                    closeDropdown();
+                }
+            });
+            
+            if (window.lucide) window.lucide.createIcons();
+        }
         
         // Render first season automatically
         if (seasonGroups[0].directLinks && seasonGroups[0].directLinks.length > 0) {
@@ -2101,36 +2219,15 @@ function search() {
 
 // Mobile responsive search expand
 window.toggleSearchMobile = function(event) {
-    if (window.innerWidth <= 1024) {
-        const wrapper = document.querySelector('.search-wrapper');
-        const input = document.getElementById('searchInput');
-        
-        if (wrapper && input) {
-            if (!wrapper.classList.contains('expanded')) {
-                event.preventDefault();
-                event.stopPropagation();
-                wrapper.classList.add('expanded');
-                input.focus();
-            } else if (!input.value.trim()) {
-                event.preventDefault();
-                event.stopPropagation();
-                wrapper.classList.remove('expanded');
-                input.blur();
-            }
-        }
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
     }
+    search();
 };
 
 document.addEventListener('click', (e) => {
-    if (window.innerWidth <= 1024) {
-        const wrapper = document.querySelector('.search-wrapper');
-        const input = document.getElementById('searchInput');
-        if (wrapper && input && wrapper.classList.contains('expanded')) {
-            if (!wrapper.contains(e.target) && !input.value.trim()) {
-                wrapper.classList.remove('expanded');
-            }
-        }
-    }
+    // No-op for mobile search collapse since search bar is full-width and persistent
 });
 
 // ============================
