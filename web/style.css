@@ -1365,7 +1365,22 @@ h1, h2, h3, .logo-text {
   }
   
   .main-container {
-    padding-bottom: 120px; /* Space for mobile bottom nav and fixed footer */
+    padding-bottom: 80px; /* Reduced from 120px since footer is static */
+  }
+
+  #providerDropdownContainer {
+    position: relative;
+  }
+
+  #providerSelect {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 10;
   }
 
   .hero-content {
@@ -1765,17 +1780,21 @@ h1, h2, h3, .logo-text {
 
 @media (max-width: 1024px) {
   .app-footer {
-    width: 100%;
-    bottom: 60px;
-    left: 0;
-    transform: none;
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
-    border-bottom: none;
-    padding: 10px 15px;
-    z-index: 1900;
-    justify-content: space-between;
+    position: static !important;
+    width: 100% !important;
+    left: 0 !important;
+    transform: none !important;
+    border-radius: 0 !important;
+    border: none !important;
+    border-top: 1px solid var(--glass-border) !important;
+    padding: 20px 15px !important;
+    z-index: 900 !important;
+    justify-content: space-around !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    margin-top: 40px !important;
+    box-shadow: none !important;
   }
   
   .footer-subtitle {
@@ -1833,4 +1852,112 @@ h1, h2, h3, .logo-text {
 
 .hero-content .rating-badge {
   color: #000000 !important;
-}
+}
+
+/* Premium Styles for native select and dropdown buttons */
+.stream-dropdown-container {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  align-items: center;
+  flex-wrap: wrap;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--glass-border);
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(10px);
+}
+
+.movie-select, .download-select {
+  background: var(--surface-light);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 14.5px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23cbd5e1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  padding-right: 40px; /* Space for chevron */
+  flex: 1;
+  min-width: 200px;
+  height: 48px;
+}
+
+.movie-select:hover, .download-select:hover,
+.movie-select:focus, .download-select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.movie-select option, .download-select option {
+  background-color: #0e0e13; /* Surface deep fallback */
+  color: var(--text-main);
+  padding: 10px;
+  font-weight: 500;
+}
+
+[data-theme="light"] .movie-select option,
+[data-theme="light"] .download-select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+.stream-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+  padding: 0 22px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  height: 48px;
+  white-space: nowrap;
+}
+
+.stream-action-btn:hover {
+  background: var(--accent-gradient);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px var(--accent-glow);
+}
+
+.stream-action-btn.secondary {
+  background: rgba(147, 51, 234, 0.1);
+  border-color: rgba(147, 51, 234, 0.2);
+  color: var(--accent);
+}
+
+.stream-action-btn.secondary:hover {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+@media (max-width: 768px) {
+  .stream-dropdown-container {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+  }
+  .movie-select, .download-select {
+    width: 100%;
+  }
+  .stream-action-btn {
+    width: 100%;
+  }
+}
+

@@ -363,7 +363,13 @@ function loadWishlist() {
     currentFilter = "wishlist"; currentSearch = ""; isBrowseCached = false;
     updateActiveNav(1); 
     switchPage('pageBrowse'); 
-    catalogContainer.innerHTML = "";
+    catalogContainer.style.display = "flex";
+    catalogContainer.innerHTML = `
+        <button class="catalog-btn active" onclick="refreshWishlistData()" style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh Wishlist Data
+        </button>
+    `;
+    lucide.createIcons();
     const wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
     renderGrid(wishlist);
     setStatus(wishlist.length ? "Online" : "Wishlist is empty");
@@ -1117,15 +1123,30 @@ function renderLinks(meta) {
         }
     } else {
         if (seasonSelector) seasonSelector.style.display = "none";
-        movieGroups.forEach(group => {
-            const row = document.createElement("div");
-            row.className = "ep-row";
-            row.style.width = "100%";
-
-            const btn1 = document.createElement("button");
-            btn1.className = "ep-btn";
-            btn1.innerHTML = createStreamBadgeHtml(group.title, "play-circle");
-            btn1.onclick = () => {
+        
+        if (movieGroups.length > 0) {
+            const dropdownContainer = document.createElement("div");
+            dropdownContainer.className = "stream-dropdown-container";
+            dropdownContainer.style.width = "100%";
+            dropdownContainer.style.marginBottom = "16px";
+            
+            const select = document.createElement("select");
+            select.className = "movie-select";
+            select.id = "movieStreamSelect";
+            
+            movieGroups.forEach((group, index) => {
+                const opt = document.createElement("option");
+                opt.value = index;
+                opt.textContent = getStreamLabel(group);
+                select.appendChild(opt);
+            });
+            
+            const playBtn1 = document.createElement("button");
+            playBtn1.className = "stream-action-btn";
+            playBtn1.innerHTML = `<i data-lucide="play-circle"></i> Play`;
+            playBtn1.onclick = () => {
+                const selectedIndex = parseInt(select.value);
+                const group = movieGroups[selectedIndex];
                 const link = group.directLinks?.[0]?.link || group.link;
                 if (link) {
                     currentPlayerType = 1;
@@ -1134,13 +1155,14 @@ function renderLinks(meta) {
                     alert("No direct link found.");
                 }
             };
-
-            const btn2 = document.createElement("button");
-            btn2.className = "ep-btn-dl";
-            btn2.style.color = "var(--accent)";
-            btn2.innerHTML = `<i data-lucide="play"></i>`;
-            btn2.title = "Play with Player 2 (Native)";
-            btn2.onclick = () => {
+            
+            const playBtn2 = document.createElement("button");
+            playBtn2.className = "stream-action-btn secondary";
+            playBtn2.innerHTML = `<i data-lucide="play"></i> Play Native`;
+            playBtn2.title = "Play with Player 2 (Native)";
+            playBtn2.onclick = () => {
+                const selectedIndex = parseInt(select.value);
+                const group = movieGroups[selectedIndex];
                 const link = group.directLinks?.[0]?.link || group.link;
                 if (link) {
                     currentPlayerType = 2;
@@ -1149,11 +1171,15 @@ function renderLinks(meta) {
                     alert("No direct link found.");
                 }
             };
-
-            row.appendChild(btn1);
-            row.appendChild(btn2);
-            container.appendChild(row);
-        });
+            
+            dropdownContainer.appendChild(select);
+            dropdownContainer.appendChild(playBtn1);
+            dropdownContainer.appendChild(playBtn2);
+            
+            container.appendChild(dropdownContainer);
+        } else {
+            container.innerHTML = "<p style='color: var(--text-dim)'>No playable streams found.</p>";
+        }
     }
 }
 
@@ -1181,17 +1207,33 @@ function renderDownloads(meta) {
     
     if (titleObj) titleObj.style.display = 'block';
     
-    downloadGroups.forEach(group => {
-        let btn = document.createElement("a");
-        btn.className = "download-btn";
-        btn.href = "javascript:void(0)";
-        btn.onclick = (e) => {
-            e.preventDefault();
-            resolveDownload(group.link, currentProvider, group.title);
-        };
-        btn.innerHTML = createStreamBadgeHtml(group.title, "download");
-        container.appendChild(btn);
+    const dropdownContainer = document.createElement("div");
+    dropdownContainer.className = "stream-dropdown-container";
+    dropdownContainer.style.width = "100%";
+    
+    const select = document.createElement("select");
+    select.className = "download-select";
+    select.id = "movieDownloadSelect";
+    
+    downloadGroups.forEach((group, index) => {
+        const opt = document.createElement("option");
+        opt.value = index;
+        opt.textContent = getStreamLabel(group);
+        select.appendChild(opt);
     });
+    
+    const dlBtn = document.createElement("button");
+    dlBtn.className = "stream-action-btn";
+    dlBtn.innerHTML = `<i data-lucide="download"></i> Get Links`;
+    dlBtn.onclick = () => {
+        const selectedIndex = parseInt(select.value);
+        const group = downloadGroups[selectedIndex];
+        resolveDownload(group.link, currentProvider, group.title);
+    };
+    
+    dropdownContainer.appendChild(select);
+    dropdownContainer.appendChild(dlBtn);
+    container.appendChild(dropdownContainer);
 }
 
 async function loadEpisodes(episodesUrl, provider) {
@@ -2112,7 +2154,7 @@ function checkWishlistState() {
     }
 }
 
-function toggleWishlist() {
+async function toggleWishlist() {
     if (!currentMeta || !currentMeta.__link) return;
     
     let wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
@@ -2120,19 +2162,37 @@ function toggleWishlist() {
     
     if (index > -1) {
         wishlist.splice(index, 1);
+        localStorage.setItem('orbix_wishlist', JSON.stringify(wishlist));
+        checkWishlistState();
+        updateWishlistBadge();
     } else {
+        const btn = document.getElementById("wishlistBtn");
+        const text = document.getElementById("wishlistText");
+        const originalText = text ? text.textContent : "Add to Wishlist";
+        if (text) text.textContent = "Caching Poster...";
+        if (btn) btn.disabled = true;
+        
+        let posterUrl = currentMeta.image || "";
+        const imgEl = document.getElementById("detailPoster");
+        if (imgEl && imgEl.src && !imgEl.src.includes('missing.jpg') && !imgEl.src.includes('placeholder')) {
+            posterUrl = imgEl.src;
+        }
+        
+        const base64Image = await fetchImageAsBase64(posterUrl);
+        
         wishlist.push({
             title: parseMediaInfo(currentMeta.title).title || currentMeta.title,
-            image: currentMeta.image || "",
+            image: base64Image || posterUrl,
             link: currentMeta.__link,
             __provider: currentMeta.__provider,
             type: currentMeta.type || "Media"
         });
+        
+        localStorage.setItem('orbix_wishlist', JSON.stringify(wishlist));
+        if (btn) btn.disabled = false;
+        checkWishlistState();
+        updateWishlistBadge();
     }
-    
-    localStorage.setItem('orbix_wishlist', JSON.stringify(wishlist));
-    checkWishlistState();
-    updateWishlistBadge();
 }
 
 // ============================
@@ -2293,6 +2353,119 @@ window.addEventListener('scroll', () => {
         fetchNextPage();
     }
 });
+
+function getStreamLabel(group) {
+    if (!group || !group.title) return "Unknown Stream";
+    const title = group.title;
+    const parsed = parseMediaInfo(title);
+    
+    const quality = parsed.meta.find(m => m.type === 'quality')?.text || "";
+    const audio = parsed.meta.filter(m => m.type === 'audio').map(m => m.text).join(', ') || "";
+    const size = parsed.meta.find(m => m.type === 'size')?.text || "";
+    
+    const tags = [];
+    if (quality) tags.push(quality);
+    if (audio) tags.push(audio);
+    if (size) tags.push(size);
+    
+    const tagString = tags.length > 0 ? ` [${tags.join(" | ")}]` : "";
+    return `${parsed.title}${tagString}`;
+}
+
+async function fetchImageAsBase64(imageUrl) {
+    if (!imageUrl) return "";
+    if (imageUrl.startsWith('data:')) return imageUrl;
+    
+    try {
+        let fetchUrl = imageUrl;
+        if (imageUrl.startsWith('http')) {
+            fetchUrl = `${getApiUrl()}/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+        }
+        const resp = await fetch(fetchUrl);
+        if (!resp.ok) throw new Error("Image fetch failed");
+        const blob = await resp.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (err) {
+        console.warn("Could not cache image as base64:", err);
+        return imageUrl; // Fallback to original URL
+    }
+}
+
+async function refreshWishlistData() {
+    let wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    if (wishlist.length === 0) {
+        alert("Wishlist is empty.");
+        return;
+    }
+
+    const confirmRefresh = confirm(`Would you like to refresh data for ${wishlist.length} item(s) in your wishlist? This will update poster images and titles.`);
+    if (!confirmRefresh) return;
+
+    setStatus("Refreshing wishlist...", "#8b5cf6");
+    
+    const btn = catalogContainer.querySelector('button');
+    if (btn) {
+        btn.disabled = true;
+        btn.style.opacity = "0.7";
+        btn.style.cursor = "not-allowed";
+        btn.innerHTML = `<i data-lucide="refresh-cw" class="spin" style="width: 14px; height: 14px; animation: spin 1s linear infinite; display: inline-block;"></i> Refreshing...`;
+        if (window.lucide) window.lucide.createIcons();
+    }
+
+    let successCount = 0;
+    for (let i = 0; i < wishlist.length; i++) {
+        const item = wishlist[i];
+        setStatus(`Refreshing ${i + 1}/${wishlist.length}: ${item.title}...`, "#8b5cf6");
+        
+        try {
+            const resp = await fetch(`${getApiUrl()}/fetch`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    provider: item.__provider,
+                    functionName: "getMeta",
+                    params: { link: item.link }
+                }),
+                signal: AbortSignal.timeout(10000)
+            });
+
+            if (resp.ok) {
+                const freshMeta = await resp.json();
+                if (freshMeta && freshMeta.title) {
+                    item.title = parseMediaInfo(freshMeta.title).title || freshMeta.title;
+                    item.type = freshMeta.type || item.type;
+                    
+                    let posterUrl = freshMeta.image || item.image;
+                    if (posterUrl) {
+                        const base64Img = await fetchImageAsBase64(posterUrl);
+                        if (base64Img) item.image = base64Img;
+                    }
+                    successCount++;
+                }
+            }
+        } catch (err) {
+            console.error(`Failed to refresh item ${item.title}:`, err);
+        }
+    }
+
+    localStorage.setItem('orbix_wishlist', JSON.stringify(wishlist));
+    renderGrid(wishlist);
+    
+    if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        btn.style.cursor = "pointer";
+        btn.innerHTML = `<i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh Wishlist Data`;
+        if (window.lucide) window.lucide.createIcons();
+    }
+    
+    setStatus(`Wishlist refreshed! (${successCount}/${wishlist.length} updated)`, "#22c55e");
+}
 
 // 🚀 START
 initTheme();
