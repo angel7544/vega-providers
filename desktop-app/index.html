@@ -8,7 +8,7 @@
     <link rel="icon" type="image/x-icon" href="icon.ico">
     <link rel="shortcut icon" type="image/png" href="icon.png">
 
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/src/style.css">
     
     <!-- PWA support -->
     <link rel="manifest" href="manifest.webmanifest">
@@ -21,29 +21,25 @@
 
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-
-    <!-- HLS.js & Artplayer -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.8/hls.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
 </head>
 
 <body>
 
-    <!-- NAVBAR -->
-    <header class="navbar" id="mainNavbar">
+    <!-- React Welcome Screen Root -->
+    <div id="welcome-root"></div>
+
+    <div id="orbix-main-app" style="display: none; opacity: 0; transition: opacity 0.5s ease-in-out;">
+        <!-- NAVBAR -->
+        <header class="navbar" id="mainNavbar">
         <div class="nav-content">
             <!-- LOGO -->
-            <div class="logo" onclick="window.location.reload()">
+            <div class="logo" onclick="loadHome()" style="cursor: pointer;">
                 <img src="icon.png" alt="Logo" style="width: 32px; height: 32px; border-radius: 8px;">
                 <span class="logo-text">OrbixPlay</span>
             </div>
 
             <!-- NAV LINKS -->
             <nav class="nav-links">
-                <a href="#" class="nav-link active" onclick="loadHome()" id="navHome">
-                    <i data-lucide="home" style="width:16px;height:16px;"></i>
-                    <span>Home</span>
-                </a>
                 <div class="custom-dropdown" id="categoriesDropdownContainer">
                     <select id="categoriesDropdown" class="nav-dropdown-hidden" onchange="onCategorySelect(this.value)" style="display: none;">
                         <option value="" disabled selected>Categories</option>
@@ -61,6 +57,10 @@
                     <i data-lucide="heart" style="width:16px;height:16px;"></i>
                     <span>Wishlist</span>
                     <span class="wishlist-badge" id="wishlistBadge" style="display: none;">0</span>
+                </a>
+                <a href="#" class="nav-link" onclick="openDownloadsModal()" id="navDownloads">
+                    <i data-lucide="download-cloud" style="width:16px;height:16px;"></i>
+                    <span>Downloads</span>
                 </a>
             </nav>
 
@@ -203,11 +203,22 @@
             </div>
         </div>
 
+        <!-- DOWNLOADS PAGE (static, survives Ctrl+F5) -->
+        <div id="pageDownloads" class="page-view">
+            <div style="padding: 24px; max-width: 800px; margin: 0 auto; margin-top: 80px;">
+                <h2 style="font-size: 24px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
+                    <i data-lucide="download-cloud" style="color: var(--accent); width: 28px; height: 28px;"></i>
+                    Active Downloads
+                </h2>
+                <div id="downloadsList" style="display: flex; flex-direction: column; gap: 16px;"></div>
+            </div>
+        </div>
+
     </main>
 
     <!-- MOBILE BOTTOM NAVBAR -->
     <nav class="mobile-bottom-nav">
-        <a href="#" class="mobile-nav-logo" onclick="window.location.reload()">
+        <a href="#" class="mobile-nav-logo" onclick="loadHome()">
             <img src="icon.png" alt="Logo">
             <span>OrbixPlay</span>
         </a>
@@ -230,24 +241,12 @@
         </a>
     </nav>
 
-    <!-- DEDICATED PLAYER PAGE -->
-    <div id="pagePlayer" class="page-view player-fullscreen-wrapper">
-        <div class="player-header">
-            <button class="close-player-btn" onclick="closePlayer()">
-                <i data-lucide="arrow-left"></i>
-                <span>Close Player</span>
-            </button>
-            <div class="player-title" id="playerTitleDisplay">Now Playing</div>
-        </div>
-        
-        <div id="artplayer-app" class="artplayer-container"></div>
-        <video id="native-player-app" class="artplayer-container" style="display: none; background: #000; object-fit: contain;" controls autoplay playsinline referrerpolicy="no-referrer"></video>
-    </div>
+
 
 
     <!-- DOWNLOAD MODAL -->
     <div id="downloadModal" class="modal-overlay" style="display: none;">
-        <div class="settings-dialog" style="max-width: 500px; width: 90%; background: #0a0a0c; border: 1px solid var(--glass-border); border-radius: 16px; display: flex; flex-direction: column; box-shadow: 0 20px 40px rgba(0,0,0,0.8);">
+        <div class="settings-dialog" style="max-width: 500px; width: 90%; padding: 0; display: flex; flex-direction: column;">
             <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px; border-bottom: 1px solid var(--glass-border);">
                 <h3 id="dlModalTitle" style="margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">
                     <i data-lucide="download-cloud" style="color: var(--accent);"></i> Download Episode
@@ -258,7 +257,7 @@
             </div>
             
             <div style="padding: 20px; max-height: 60vh; overflow-y: auto;">
-                <div id="dlModalMeta" style="display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.03); padding: 16px; border-radius: 12px; margin-bottom: 24px; border: 1px solid rgba(255,255,255,0.05);">
+                <div id="dlModalMeta" style="display: flex; align-items: center; gap: 12px; background: var(--surface-light); padding: 16px; border-radius: 12px; margin-bottom: 24px; border: 1px solid var(--glass-border);">
                     <i data-lucide="play-circle" style="width: 24px; height: 24px; color: var(--text-dim);"></i>
                     <div>
                         <div id="dlModalEpName" style="font-weight: 600; font-size: 15px; margin-bottom: 4px;">Episode 1</div>
@@ -306,10 +305,37 @@
                 <!-- Right Column: Risk Disclaimer & Notes -->
                 <div style="display: flex; flex-direction: column; gap: 12px;">
                     <h3 style="font-size: 14px; margin-bottom: 0px; color: var(--text-main); font-weight: 700; display: flex; align-items: center; gap: 8px;">
-                        <i data-lucide="shield-alert" style="width: 16px; height: 16px; color: #ef4444;"></i> Risk Disclaimer & Info
+                        <i data-lucide="settings-2" style="width: 16px; height: 16px; color: var(--accent);"></i> Application Settings
                     </h3>
+                    <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-md); display: flex; flex-direction: column; gap: 10px; font-size: 12px;">
+                        <label style="font-weight: 600; color: var(--text-main);">API Server URL</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="apiUrlInput" placeholder="http://localhost:3001" style="flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 6px; padding: 8px; color: var(--text-main); font-size: 12px;">
+                            <button onclick="setQuickApi('http://localhost:3001')" type="button" style="background: rgba(255,255,255,0.05); color: var(--text-dim); border: 1px solid var(--glass-border); border-radius: 6px; padding: 0 10px; font-weight: 600; cursor: pointer; font-size: 11px;">Local</button>
+                            <button onclick="setQuickApi('https://ottpatna.vercel.app')" type="button" style="background: rgba(255,255,255,0.05); color: var(--text-dim); border: 1px solid var(--glass-border); border-radius: 6px; padding: 0 10px; font-weight: 600; cursor: pointer; font-size: 11px;">Cloud</button>
+                        </div>
+                        <p style="color: var(--text-dim); margin: 0; font-size: 11px;">Select local server, cloud server, or manually input a custom API endpoint.</p>
+                    </div>
+
+                    <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-md); display: flex; flex-direction: column; gap: 10px; font-size: 12px;">
+                        <label style="font-weight: 600; color: var(--text-main);">Default Download Directory</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="dlDirInput" placeholder="Prompt each time..." readonly style="flex: 1; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); border-radius: 6px; padding: 8px; color: var(--text-muted); font-size: 12px;">
+                            <button onclick="selectDownloadDirectory()" style="background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 0 12px; font-weight: 600; cursor: pointer;">Browse</button>
+                            <button onclick="clearDownloadDirectory()" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; border: none; border-radius: 6px; padding: 0 12px; font-weight: 600; cursor: pointer;">Clear</button>
+                        </div>
+                        <p style="color: var(--text-dim); margin: 0; font-size: 11px;">If left blank, you will be prompted for a save location on every download.</p>
+                    </div>
+
+                    <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--glass-border); padding: 12px; border-radius: var(--radius-md); display: flex; flex-direction: column; gap: 10px; font-size: 12px;">
+                        <label style="font-weight: 600; color: var(--text-main);">VLC Player (Required for Streaming)</label>
+                        <p style="color: var(--text-dim); margin: 0; font-size: 11px;">OrbixPlay uses the VLC media player to natively stream 4K/MKV formats.</p>
+                        <button onclick="openVlcDownloadPage()" style="background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 8px 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                            <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Download VLC from videolan.org
+                        </button>
+                    </div>
                     
-                    <div style="background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.2); padding: 12px; border-radius: var(--radius-md); display: flex; gap: 10px; align-items: flex-start; font-size: 12px; color: var(--text-dim); line-height: 1.5;">
+                    <div style="background: rgba(239, 68, 68, 0.06); border: 1px solid rgba(239, 68, 68, 0.2); padding: 12px; border-radius: var(--radius-md); display: flex; gap: 10px; align-items: flex-start; font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-top: 12px;">
                          <i data-lucide="info" style="width: 16px; height: 16px; color: #ef4444; flex-shrink: 0; margin-top: 2px;"></i>
                          <span><strong>Disclaimer:</strong> OrbixPlay is a scraping search engine. We do not host, store, download, or index any video files. Streams are scraped from public services.</span>
                     </div>
@@ -325,8 +351,54 @@
         </div>
     </div>
 
-    <!-- APP SCRIPT -->
-    <script src="app.js"></script>
+    <!-- VLC NOT FOUND MODAL -->
+    <div id="vlcNotFoundModal" class="modal-overlay" style="display: none;">
+        <div class="settings-dialog" style="max-width: 440px; width: 90%; padding: 0;">
+            <div style="padding: 28px; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center;">
+                <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(239,68,68,0.12); display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="video-off" style="width: 30px; height: 30px; color: #ef4444;"></i>
+                </div>
+                <div>
+                    <h2 style="margin: 0 0 8px; font-size: 20px; color: var(--text-main);">VLC Not Found</h2>
+                    <p style="margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.6;">VLC Media Player is required to stream videos. Please install it manually from <strong style="color: var(--accent);">videolan.org</strong> and try again.</p>
+                </div>
+                <div style="display: flex; gap: 12px; width: 100%;">
+                    <button onclick="closeVlcModal()" style="flex: 1; padding: 10px; background: rgba(255,255,255,0.05); color: var(--text-dim); border: 1px solid var(--glass-border); border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;">Close</button>
+                    <button onclick="installVlcAndClose()" style="flex: 1.5; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i data-lucide="external-link" style="width: 14px; height: 14px;"></i> Go to VLC Download
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SERVER DOWN MODAL -->
+    <div id="serverDownModal" class="modal-overlay" style="display: none; z-index: 99999;">
+        <div class="settings-dialog" style="max-width: 440px; width: 90%; padding: 0;">
+            <div style="padding: 28px; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center;">
+                <div style="width: 64px; height: 64px; border-radius: 50%; background: rgba(239,68,68,0.12); display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="server-crash" style="width: 30px; height: 30px; color: #ef4444;"></i>
+                </div>
+                <div>
+                    <h2 style="margin: 0 0 8px; font-size: 20px; color: var(--text-main);">Error 404: Server Down</h2>
+                    <p style="margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.6;">Cannot connect to the backend server. Please ensure your API server is running and accessible at <br><strong style="color: var(--accent);" id="serverDownUrlLabel"></strong></p>
+                </div>
+                <div style="display: flex; gap: 12px; width: 100%;">
+                    <button onclick="openSettingsModal(); document.getElementById('serverDownModal').style.display='none';" style="flex: 1; padding: 10px; background: rgba(255,255,255,0.05); color: var(--text-dim); border: 1px solid var(--glass-border); border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;">Change API</button>
+                    <button onclick="window.location.reload()" style="flex: 1; padding: 10px; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Retry
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- React Player Root -->
+    <div id="react-player-root"></div>
+    </div>
+
+    <!-- APP SCRIPT (Bundled via Vite) -->
+    <script type="module" src="/src/main.tsx"></script>
 
     <!-- Hidden Settings Trigger (Tap bottom right) -->
     <div style="position: fixed; bottom: 0; right: 0; width: 40px; height: 40px; opacity: 0.05; cursor: pointer; z-index: 9999;" onclick="openSettingsModal()"></div>

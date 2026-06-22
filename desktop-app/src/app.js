@@ -1,26 +1,32 @@
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { open } from '@tauri-apps/plugin-dialog';
+import db from './db.js';
+
 // ============================
 // ⚙️ CONFIGURATION & STATE
 // ============================
-let API_BASE = localStorage.getItem('vega_api_url') || "";
+// These are populated from the JSON DB during init()
+let API_BASE = "http://localhost:3001" || "https://ottpatna.vercel.app";
 const getApiUrl = () => {
-    let url = API_BASE ? API_BASE : window.location.origin;
+    let url = API_BASE;
     if (url.endsWith('/')) url = url.slice(0, -1);
     return url;
 };
 
-let currentProvider = localStorage.getItem('orbix_last_provider') || "";
+let currentProvider = "VegaMovies";
 let currentMeta = null;
 let player = null;
 let currentPlayerType = 1; // 1 = Artplayer, 2 = Native HTML5/HLS.js player
 let providersMap = {};
 let allProviders = []; // Stores all providers from manifest.json
-let tmdbKey = localStorage.getItem('tmdb_api_key') || "";
+let tmdbKey = "";
 
 // ============================
 // 🎨 THEME & UI MANAGER
 // ============================
 function initTheme() {
-    const savedTheme = localStorage.getItem('orbix_theme') || 'dark';
+    const savedTheme = db.get('orbix_theme', 'light');
     document.documentElement.setAttribute('data-theme', savedTheme);
     updateThemeUI(savedTheme);
 }
@@ -29,7 +35,7 @@ function toggleTheme() {
     const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
     const newTheme = currentTheme === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem('orbix_theme', newTheme);
+    db.set('orbix_theme', newTheme);
     updateThemeUI(newTheme);
 }
 
@@ -70,7 +76,7 @@ if ('serviceWorker' in navigator) {
 // ❤️ WISHLIST BADGE
 // ============================
 function updateWishlistBadge() {
-    const wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    const wishlist = db.get('orbix_wishlist', []);
     const badge = document.getElementById("wishlistBadge");
     if (badge) {
         badge.textContent = wishlist.length;
@@ -276,6 +282,11 @@ function openSettingsModal() {
     // Render active providers checklist
     renderSettingsProviders();
     
+    // Populate API URL
+    const savedApi = db.get('vega_api_url', 'http://localhost:3001');
+    const input = document.getElementById('apiUrlInput');
+    if (input) input.value = savedApi;
+
     settingsModal.style.display = "flex";
     setTimeout(() => settingsModal.classList.add('active'), 10);
 }
@@ -285,7 +296,7 @@ function closeSettingsModal() {
     setTimeout(() => settingsModal.style.display = "none", 300);
 }
 
-function saveSettings() {
+async function saveSettings() {
     // Save disabled providers list
     const checkboxes = document.querySelectorAll("#settingsProvidersList input[type='checkbox']");
     const disabledList = [];
@@ -294,18 +305,31 @@ function saveSettings() {
             disabledList.push(chk.dataset.providerId);
         }
     });
-    localStorage.setItem('orbix_disabled_providers', JSON.stringify(disabledList));
+    await db.set('orbix_disabled_providers', disabledList);
+
+    // Save API Base URL
+    const apiInput = document.getElementById('apiUrlInput');
+    if (apiInput) {
+        let val = apiInput.value.trim() || 'http://localhost:3001';
+        await db.set('vega_api_url', val);
+    }
 
     closeSettingsModal();
     window.location.reload();
 }
+
+function setQuickApi(url) {
+    const input = document.getElementById('apiUrlInput');
+    if (input) input.value = url;
+}
+window.setQuickApi = setQuickApi;
 
 function renderSettingsProviders() {
     const container = document.getElementById("settingsProvidersList");
     if (!container) return;
     
     container.innerHTML = "";
-    const disabledProviders = JSON.parse(localStorage.getItem('orbix_disabled_providers') || '[]');
+    const disabledProviders = db.get('orbix_disabled_providers', []);
     
     allProviders.forEach(p => {
         const item = document.createElement("div");
@@ -370,7 +394,7 @@ function loadWishlist() {
         </button>
     `;
     lucide.createIcons();
-    const wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    const wishlist = db.get('orbix_wishlist', []);
     renderGrid(wishlist);
     setStatus(wishlist.length ? "Online" : "Wishlist is empty");
 }
@@ -446,7 +470,7 @@ async function loadProviders() {
         });
 
         // Filter out disabled providers from user selection dropdown
-        const disabledProviders = JSON.parse(localStorage.getItem('orbix_disabled_providers') || '[]');
+        const disabledProviders = db.get('orbix_disabled_providers', []);
         const enabledProviders = providers.filter(p => !disabledProviders.includes(p.value));
 
         enabledProviders.forEach(p => {
@@ -459,14 +483,14 @@ async function loadProviders() {
         const isCurrentProviderDisabled = disabledProviders.includes(currentProvider);
         if (!currentProvider || currentProvider === "__all__" || !providersMap[currentProvider] || isCurrentProviderDisabled) {
             currentProvider = enabledProviders[0]?.value || "";
-            localStorage.setItem('orbix_last_provider', currentProvider);
+            await db.set('orbix_last_provider', currentProvider);
         }
         providerSelect.value = currentProvider;
         syncCustomDropdown("providerDropdownContainer", "providerSelect");
 
         providerSelect.onchange = async (e) => {
             currentProvider = e.target.value;
-            localStorage.setItem('orbix_last_provider', currentProvider);
+            await db.set('orbix_last_provider', currentProvider);
             window.location.reload();
         };
 
@@ -479,8 +503,18 @@ async function loadProviders() {
         setStatus("Online");
 
     } catch (err) {
-        console.error(err);
+        console.error("API Connection Error:", err);
         setStatus("Offline. Check API Settings.", "#ef4444");
+        
+        // Show Server Down Modal
+        const modal = document.getElementById("serverDownModal");
+        const label = document.getElementById("serverDownUrlLabel");
+        if (modal && label) {
+            label.textContent = getApiUrl();
+            modal.style.display = "flex";
+            setTimeout(() => modal.classList.add("active"), 10);
+            if (window.lucide) window.lucide.createIcons();
+        }
     }
 }
 
@@ -697,7 +731,7 @@ window.switchToProvider = async function(providerId) {
     providerSelect.value = providerId;
     syncCustomDropdown("providerDropdownContainer", "providerSelect");
     currentProvider = providerId;
-    localStorage.setItem('orbix_last_provider', currentProvider);
+    await db.set('orbix_last_provider', currentProvider);
     await loadCatalog();
     const defaultFilter = currentCatalogItems[0] ? currentCatalogItems[0].filter : "";
     fetchData(defaultFilter);
@@ -1505,14 +1539,7 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
             playStream(ep.link, provider, ep.title);
         };
         
-        const btn2 = document.createElement("button");
-        btn2.className = "ep-btn-play";
-        btn2.innerHTML = `<i data-lucide="play"></i>`;
-        btn2.title = "Play with Player 2 (Native)";
-        btn2.onclick = () => {
-            currentPlayerType = 2;
-            playStream(ep.link, provider, ep.title);
-        };
+        
 
         const dlBtn = document.createElement("button");
         dlBtn.className = "ep-btn-dl";
@@ -1523,7 +1550,6 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
         };
 
         row.appendChild(btn1);
-        row.appendChild(btn2);
         row.appendChild(dlBtn);
         container.appendChild(row);
     });
@@ -1536,18 +1562,25 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
 // ============================
 // 🎥 EXTRACT STREAM
 // ============================
-function extractStreamUrl(data) {
+function extractStreamData(data) {
     if (!data) return null;
 
-    if (Array.isArray(data)) return extractStreamUrl(data[0]);
+    if (Array.isArray(data)) return extractStreamData(data[0]);
 
-    if (data.link) return data.link;
-    if (data.file) return data.file;
-    if (data.url) return data.url;
+    let url = null;
+    if (data.link) url = data.link;
+    else if (data.file) url = data.file;
+    else if (data.url) url = data.url;
+    else if (data.sources?.length) url = data.sources[0].file;
+    else if (data.data) return extractStreamData(data.data);
 
-    if (data.sources?.length) return data.sources[0].file;
-    if (data.data) return extractStreamUrl(data.data);
-
+    if (url) {
+        let headers = data.headers || null;
+        if (!headers && data.sources?.length && data.sources[0].headers) {
+            headers = data.sources[0].headers;
+        }
+        return { url, headers };
+    }
     return null;
 }
 
@@ -1629,7 +1662,11 @@ async function playStream(link, provider, episodeTitle = "") {
     }
 
     setStatus("Online", "#22c55e");
-    initPlayer(streams, 0, episodeTitle); // Pass entire array for fallback
+    
+    const parsedMeta = parseMediaInfo(currentMeta?.title || "Video");
+    const displayTitle = episodeTitle ? `${parsedMeta.title} - ${episodeTitle}` : parsedMeta.title;
+    
+    showSourceSelectionModal(streams, displayTitle, provider, false);
 }
 
 function closeDownloadModal() {
@@ -1642,30 +1679,86 @@ function closeDownloadModal() {
 }
 
 async function resolveDownload(link, provider, title) {
-    const modal = document.getElementById("downloadModal");
-    modal.style.display = "flex";
-    setTimeout(() => modal.classList.add('active'), 10);
-    
-    document.getElementById("dlModalEpName").innerText = title || "Extracting Media";
-    document.getElementById("dlModalProvider").innerText = "Fetching links from " + provider + "...";
-    
-    const container = document.getElementById("dlModalLinksContainer");
-    container.innerHTML = `<div class="loader" style="min-height: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
-                        <div class="spinner" style="width: 24px; height: 24px;"></div>
-                        <p style="font-size: 13px; color: var(--text-dim);">Extracting direct links...</p>
-                    </div>`;
-
+    setStatus("Extracting links...", "#8b5cf6");
     const streams = await getResolvedStreams(link, provider);
     
-    container.innerHTML = "";
     if (!streams || !streams.length) {
-        container.innerHTML = "<p style='color: #ef4444; font-size:13px; text-align:center;'>Failed to extract direct download links.</p>";
+        setStatus("Failed to extract links.", "#ef4444");
         return;
     }
+    
+    setStatus("Online", "#22c55e");
+    showSourceSelectionModal(streams, title || "Extracting Media", provider, true);
+}
 
-    document.getElementById("dlModalProvider").innerText = `Found ${streams.length} stream(s)`;
-
-    streams.forEach((s, index) => {
+function showSourceSelectionModal(streams, title, provider, isDownload) {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay active";
+    overlay.style.display = "flex";
+    
+    const dialog = document.createElement("div");
+    dialog.className = "settings-dialog";
+    dialog.style.maxWidth = "500px";
+    dialog.style.width = "90%";
+    dialog.style.background = "var(--surface-deep)";
+    dialog.style.border = "1px solid var(--glass-border)";
+    dialog.style.borderRadius = "16px";
+    dialog.style.display = "flex";
+    dialog.style.flexDirection = "column";
+    dialog.style.boxShadow = "0 20px 40px rgba(0,0,0,0.8)";
+    dialog.style.position = "relative";
+    
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "close-modal";
+    closeBtn.innerHTML = `<i data-lucide="x"></i>`;
+    closeBtn.style.position = "absolute";
+    closeBtn.style.top = "16px";
+    closeBtn.style.right = "16px";
+    closeBtn.style.background = "transparent";
+    closeBtn.style.border = "none";
+    closeBtn.style.color = "var(--text-muted)";
+    closeBtn.style.cursor = "pointer";
+    closeBtn.onclick = () => {
+        overlay.remove();
+    };
+    
+    const header = document.createElement("div");
+    header.style.padding = "24px";
+    header.style.borderBottom = "1px solid var(--glass-border)";
+    header.innerHTML = `
+        <h2 style="margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; color: var(--text-main);">
+            ${isDownload ? "Download Source" : "Play Source"} <i data-lucide="${isDownload ? "download-cloud" : "play-circle"}" style="color: var(--accent);"></i>
+        </h2>
+        <div style="font-size: 13px; color: var(--text-dim); margin-top: 6px;">Select a quality to ${isDownload ? "download" : "play in MPV"}</div>
+    `;
+    
+    const content = document.createElement("div");
+    content.style.padding = "24px";
+    
+    const meta = document.createElement("div");
+    meta.style.display = "flex";
+    meta.style.alignItems = "center";
+    meta.style.gap = "12px";
+    meta.style.background = "var(--surface-light)";
+    meta.style.padding = "16px";
+    meta.style.borderRadius = "12px";
+    meta.style.marginBottom = "24px";
+    meta.style.border = "1px solid var(--glass-border)";
+    meta.innerHTML = `
+        <i data-lucide="film" style="width: 24px; height: 24px; color: var(--text-dim);"></i>
+        <div>
+            <div style="font-weight: 600; font-size: 15px; margin-bottom: 4px; color: var(--text-main);">${title}</div>
+            <div style="font-size: 12px; color: var(--text-muted);">Provider: ${provider}</div>
+        </div>
+    `;
+    content.appendChild(meta);
+    
+    const list = document.createElement("div");
+    list.style.display = "flex";
+    list.style.flexDirection = "column";
+    list.style.gap = "10px";
+    
+    streams.forEach((s, i) => {
         const row = document.createElement("div");
         row.style.display = "flex";
         row.style.justifyContent = "space-between";
@@ -1673,619 +1766,65 @@ async function resolveDownload(link, provider, title) {
         row.style.padding = "12px";
         row.style.border = "1px solid var(--glass-border)";
         row.style.borderRadius = "12px";
-        row.style.background = "rgba(255,255,255,0.02)";
-
-        const info = document.createElement("div");
-        info.style.display = "flex";
-        info.style.flexDirection = "column";
-        info.style.gap = "4px";
+        row.style.background = "var(--surface-light)";
+        row.style.cursor = "pointer";
+        row.onmouseover = () => row.style.background = "var(--glass-border)";
+        row.onmouseout = () => row.style.background = "var(--surface-light)";
         
-        const qText = s.quality ? s.quality + "p " : "Unknown Quality ";
+        const qText = s.quality ? s.quality + "p" : "Unknown Quality";
         const serverText = s.server ? `Server: ${s.server}` : "";
-        info.innerHTML = `
-            <div style="font-size: 14px; font-weight: 600; color: #fff;">${qText}</div>
-            <div style="font-size: 12px; color: var(--text-muted);">${serverText}</div>
+
+        row.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="font-size: 14px; font-weight: 600; color: var(--text-main);">${qText}</div>
+                <div style="font-size: 12px; color: var(--text-muted);">${serverText}</div>
+            </div>
+            <button style="background: var(--accent); color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="${isDownload ? "download" : "play"}" style="width: 14px; height: 14px;"></i> ${isDownload ? "Download" : "Play"}
+            </button>
         `;
-
-        const actions = document.createElement("div");
-        actions.style.display = "flex";
-        actions.style.gap = "8px";
-
-        // Download Button
-        const dlBtn = document.createElement("a");
-        dlBtn.href = s.link;
-        dlBtn.target = "_blank";
-        dlBtn.rel = "noreferrer";
-        dlBtn.style.background = "var(--accent)";
-        dlBtn.style.color = "#fff";
-        dlBtn.style.padding = "8px 16px";
-        dlBtn.style.borderRadius = "8px";
-        dlBtn.style.fontSize = "13px";
-        dlBtn.style.fontWeight = "600";
-        dlBtn.style.textDecoration = "none";
-        dlBtn.style.display = "flex";
-        dlBtn.style.alignItems = "center";
-        dlBtn.style.gap = "6px";
-        dlBtn.innerHTML = `<i data-lucide="download" style="width: 16px; height: 16px;"></i> Download`;
-
-        // Copy Link Button
-        const copyBtn = document.createElement("button");
-        copyBtn.style.background = "rgba(139, 92, 246, 0.1)";
-        copyBtn.style.color = "var(--accent)";
-        copyBtn.style.border = "none";
-        copyBtn.style.width = "36px";
-        copyBtn.style.height = "36px";
-        copyBtn.style.borderRadius = "8px";
-        copyBtn.style.display = "flex";
-        copyBtn.style.alignItems = "center";
-        copyBtn.style.justifyContent = "center";
-        copyBtn.style.cursor = "pointer";
-        copyBtn.title = "Copy Link";
-        copyBtn.innerHTML = `<i data-lucide="copy" style="width: 16px; height: 16px;"></i>`;
-        copyBtn.onclick = () => {
-            navigator.clipboard.writeText(s.link);
-            const originalHtml = copyBtn.innerHTML;
-            copyBtn.innerHTML = `<i data-lucide="check" style="width: 16px; height: 16px; color: #22c55e;"></i>`;
-            setTimeout(() => { copyBtn.innerHTML = originalHtml; lucide.createIcons(); }, 2000);
+        
+        row.onclick = () => {
+            overlay.remove();
+            let streamData = extractStreamData(s);
+            if (!streamData || !streamData.url) return;
+            
+            if (isDownload) {
+                // Initialize Native Download
+                const savedDir = db.get('orbix_download_dir', '') || null;
+                invoke("start_download_dialog", { url: streamData.url, title: title, downloadDir: savedDir, headers: streamData.headers })
+                    .catch(e => {
+                        console.error("Download failed:", e);
+                        alert("Download Error: " + e);
+                    });
+            } else {
+                // Launch VLC
+                setStatus("Launching VLC player...", "#8b5cf6");
+                invoke("launch_vlc", { url: streamData.url, title: title, headers: streamData.headers })
+                    .then(() => setStatus("Online", "#22c55e"))
+                    .catch(e => {
+                        console.error("VLC launch failed:", e);
+                        setStatus("Online");
+                        if (String(e).includes("VLC_NOT_FOUND")) {
+                            showVlcNotFoundModal();
+                        } else {
+                            alert("Error launching VLC: " + e);
+                        }
+                    });
+            }
         };
-
-        actions.appendChild(copyBtn);
-        actions.appendChild(dlBtn);
-
-        row.appendChild(info);
-        row.appendChild(actions);
-        container.appendChild(row);
+        
+        list.appendChild(row);
     });
     
+    content.appendChild(list);
+    dialog.appendChild(closeBtn);
+    dialog.appendChild(header);
+    dialog.appendChild(content);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
     lucide.createIcons();
-}
-
-// ============================
-// 🎬 PLAYER
-// ============================
-function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
-    let currentStreamIndex = initialIndex;
-    let isTranscoding = false;
-    let currentAudioTrack = null;
-    let loadTimeout = null;
-
-    switchPage('pagePlayer');
-
-    function startPlayback(initialTime = 0) {
-        // Clear any previous loading timeouts
-        if (loadTimeout) clearTimeout(loadTimeout);
-
-        if (currentStreamIndex >= streams.length) {
-            alert(`⚠️ All playback attempts failed.\n\nThis source might be blocked by Cloudflare (Backend) or your Browser (Frontend).\n\nPossible fixes:\n1. Try another source if available.\n2. Enable "Premium Audio (Transcode)" to force server-side fetch.\n3. Make sure you are using the latest providers.`);
-            closePlayer();
-            document.getElementById("downloadSection").scrollIntoView({ behavior: 'smooth' });
-            return;
-        }
-
-        const stream = streams[currentStreamIndex];
-        let streamUrl = extractStreamUrl(stream);
-
-        if (!streamUrl) {
-            console.warn("Empty stream URL, skipping...");
-            currentStreamIndex++;
-            startPlayback();
-            return;
-        }
-
-        // If transcoding is active, we ensure the URL routes through our stream proxy
-        let isAlreadyProxied = streamUrl.includes("/stream?");
-        if (isTranscoding) {
-            if (isAlreadyProxied) {
-                // Ensure transcode=true is appended
-                if (!streamUrl.includes("transcode=")) {
-                    streamUrl += `&transcode=true`;
-                }
-                // Ensure audioIndex is appended
-                if (currentAudioTrack !== null && currentAudioTrack !== undefined && !streamUrl.includes("audioIndex=")) {
-                    streamUrl += `&audioIndex=${currentAudioTrack}`;
-                }
-            } else {
-                const baseUrl = getApiUrl();
-                let proxyUrl = `${baseUrl}/stream?url=${encodeURIComponent(streamUrl)}&transcode=true&referer=${encodeURIComponent(streamUrl)}`;
-                if (currentAudioTrack !== null && currentAudioTrack !== undefined) {
-                    proxyUrl += `&audioIndex=${currentAudioTrack}`;
-                }
-                streamUrl = proxyUrl;
-            }
-        }
-
-        // Title display cleanup
-        const parsedMeta = parseMediaInfo(currentMeta?.title || "Video Player");
-        const cleanTitle = parsedMeta.title;
-        const displayTitle = episodeTitle ? `${cleanTitle} - ${episodeTitle}` : cleanTitle;
-
-        document.getElementById("playerTitleDisplay").innerText = 
-            `[Source ${currentStreamIndex + 1}/${streams.length}] ` + displayTitle;
-
-        const isM3u8 = streamUrl.toLowerCase().includes(".m3u8") && !isTranscoding;
-        const isMp4 = streamUrl.toLowerCase().includes(".mp4") || streamUrl.includes("googleusercontent.com") || isTranscoding;
-
-        // Destroy previous player type instances
-        if (player) {
-            player.destroy(false);
-            player = null;
-        }
-        document.getElementById('artplayer-app').innerHTML = ''; 
-
-        const nativeVideo = document.getElementById("native-player-app");
-        if (nativeVideo) {
-            nativeVideo.pause();
-            nativeVideo.src = "";
-            nativeVideo.removeAttribute("src");
-            nativeVideo.load();
-            if (nativeVideo.hls) {
-                nativeVideo.hls.destroy();
-                delete nativeVideo.hls;
-            }
-        }
-
-        // Update player switcher UI active states
-        const btn1 = document.getElementById("player-btn-1");
-        const btn2 = document.getElementById("player-btn-2");
-        if (btn1 && btn2) {
-            if (currentPlayerType === 1) {
-                btn1.classList.add("active");
-                btn1.style.background = "var(--accent)";
-                btn2.classList.remove("active");
-                btn2.style.background = "rgba(255, 255, 255, 0.1)";
-            } else {
-                btn1.classList.remove("active");
-                btn1.style.background = "rgba(255, 255, 255, 0.1)";
-                btn2.classList.add("active");
-                btn2.style.background = "var(--accent)";
-            }
-        }
-
-        // Set up the timeout for 10 seconds max load
-        loadTimeout = setTimeout(() => {
-            console.warn(`⏳ Source ${currentStreamIndex + 1} load timed out (10 seconds max).`);
-            handlePlaybackError();
-        }, 10000);
-
-        if (currentPlayerType === 1) {
-            // PLAYER 1: ARTPLAYER
-            document.getElementById('artplayer-app').style.display = 'block';
-            if (nativeVideo) nativeVideo.style.display = 'none';
-
-            console.log(`🎬 INITIALIZING ARTPLAYER (Source ${currentStreamIndex + 1}):`, streamUrl);
-
-            // Handle seeking for transcoded streams
-            if (isTranscoding && initialTime > 0) {
-                if (streamUrl.includes('?')) {
-                    streamUrl += `&start=${initialTime}`;
-                } else {
-                    streamUrl += `?start=${initialTime}`;
-                }
-            }
-
-            player = new Artplayer({
-                container: '#artplayer-app',
-                url: streamUrl,
-                title: displayTitle,
-                type: isM3u8 ? 'm3u8' : (isMp4 ? 'mp4' : 'auto'),
-                autoplay: true,
-                autoSize: false,
-                autoMini: true,
-                playbackRate: true,
-                aspectRatio: true,
-                setting: true,
-                hotkey: true,
-                pip: true,
-                mutex: true,
-                fullscreen: true,
-                fullscreenWeb: true,
-                subtitleOffset: true,
-                miniProgressBar: true,
-                playsInline: true,
-                muted: true, 
-                volume: 0.7,
-                autoOrientation: true,
-                lock: true,
-                gesture: true,
-                theme: '#8b5cf6', 
-                moreVideoAttr: {
-                    referrerPolicy: 'no-referrer',
-                },
-                settings: [
-                    {
-                        html: 'Video Source',
-                        icon: '<i data-lucide="server" style="width:16px;height:16px"></i>',
-                        selector: streams.map((s, i) => ({
-                            html: `${i + 1}. ${s.server}`,
-                            index: i,
-                            default: i === currentStreamIndex,
-                        })),
-                        onSelect: function (item) {
-                            if (item.index === currentStreamIndex) return item.html;
-                            const currentTime = player.currentTime;
-                            console.log(`📡 Switching to Source ${item.index + 1}: ${item.html}`);
-                            currentStreamIndex = item.index;
-                            startPlayback(currentTime);
-                            return item.html;
-                        },
-                    },
-                    {
-                        html: 'Premium Audio (Transcode)',
-                        icon: '<i data-lucide="zap" style="width:16px;height:16px;color:#8b5cf6"></i>',
-                        switch: isTranscoding,
-                        onSwitch: function (item) {
-                            isTranscoding = !item.switch;
-                            console.log("🛠 Transcoding toggled:", isTranscoding);
-                            startPlayback(player.currentTime || 0); // Restart with proxy
-                            return isTranscoding;
-                        },
-                    },
-                    {
-                        html: 'Open in VLC (External)',
-                        icon: '<i data-lucide="monitor-play" style="width:16px;height:16px;color:#ef4444"></i>',
-                        onSelect: function (item) {
-                            fetch(`${getApiUrl()}/vlc`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ url: player.url })
-                            });
-                            alert("Attempting to open stream in VLC Media Player...");
-                            return item.html;
-                        },
-                    }
-                ],
-                customType: {
-                    m3u8: function (video, url, art) {
-                        if (Hls.isSupported()) {
-                            if (art.hls) art.hls.destroy();
-                            const hls = new Hls({
-                                maxBufferLength: 120,
-                                maxMaxBufferLength: 600,
-                                maxBufferSize: 120 * 1000 * 1000,
-                            });
-                            
-                            hls.on(Hls.Events.MANIFEST_PARSED, function () {
-                                // --- HLS Audio Tracks ---
-                                const tracks = hls.audioTracks;
-                                if (tracks && tracks.length > 1) {
-                                    // Default to Hindi if found
-                                    const hindiIndex = tracks.findIndex(t => 
-                                        t.name?.toLowerCase().includes('hindi') || 
-                                        t.lang?.toLowerCase().includes('hi') || 
-                                        t.lang?.toLowerCase().includes('hin')
-                                    );
-                                    if (hindiIndex !== -1 && hls.audioTrack !== hindiIndex) {
-                                        console.log("🧡 Auto-switching HLS to Hindi audio...");
-                                        hls.audioTrack = hindiIndex;
-                                    }
-
-                                    art.setting.add({
-                                        name: 'audio-tracks',
-                                        html: 'Audio Tracks',
-                                        icon: '<i data-lucide="languages" style="width:16px;height:16px"></i>',
-                                        selector: tracks.map((track, index) => ({
-                                            html: track.name || track.lang || `Track ${index + 1}`,
-                                            trackIndex: index,
-                                            default: index === hls.audioTrack,
-                                        })),
-                                        onSelect: function (item) {
-                                            hls.audioTrack = item.trackIndex;
-                                            return item.html;
-                                        },
-                                    });
-                                }
-
-                                // --- HLS Quality Selector ---
-                                const levels = hls.levels;
-                                if (levels && levels.length > 0) {
-                                    const qualityItems = levels.map((level, index) => {
-                                        const label = level.height ? `${level.height}p` : `${Math.round(level.bitrate / 1000)}k`;
-                                        return {
-                                            html: label,
-                                            levelIndex: index,
-                                            default: index === hls.currentLevel
-                                        };
-                                    });
-                                    qualityItems.unshift({
-                                        html: 'Auto',
-                                        levelIndex: -1,
-                                        default: hls.currentLevel === -1
-                                    });
-
-                                    art.setting.add({
-                                        name: 'hls-quality',
-                                        html: 'Quality',
-                                        icon: '<i data-lucide="sliders" style="width:16px;height:16px"></i>',
-                                        selector: qualityItems,
-                                        onSelect: function (item) {
-                                            hls.currentLevel = item.levelIndex;
-                                            return item.html;
-                                        }
-                                    });
-                                }
-
-                                setTimeout(() => {
-                                    if (window.lucide) window.lucide.createIcons();
-                                }, 100);
-                            });
-
-                            hls.on(Hls.Events.ERROR, function (event, data) {
-                                if (data.fatal) {
-                                    switch (data.type) {
-                                        case Hls.ErrorTypes.MEDIA_ERROR:
-                                            hls.recoverMediaError();
-                                            break;
-                                        case Hls.ErrorTypes.NETWORK_ERROR:
-                                            hls.startLoad();
-                                            break;
-                                        default:
-                                            hls.destroy();
-                                            break;
-                                    }
-                                }
-                            });
-
-                            hls.loadSource(url);
-                            hls.attachMedia(video);
-                            art.hls = hls;
-                            art.on('destroy', () => hls.destroy());
-                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                            video.src = url;
-                        }
-                    }
-                }
-            });
-
-            // Toggle player header visibility in sync with Artplayer controls
-            player.on('control', (state) => {
-                const header = document.querySelector('.player-header');
-                if (header) {
-                    if (state) {
-                        header.style.opacity = '1';
-                        header.style.pointerEvents = 'auto';
-                    } else {
-                        header.style.opacity = '0';
-                        header.style.pointerEvents = 'none';
-                    }
-                }
-            });
-
-            // Clear 10s load timeout when playback successfully starts or metadata is loaded
-            player.on('video:playing', () => {
-                console.log("🎬 Playback started, clearing load timeout.");
-                clearTimeout(loadTimeout);
-            });
-            player.on('video:canplay', () => {
-                clearTimeout(loadTimeout);
-            });
-
-            // Detect Audio Tracks for non-HLS streams via Backend
-            if (!isM3u8 && !isTranscoding) {
-                const audioInfoUrl = `${getApiUrl()}/audio-info?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent(streamUrl)}`;
-                fetch(audioInfoUrl)
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.audioTracks && data.audioTracks.length > 1) {
-                            // Default to Hindi if found
-                            const hindiTrack = data.audioTracks.find(t => 
-                                t.title?.toLowerCase().includes('hindi') || 
-                                t.language?.toLowerCase().includes('hi') || 
-                                t.language?.toLowerCase().includes('hin')
-                            );
-
-                            if (hindiTrack && currentAudioTrack === null) {
-                                console.log("🧡 Auto-switching standard stream to Hindi audio via Transcode...");
-                                isTranscoding = true;
-                                currentAudioTrack = hindiTrack.index;
-                                startPlayback(player.currentTime || 0); // Restart with Hindi
-                                return;
-                            }
-
-                            player.setting.add({
-                                name: 'audio-tracks-manual',
-                                html: 'Select Audio Track',
-                                icon: '<i data-lucide="mic" style="width:16px;height:16px"></i>',
-                                selector: data.audioTracks.map(track => ({
-                                    html: `${track.title} (${track.codec})`,
-                                    audioIndex: track.index,
-                                })),
-                                onSelect: function (item) {
-                                    isTranscoding = true; // Must transcode to switch specific tracks on non-HLS
-                                    currentAudioTrack = item.audioIndex;
-                                    startPlayback();
-                                    return item.html;
-                                },
-                            });
-                            lucide.createIcons();
-                        }
-                    }).catch(() => {});
-            }
-
-            // Handle Seeks in Transcoding Mode
-            player.on('video:seeking', (event) => {
-                if (isTranscoding) {
-                    const targetTime = player.currentTime;
-                    console.log(`⏩ Seeking to ${targetTime} in Transcoding mode...`);
-                    startPlayback(targetTime);
-                }
-            });
-
-            // Automated Source Fallback on error
-            player.on('video:error', () => {
-                console.error("❌ Artplayer video error.");
-                handlePlaybackError();
-            });
-
-        } else if (currentPlayerType === 2) {
-            // PLAYER 2: NATIVE HTML5 / HLS.JS PLAYER
-            document.getElementById('artplayer-app').style.display = 'none';
-            if (nativeVideo) {
-                nativeVideo.style.display = 'block';
-                console.log(`🎬 INITIALIZING NATIVE PLAYER (Source ${currentStreamIndex + 1}):`, streamUrl);
-
-                // Set up event listeners for native video to clear load timeout
-                const cleanUpListeners = () => {
-                    nativeVideo.removeEventListener('playing', onPlaying);
-                    nativeVideo.removeEventListener('canplay', onPlaying);
-                    nativeVideo.removeEventListener('error', onError);
-                };
-
-                const onPlaying = () => {
-                    console.log("🎬 Native playback started, clearing load timeout.");
-                    clearTimeout(loadTimeout);
-                    cleanUpListeners();
-                };
-
-                const onError = (e) => {
-                    console.error("❌ Native video element error:", e);
-                    cleanUpListeners();
-                    handlePlaybackError();
-                };
-
-                nativeVideo.addEventListener('playing', onPlaying);
-                nativeVideo.addEventListener('canplay', onPlaying);
-                nativeVideo.addEventListener('error', onError);
-
-                // Load source
-                if (isM3u8) {
-                    if (Hls.isSupported()) {
-                        const hls = new Hls({
-                            maxBufferLength: 120,
-                            maxMaxBufferLength: 600,
-                            maxBufferSize: 120 * 1000 * 1000,
-                        });
-                        hls.loadSource(streamUrl);
-                        hls.attachMedia(nativeVideo);
-                        nativeVideo.hls = hls;
-
-                        hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                            if (initialTime > 0) {
-                                nativeVideo.currentTime = initialTime;
-                            }
-                        });
-
-                        hls.on(Hls.Events.ERROR, function (event, data) {
-                            if (data.fatal) {
-                                switch (data.type) {
-                                    case Hls.ErrorTypes.MEDIA_ERROR:
-                                        hls.recoverMediaError();
-                                        break;
-                                    case Hls.ErrorTypes.NETWORK_ERROR:
-                                        hls.startLoad();
-                                        break;
-                                    default:
-                                        hls.destroy();
-                                        onError(new Error("Fatal HLS.js error"));
-                                        break;
-                                }
-                            }
-                        });
-                    } else if (nativeVideo.canPlayType('application/vnd.apple.mpegurl')) {
-                        nativeVideo.src = streamUrl;
-                        if (initialTime > 0) {
-                            nativeVideo.addEventListener('loadedmetadata', function onMeta() {
-                                nativeVideo.currentTime = initialTime;
-                                nativeVideo.removeEventListener('loadedmetadata', onMeta);
-                            });
-                        }
-                    }
-                } else {
-                    nativeVideo.src = streamUrl;
-                    if (initialTime > 0) {
-                        nativeVideo.addEventListener('loadedmetadata', function onMeta() {
-                            nativeVideo.currentTime = initialTime;
-                            nativeVideo.removeEventListener('loadedmetadata', onMeta);
-                        });
-                    }
-                }
-            }
-        }
-
-        // Initialize icons after setting up the player
-        setTimeout(() => lucide.createIcons(), 100);
-    }
-
-    function handlePlaybackError() {
-        clearTimeout(loadTimeout);
-        
-        // Pause and reset both players
-        if (player) {
-            player.destroy(false);
-            player = null;
-        }
-        const nativeVideo = document.getElementById("native-player-app");
-        if (nativeVideo) {
-            nativeVideo.pause();
-            if (nativeVideo.hls) {
-                nativeVideo.hls.destroy();
-                delete nativeVideo.hls;
-            }
-        }
-
-        if (currentStreamIndex < streams.length - 1) {
-             console.warn(`❌ Stream ${currentStreamIndex + 1} failed or timed out. Trying alternative...`);
-             currentStreamIndex++;
-             setStatus(`Trying Source ${currentStreamIndex + 1}...`, "#f59e0b");
-             startPlayback();
-        } else {
-             console.error("❌ All streams failed.");
-             alert("⚠️ All playback attempts failed.\n\nThis source might be fully geoblocked or have broken links on Render.\n\nPlease try another provider or check if you can play it on Localhost.");
-             closePlayer();
-        }
-    }
-
-    // Expose dynamic switcher globally for this instance
-    window.switchPlayerType = function(type) {
-        if (type === currentPlayerType) return;
-        
-        // Save current timestamp
-        let currentTime = 0;
-        if (currentPlayerType === 1 && player) {
-            currentTime = player.currentTime;
-        } else if (currentPlayerType === 2) {
-            const nativeVideo = document.getElementById("native-player-app");
-            if (nativeVideo) currentTime = nativeVideo.currentTime;
-        }
-
-        currentPlayerType = type;
-        console.log(`🔌 Switching player type to Player ${currentPlayerType} at time ${currentTime}`);
-        startPlayback(currentTime);
-    };
-
-    startPlayback();
-}
-
-function closePlayer() {
-    // Clear switchPlayerType global wrapper
-    delete window.switchPlayerType;
-
-    if (player) {
-        player.pause();
-        player.destroy(false);
-        player = null;
-        document.getElementById('artplayer-app').innerHTML = ''; 
-    }
-
-    const nativeVideo = document.getElementById("native-player-app");
-    if (nativeVideo) {
-        nativeVideo.pause();
-        nativeVideo.src = "";
-        nativeVideo.removeAttribute("src");
-        nativeVideo.load();
-        if (nativeVideo.hls) {
-            nativeVideo.hls.destroy();
-            delete nativeVideo.hls;
-        }
-    }
-
-    // Make sure player header is reset to fully visible for next launch
-    const header = document.querySelector('.player-header');
-    if (header) {
-        header.style.opacity = '1';
-        header.style.pointerEvents = 'auto';
-    }
-    // Return to details screen
-    switchPage('pageDetails');
 }
 
 // ============================
@@ -2321,7 +1860,7 @@ document.addEventListener('click', (e) => {
 // ============================
 function checkWishlistState() {
     if (!currentMeta || !currentMeta.__link) return;
-    const wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    const wishlist = db.get('orbix_wishlist', []);
     const isSaved = wishlist.some(item => item.link === currentMeta.__link);
     const btn = document.getElementById("wishlistBtn");
     const text = document.getElementById("wishlistText");
@@ -2342,12 +1881,12 @@ function checkWishlistState() {
 async function toggleWishlist() {
     if (!currentMeta || !currentMeta.__link) return;
     
-    let wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    let wishlist = db.get('orbix_wishlist', []);
     const index = wishlist.findIndex(item => item.link === currentMeta.__link);
     
     if (index > -1) {
         wishlist.splice(index, 1);
-        localStorage.setItem('orbix_wishlist', JSON.stringify(wishlist));
+        await db.set('orbix_wishlist', wishlist);
         checkWishlistState();
         updateWishlistBadge();
     } else {
@@ -2373,7 +1912,7 @@ async function toggleWishlist() {
             type: currentMeta.type || "Media"
         });
         
-        localStorage.setItem('orbix_wishlist', JSON.stringify(wishlist));
+        await db.set('orbix_wishlist', wishlist);
         if (btn) btn.disabled = false;
         checkWishlistState();
         updateWishlistBadge();
@@ -2443,14 +1982,14 @@ async function handleImageError(img, title) {
 // 📢 TOAST NOTIFICATIONS
 // ============================
 function showNoticeToast() {
-    const lastShown = localStorage.getItem('orbix_notice_time');
+    const lastShown = db.get('orbix_notice_time', 0);
     const now = Date.now();
     // 30 minutes = 30 * 60 * 1000 = 1800000 ms
-    if (lastShown && (now - parseInt(lastShown)) < 1800000) {
+    if (lastShown && (now - lastShown) < 1800000) {
         return; 
     }
     
-    localStorage.setItem('orbix_notice_time', now.toString());
+    db.set('orbix_notice_time', now);
 
     const toast = document.createElement('div');
     toast.className = 'notice-toast';
@@ -2582,7 +2121,7 @@ async function fetchImageAsBase64(imageUrl) {
 }
 
 async function refreshWishlistData() {
-    let wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    let wishlist = db.get('orbix_wishlist', []);
     if (wishlist.length === 0) {
         alert("Wishlist is empty.");
         return;
@@ -2638,7 +2177,7 @@ async function refreshWishlistData() {
         }
     }
 
-    localStorage.setItem('orbix_wishlist', JSON.stringify(wishlist));
+    await db.set('orbix_wishlist', wishlist);
     renderGrid(wishlist);
     
     if (btn) {
@@ -2652,8 +2191,366 @@ async function refreshWishlistData() {
     setStatus(`Wishlist refreshed! (${successCount}/${wishlist.length} updated)`, "#22c55e");
 }
 
-// 🚀 START
-initTheme();
-updateWishlistBadge();
-loadProviders();
-setTimeout(() => showNoticeToast(), 1500);
+// 🚀 START — async so the JSON DB is ready before anything reads from it
+async function init() {
+    await db.init();
+
+    // Populate variables from persisted settings
+    API_BASE = db.get('vega_api_url', 'http://localhost:3001');
+    currentProvider = db.get('orbix_last_provider', '');
+    tmdbKey = db.get('tmdb_api_key', '');
+
+    initTheme();
+    updateWishlistBadge();
+    loadProviders();
+    setTimeout(() => showNoticeToast(), 1500);
+
+    // Restore any downloads that were running before the page refreshed
+    restoreActiveDownloads();
+
+    // Populate dl directory input on load
+    const savedDir = db.get('orbix_download_dir', '');
+    if (savedDir) {
+        const input = document.getElementById('dlDirInput');
+        if (input) input.value = savedDir;
+    }
+}
+window.startOrbixApp = init;
+// Expose functions to window to fix inline onclick handlers in Vite module mode
+window.loadHome = loadHome;
+window.onCategorySelect = onCategorySelect;
+window.loadWishlist = loadWishlist;
+window.search = search;
+window.toggleSearchMobile = toggleSearchMobile;
+window.toggleTheme = toggleTheme;
+window.openSettingsModal = openSettingsModal;
+window.toggleReadMore = toggleReadMore;
+window.backToBrowse = backToBrowse;
+window.toggleWishlist = toggleWishlist;
+// ============================
+// 📥 DOWNLOAD MANAGER
+// ============================
+window.activeDownloads = {}; // id -> { title, downloaded, total, speed, error, status, paused }
+
+/** Restore downloads running in Rust after a JS page refresh */
+async function restoreActiveDownloads() {
+    try {
+        const active = await invoke('get_active_downloads');
+        if (!active || !active.length) return;
+        active.forEach(dl => {
+            if (!window.activeDownloads[dl.id]) {
+                window.activeDownloads[dl.id] = {
+                    title: dl.title,
+                    downloaded: 0,
+                    total: 0,
+                    speed: 0,
+                    status: dl.paused ? 'paused' : 'downloading',
+                    paused: dl.paused
+                };
+            }
+        });
+        if (Object.keys(window.activeDownloads).length > 0) {
+            renderActiveDownloads();
+        }
+    } catch (e) {
+        // Not in Tauri context or no active downloads — silently ignore
+        console.warn('[Downloads] Could not restore active downloads:', e);
+    }
+}
+
+function openDownloadsModal() {
+    // pageDownloads is already in the static HTML — just switch to it
+    switchPage('pageDownloads');
+    renderActiveDownloads();
+}
+
+function renderActiveDownloads() {
+    const container = document.getElementById('downloadsList');
+    if (!container) return;
+
+    container.innerHTML = '';
+    const ids = Object.keys(window.activeDownloads);
+
+    if (ids.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; padding: 60px 24px; color: var(--text-muted);">
+                <i data-lucide="download-cloud" style="width:48px;height:48px;margin-bottom:16px;opacity:0.3;"></i>
+                <p style="font-size:14px;">No active downloads</p>
+            </div>`;
+        if (window.lucide) window.lucide.createIcons();
+        return;
+    }
+
+    ids.forEach(id => {
+        const dl = window.activeDownloads[id];
+
+        let progressPercent = 0;
+        if (dl.total && dl.total > 0) {
+            progressPercent = Math.round((dl.downloaded / dl.total) * 100);
+        }
+
+        const speedMB    = dl.speed ? (dl.speed / (1024 * 1024)).toFixed(2) : '0.00';
+        const downloadedMB = dl.downloaded ? (dl.downloaded / (1024 * 1024)).toFixed(1) : '0';
+        const totalMB    = dl.total ? (dl.total / (1024 * 1024)).toFixed(1) : '?';
+        const isPaused   = dl.paused || dl.status === 'paused';
+        const isError    = dl.status === 'error';
+        const isFinished = dl.status === 'finished';
+
+        // Progress bar & accent colour
+        const barColor = isError ? '#ef4444' : isPaused ? '#f59e0b' : 'var(--accent)';
+
+        // Status label
+        let statusLabel = '';
+        if (isFinished)       statusLabel = '✅ Finished';
+        else if (isError)     statusLabel = `❌ Error: ${dl.error || 'unknown'}`;
+        else if (isPaused)    statusLabel = '⏸ Paused';
+        else                  statusLabel = `⬇ ${speedMB} MB/s`;
+
+        const item = document.createElement('div');
+        item.dataset.dlId = id;
+        item.style.cssText = `
+            background: rgba(255,255,255,0.02);
+            border: 1px solid ${isPaused ? 'rgba(245,158,11,0.3)' : 'var(--glass-border)'};
+            border-radius: 14px; padding: 16px;
+            display: flex; flex-direction: column; gap: 12px;
+            transition: border-color 0.3s;
+        `;
+
+        item.innerHTML = `
+            <!-- Title row -->
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+                <div style="font-weight:600; font-size:14px; line-height:1.4; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${dl.title}</div>
+                <div style="display:flex; gap:6px; flex-shrink:0;">
+                    ${!isFinished && !isError ? `
+                    <button class="dl-pause-btn" data-id="${id}" data-paused="${isPaused}"
+                        style="background:${isPaused ? 'rgba(245,158,11,0.15)' : 'rgba(139,92,246,0.12)'};
+                               color:${isPaused ? '#f59e0b' : 'var(--accent)'};
+                               border:1px solid ${isPaused ? 'rgba(245,158,11,0.3)' : 'rgba(139,92,246,0.3)'};
+                               padding:5px 10px; border-radius:6px; cursor:pointer;
+                               font-size:12px; font-weight:600; display:flex; align-items:center; gap:5px;">
+                        <i data-lucide="${isPaused ? 'play' : 'pause'}" style="width:12px;height:12px;"></i>
+                        ${isPaused ? 'Resume' : 'Pause'}
+                    </button>` : ''}
+                    ${!isFinished ? `
+                    <button class="dl-cancel-btn" data-id="${id}"
+                        style="background:rgba(239,68,68,0.1); color:#ef4444;
+                               border:1px solid rgba(239,68,68,0.2);
+                               padding:5px 10px; border-radius:6px; cursor:pointer;
+                               font-size:12px; font-weight:600; display:flex; align-items:center; gap:5px;">
+                        <i data-lucide="x" style="width:12px;height:12px;"></i> Cancel
+                    </button>` : ''}
+                </div>
+            </div>
+
+            <!-- Progress -->
+            <div>
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); margin-bottom:6px;">
+                    <span>${statusLabel}</span>
+                    <span style="font-variant-numeric:tabular-nums;">
+                        ${dl.total > 0 ? `${downloadedMB} / ${totalMB} MB` : `${progressPercent}%`}
+                    </span>
+                </div>
+                <div style="height:5px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
+                    <div style="height:100%; width:${progressPercent}%;
+                                background:${barColor}; border-radius:4px;
+                                transition:width 0.4s ease;"></div>
+                </div>
+            </div>
+
+            <!-- File path -->
+            <div style="font-size:10px; color:var(--text-dim); word-break:break-all; opacity:0.6;">${id}</div>
+        `;
+
+        container.appendChild(item);
+    });
+
+    if (window.lucide) window.lucide.createIcons();
+
+    // ── Attach events ──────────────────────────────────────────────────────
+    container.querySelectorAll('.dl-pause-btn').forEach(btn => {
+        btn.onclick = async () => {
+            const id     = btn.dataset.id;
+            const paused = btn.dataset.paused === 'true';
+            try {
+                if (paused) {
+                    await invoke('resume_download', { id });
+                } else {
+                    await invoke('pause_download', { id });
+                }
+            } catch (e) { console.error(e); }
+        };
+    });
+
+    container.querySelectorAll('.dl-cancel-btn').forEach(btn => {
+        btn.onclick = () => {
+            invoke('cancel_download', { id: btn.dataset.id }).catch(console.error);
+        };
+    });
+}
+
+// ============================
+// ⚙️ SETTINGS ACTIONS
+// ============================
+
+async function selectDownloadDirectory() {
+    try {
+        const selectedPath = await open({
+            directory: true,
+            multiple: false,
+            title: "Select Default Download Folder"
+        });
+        if (selectedPath) {
+            await db.set('orbix_download_dir', selectedPath);
+            const input = document.getElementById('dlDirInput');
+            if (input) input.value = selectedPath;
+            setStatus("Download directory saved!", "#22c55e");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Failed to pick directory: " + e);
+    }
+}
+
+async function clearDownloadDirectory() {
+    await db.remove('orbix_download_dir');
+    const input = document.getElementById('dlDirInput');
+    if (input) input.value = "";
+    setStatus("Download directory cleared.", "#f59e0b");
+}
+
+function openVlcDownloadPage() {
+    invoke("open_vlc_download_page").catch(e => {
+        console.error("Failed to open VLC download page:", e);
+        // Fallback: try window.open
+        window.open("https://www.videolan.org/vlc/download-windows.html", "_blank");
+    });
+}
+
+function showVlcNotFoundModal() {
+    const modal = document.getElementById('vlcNotFoundModal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('active'), 10);
+    if (window.lucide) window.lucide.createIcons();
+}
+
+window.closeVlcModal = function() {
+    const modal = document.getElementById('vlcNotFoundModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    setTimeout(() => modal.style.display = 'none', 300);
+};
+
+window.installVlcAndClose = function() {
+    openVlcDownloadPage();
+    window.closeVlcModal();
+};
+
+// 🎧 TAURI LISTENERS
+try {
+    listen('download-started', (event) => {
+        const { id, title } = event.payload;
+        window.activeDownloads[id] = { title, downloaded: 0, total: 0, speed: 0, status: 'downloading', paused: false };
+        if (document.getElementById('pageDownloads')?.classList.contains('active')) {
+            renderActiveDownloads();
+        }
+        setStatus('Download started', '#22c55e');
+    });
+
+    listen('download-progress', (event) => {
+        const { id, downloaded, total, speed } = event.payload;
+        if (window.activeDownloads[id]) {
+            window.activeDownloads[id].downloaded = downloaded;
+            window.activeDownloads[id].total = total;
+            window.activeDownloads[id].speed = speed;
+            if (document.getElementById('pageDownloads')?.classList.contains('active')) {
+                renderActiveDownloads();
+            }
+        }
+    });
+
+    listen('download-paused', (event) => {
+        const { id } = event.payload;
+        if (window.activeDownloads[id]) {
+            window.activeDownloads[id].status = 'paused';
+            window.activeDownloads[id].paused = true;
+            window.activeDownloads[id].speed = 0;
+            if (document.getElementById('pageDownloads')?.classList.contains('active')) {
+                renderActiveDownloads();
+            }
+            setStatus('Download paused', '#f59e0b');
+        }
+    });
+
+    listen('download-resumed', (event) => {
+        const { id } = event.payload;
+        if (window.activeDownloads[id]) {
+            window.activeDownloads[id].status = 'downloading';
+            window.activeDownloads[id].paused = false;
+            if (document.getElementById('pageDownloads')?.classList.contains('active')) {
+                renderActiveDownloads();
+            }
+            setStatus('Download resumed', '#22c55e');
+        }
+    });
+
+    listen('download-finished', (event) => {
+        const { id } = event.payload;
+        if (window.activeDownloads[id]) {
+            window.activeDownloads[id].status = 'finished';
+            window.activeDownloads[id].paused = false;
+            window.activeDownloads[id].downloaded = window.activeDownloads[id].total;
+            if (document.getElementById('pageDownloads')?.classList.contains('active')) {
+                renderActiveDownloads();
+            }
+            setTimeout(() => {
+                delete window.activeDownloads[id];
+                if (document.getElementById('pageDownloads')?.classList.contains('active')) {
+                    renderActiveDownloads();
+                }
+            }, 5000);
+            setStatus('Download finished!', '#22c55e');
+        }
+    });
+
+    listen('download-error', (event) => {
+        const { id, error } = event.payload;
+        if (window.activeDownloads[id]) {
+            window.activeDownloads[id].status = 'error';
+            window.activeDownloads[id].error = error;
+            window.activeDownloads[id].speed = 0;
+            if (document.getElementById('pageDownloads')?.classList.contains('active')) {
+                renderActiveDownloads();
+            }
+            setStatus('Download error', '#ef4444');
+        }
+    });
+
+    listen('download-cancelled', (event) => {
+        const { id } = event.payload;
+        delete window.activeDownloads[id];
+        if (document.getElementById('pageDownloads')?.classList.contains('active')) {
+            renderActiveDownloads();
+        }
+        setStatus('Download cancelled', '#ef4444');
+    });
+} catch(e) {
+    console.warn('Tauri event listeners not initialized', e);
+}
+
+
+window.openDownloadsModal = openDownloadsModal;
+window.refreshDetails = refreshDetails;
+window.switchDetailTab = switchDetailTab;
+window.closeDownloadModal = closeDownloadModal;
+window.closeSettingsModal = closeSettingsModal;
+window.saveSettings = saveSettings;
+window.playStream = playStream;
+window.switchToProvider = switchToProvider;
+window.refreshWishlistData = refreshWishlistData;
+window.selectDownloadDirectory = selectDownloadDirectory;
+window.clearDownloadDirectory = clearDownloadDirectory;
+window.openVlcDownloadPage = openVlcDownloadPage;
+
+
+
