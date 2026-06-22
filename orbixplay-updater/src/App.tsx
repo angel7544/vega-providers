@@ -50,6 +50,7 @@ function App() {
   const [latestVersion, setLatestVersion] = useState<string>('Fetching...');
   const [localVersion, setLocalVersion] = useState<string>('Ready');
   const [lastCommit, setLastCommit] = useState<string | null>(null);
+  const [keepNewerHubcloud, setKeepNewerHubcloud] = useState(false);
 
   const addLog = (text: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
@@ -160,7 +161,17 @@ function App() {
       
       setStatus('extracting');
       addLog('Backing up old files and extracting new update...', 'info');
-      await invoke('backup_and_extract_repo_zip', { zipPath });
+      const extractionLogs: string[] = await invoke('backup_and_extract_repo_zip', { zipPath, keepNewerHubcloud });
+      
+      if (extractionLogs && extractionLogs.length > 0) {
+        extractionLogs.forEach(log => {
+          if (log.includes("Failed")) {
+            addLog(log, 'error');
+          } else {
+            addLog(log, 'info');
+          }
+        });
+      }
       
       addLog('Verifying local installation...', 'info');
       const localInfo = await invoke<LocalManifestInfo>('verify_local_manifest');
@@ -285,6 +296,20 @@ function App() {
               <div className="grid-cell"><span className="cell-label">Update Channel</span><span className="cell-value"><span className="pill-stable-small">Stable</span></span></div>
               <div className="grid-cell"><span className="cell-label">Install Location</span><span className="cell-value">{installInfo.path ? "Orbix Suite" : "Not Found"}</span></div>
               <div className="grid-cell"><span className="cell-label">Last Checked</span><span className="cell-value">Today, {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span></div>
+            </div>
+
+            <div style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)' }}>
+              <input 
+                type="checkbox" 
+                id="keepNewerHubcloud" 
+                checked={keepNewerHubcloud} 
+                onChange={(e) => setKeepNewerHubcloud(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+                disabled={isUpdating}
+              />
+              <label htmlFor="keepNewerHubcloud" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>
+                Keep newer hubcloud.ts from GitHub (Don't preserve local version)
+              </label>
             </div>
 
             {(status === 'downloading' || status === 'extracting') && (

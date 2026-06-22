@@ -157,7 +157,8 @@ fn rollback(base_dir: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn backup_and_extract_repo_zip(zip_path: String) -> Result<(), String> {
+pub fn backup_and_extract_repo_zip(zip_path: String, keep_newer_hubcloud: bool) -> Result<Vec<String>, String> {
+    let mut logs = Vec::new();
     let base_dir = get_installation_path()?;
     let backup_dir = base_dir.join("backup");
     let temp_dir = base_dir.join("temp");
@@ -222,6 +223,12 @@ pub fn backup_and_extract_repo_zip(zip_path: String) -> Result<(), String> {
 
         // Relative path inside the target directory (e.g. dist/... or manifest.json)
         let relative_path = parts[1..].join("/");
+        
+        if !keep_newer_hubcloud && relative_path == "providers/extractors/hubcloud.ts" {
+            logs.push("Skipped updating providers/extractors/hubcloud.ts from GitHub.".to_string());
+            continue;
+        }
+
         let outpath = base_dir.join(relative_path);
 
         if file.is_dir() {
@@ -244,12 +251,31 @@ pub fn backup_and_extract_repo_zip(zip_path: String) -> Result<(), String> {
         }
     }
 
-    // 4. Clean up temp folder
+    // 4. Restore hubcloud.ts from backup if it existed
+    if !keep_newer_hubcloud {
+        let hubcloud_backup = providers_backup.join("extractors").join("hubcloud.ts");
+        if hubcloud_backup.exists() {
+            let hubcloud_target = providers_target.join("extractors").join("hubcloud.ts");
+            if let Some(p) = hubcloud_target.parent() {
+                let _ = fs::create_dir_all(p);
+            }
+            match fs::copy(&hubcloud_backup, &hubcloud_target) {
+                Ok(_) => {
+                    logs.push("Restored local hubcloud.ts from backup successfully.".to_string());
+                }
+                Err(e) => {
+                    logs.push(format!("Failed to restore local hubcloud.ts: {}", e));
+                }
+            }
+        }
+    }
+
+    // 5. Clean up temp folder
     if temp_dir.exists() {
         let _ = fs::remove_dir_all(&temp_dir);
     }
 
-    Ok(())
+    Ok(logs)
 }
 
 #[tauri::command]
@@ -284,7 +310,7 @@ pub fn kill_processes() -> Result<Vec<String>, String> {
         RefreshKind::new().with_processes(ProcessRefreshKind::everything()),
     );
     let mut killed = Vec::new();
-    let targets = ["node.exe", "OrbixLite v3.exe", "OrbixPlay-Vega-Server.exe", "OrbixPlay.exe"];
+    let targets = ["node.exe", "orbixlite-v3.exe", "OrbixPlay-Vega-Server.exe", "OrbixPlay.exe"];
 
     for process in s.processes().values() {
         let name = process.name();
@@ -314,7 +340,7 @@ pub fn launch_app(app_type: String) -> Result<(), String> {
     let bin_dir = base_dir.join("bin");
 
     let exe_path = match app_type.as_str() {
-        "orbix" => bin_dir.join("OrbixLite v3.exe"),
+        "orbix" => bin_dir.join("orbixlite-v3.exe"),
         "server" => bin_dir.join("OrbixPlay-Vega-Server.exe"),
         _ => return Err("Invalid app type".to_string()),
     };
