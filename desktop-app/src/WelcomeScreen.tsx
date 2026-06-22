@@ -35,24 +35,6 @@ export default function WelcomeScreen({}: WelcomeScreenProps) {
         if (isUp) {
           handleSuccess();
         } else {
-          // Automatic fallback check between default servers
-          let fallbackUrl = '';
-          if (savedUrl === 'http://localhost:3001') {
-            fallbackUrl = 'https://ottpatna.vercel.app';
-          } else if (savedUrl === 'https://ottpatna.vercel.app') {
-            fallbackUrl = 'http://localhost:3001';
-          }
-          
-          if (fallbackUrl) {
-            console.log(`Primary server offline. Trying fallback server: ${fallbackUrl}...`);
-            const fallbackUp = await checkServer(fallbackUrl);
-            if (fallbackUp) {
-              setApiUrl(fallbackUrl);
-              await db.set('vega_api_url', fallbackUrl);
-              handleSuccess();
-              return;
-            }
-          }
           setStatus('failed');
         }
       } catch (err) {

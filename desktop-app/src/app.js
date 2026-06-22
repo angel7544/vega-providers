@@ -7,7 +7,7 @@ import db from './db.js';
 // ⚙️ CONFIGURATION & STATE
 // ============================
 // These are populated from the JSON DB during init()
-let API_BASE = "http://localhost:3001" || "https://ottpatna.vercel.app";
+let API_BASE = "http://localhost:3001";
 const getApiUrl = () => {
     let url = API_BASE;
     if (url.endsWith('/')) url = url.slice(0, -1);
