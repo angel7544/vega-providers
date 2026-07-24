@@ -1,0 +1,16 @@
+{
+  "orbix_disabled_providers": [],
+  "orbix_last_provider": "vega",
+  "orbix_notice_time": 1784909268638,
+  "orbix_theme": "light",
+  "orbix_wishlist": [
+    {
+      "__provider": "vega",
+      "image": "data:image/gif;base64,R0lGODdhAQABAPAAAMPDwwAAACwAAAAAAQABAAACAkQBADs=",
+      "link": "https://vegamovies.mq/download-blind-waters-2023-hindi-dubbed-org-english-480p-720p-1080p-bluray/",
+      "title": "Blind Waters 2023 Audio x264",
+      "type": "movie"
+    }
+  ],
+  "vega_api_url": "http://localhost:3001"
+}

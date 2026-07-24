@@ -44,21 +44,60 @@ __export(getBaseUrl_exports, {
   getBaseUrl: () => getBaseUrl
 });
 module.exports = __toCommonJS(getBaseUrl_exports);
-var expireTime = 60 * 60 * 1e3;
+var urlsEndpoint = "https://raw.githubusercontent.com/Zenda-Cross/vega-providers/refs/heads/main/urls.json";
+var cacheTtl = 60 * 60 * 1e3;
+function getCache() {
+  var _a;
+  const state = typeof providerGlobal !== "undefined" && providerGlobal ? providerGlobal : globalThis;
+  (_a = state.__vegaProviderBaseUrlCache__) != null ? _a : state.__vegaProviderBaseUrlCache__ = { expiresAt: 0 };
+  return state.__vegaProviderBaseUrlCache__;
+}
+__name(getCache, "getCache");
+function fetchProviderUrls() {
+  return __async(this, null, function* () {
+    const cache = getCache();
+    if (cache.data && Date.now() < cache.expiresAt) {
+      return cache.data;
+    }
+    if (cache.request) {
+      return cache.request;
+    }
+    const request = fetch(urlsEndpoint).then((response) => __async(null, null, function* () {
+      if (!response.ok) {
+        throw new Error(`URL configuration request failed: ${response.status}`);
+      }
+      const data = yield response.json();
+      console.log("Fetched provider URL configuration");
+      cache.data = data;
+      cache.expiresAt = Date.now() + cacheTtl;
+      return data;
+    })).catch((error) => {
+      if (cache.data) {
+        console.warn("Using stale provider URL configuration", error);
+        return cache.data;
+      }
+      throw error;
+    }).finally(() => {
+      cache.request = void 0;
+    });
+    Object.defineProperty(cache, "request", {
+      configurable: true,
+      enumerable: false,
+      value: request,
+      writable: true
+    });
+    return request;
+  });
+}
+__name(fetchProviderUrls, "fetchProviderUrls");
 var getBaseUrl = /* @__PURE__ */ __name((providerValue) => __async(null, null, function* () {
+  var _a, _b;
   try {
-    let baseUrl = "";
-    const cacheKey = "CacheBaseUrl" + providerValue;
-    const timeKey = "baseUrlTime" + providerValue;
-    const baseUrlRes = yield fetch(
-      "https://himanshu8443.github.io/providers/modflix.json"
-    );
-    const baseUrlData = yield baseUrlRes.json();
-    baseUrl = baseUrlData[providerValue].url;
-    return baseUrl;
+    const providerUrls = yield fetchProviderUrls();
+    return (_b = (_a = providerUrls[providerValue]) == null ? void 0 : _a.url) != null ? _b : "";
   } catch (error) {
     console.error(`Error fetching baseUrl: ${providerValue}`, error);
-    return "";
+    throw error;
   }
 }), "getBaseUrl");
 // Annotate the CommonJS export names for ESM import in node:

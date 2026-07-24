@@ -1,4 +1,38 @@
+# Node dependencies
 node_modules/
+
+# Rust / Tauri build artifacts & target folders
+target/
+**/target/
+**/target/**
+src-tauri/target/
+desktop-app/src-tauri/target/
+orbixplay-updater/src-tauri/target/
+
+# Python caching and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build and packaging output (PyInstaller / Web)
 build/
+dist/
+*.spec
+*.exe
+
+# VLC media player binaries/bundles
+vlc_bundle/
+
+# Local configuration and runtime logs
 *.log
 *.env
+config.json
+history.json
+*.xlsx

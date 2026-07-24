@@ -15,7 +15,7 @@ export const getStream = async function ({
     const { axios, cheerio } = providerContext;
     const stream: Stream[] = [];
     const [, epId] = id.split("&");
-    const url = `https://febbox.vercel.app/api/video-quality?fid=${epId}`;
+    const url = `https://feb.8man.workers.dev/?fid=${epId}`;
     const res = await axios.get(url, { signal });
     const data = res.data;
     const $ = cheerio.load(data.html);
@@ -35,6 +35,7 @@ export const getStream = async function ({
         });
       }
     });
+    console.log(stream);
     return stream;
   } catch (err) {
     return [];

@@ -1,4 +1,5 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 export const getPosts = async function ({
   filter,
@@ -13,7 +14,7 @@ export const getPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl, axios, cheerio } = providerContext;
+  const { axios, cheerio } = providerContext;
   const baseUrl = await getBaseUrl("showbox");
   const url = `${baseUrl + filter}?page=${page}/`;
   return posts({ url, signal, baseUrl, axios, cheerio });
@@ -32,44 +33,66 @@ export const getSearchPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl, axios, cheerio } = providerContext;
+  const { axios, cheerio, commonHeaders } = providerContext;
   const baseUrl = await getBaseUrl("showbox");
   const url = `${baseUrl}/search?keyword=${searchQuery}&page=${page}`;
-  return posts({ url, signal, baseUrl, axios, cheerio });
+  return posts({
+    url,
+    signal,
+    baseUrl,
+    axios,
+    cheerio,
+    headers: commonHeaders,
+  });
 };
 
 async function posts({
   url,
   signal,
-  // baseUrl,
+  baseUrl,
   axios,
   cheerio,
+  headers,
 }: {
   url: string;
   signal: AbortSignal;
   baseUrl: string;
   axios: ProviderContext["axios"];
   cheerio: ProviderContext["cheerio"];
+  headers?: Record<string, string>;
 }): Promise<Post[]> {
-  try {
-    const res = await axios.get(url, { signal });
-    const data = res.data;
-    const $ = cheerio.load(data);
-    const catalog: Post[] = [];
-    $(".movie-item,.flw-item").map((i, element) => {
-      const title = $(element).find(".film-name").text().trim();
-      const link = $(element).find("a").attr("href");
-      const image = $(element).find("img").attr("src");
-      if (title && link && image) {
-        catalog.push({
-          title: title,
-          link: link,
-          image: image,
-        });
+  const maxRetries = 3;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await axios.get(url, { signal, headers: headers });
+      const data = res.data;
+      console.log(data);
+      const $ = cheerio.load(data);
+      const catalog: Post[] = [];
+      $(".movie-item,.flw-item").map((i, element) => {
+        const title = $(element).find(".film-name").text().trim();
+        const link = $(element).find("a").attr("href");
+        const image = $(element).find("img").attr("src");
+        console.log(title, link, image);
+        if (title && link && image) {
+          const postUrl = new URL(link, `${baseUrl}/`);
+          catalog.push({
+            title: title,
+            link: `${postUrl.pathname}${postUrl.search}${postUrl.hash}`,
+            image: image,
+          });
+        }
+      });
+      return catalog;
+    } catch (err) {
+      lastError = err;
+      if (signal.aborted || attempt === maxRetries) {
+        throw err;
       }
-    });
-    return catalog;
-  } catch (err) {
-    return [];
+    }
   }
+
+  throw lastError;
 }
