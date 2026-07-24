@@ -1,15 +1,32 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
-const defaultHeaders = {
-  Referer: "https://www.google.com",
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-    "(KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-  "Accept-Language": "en-US,en;q=0.9",
-  Pragma: "no-cache",
-  "Cache-Control": "no-cache",
-};
+async function getWithWAF(
+  url: string,
+  axios: any,
+  openWebView: any,
+  headers: any,
+): Promise<any> {
+  const baseUrl = url.split("/").slice(0, 3).join("/");
+  try {
+    return await axios.get(url, { headers: { ...headers, Referer: baseUrl } });
+  } catch (error: any) {
+    if (error.response?.status === 403 && openWebView) {
+      console.log(`WAF detected (403) for ${url}, using solver...`);
+      const wafResult = await openWebView(baseUrl, {
+        title: "Solve the captcha below and click done",
+        description: "Required to bypass anti-bot protection.",
+        headers: { ...headers, Referer: baseUrl },
+        waitForCookie: "cf_clearance",
+        force: true,
+      });
+      return await axios.get(url, {
+        headers: { ...headers, Referer: baseUrl, Cookie: wafResult.cookie },
+      });
+    }
+    throw error;
+  }
+}
 
 // --- Normal catalog posts ---
 export async function getPosts({
@@ -62,7 +79,7 @@ async function fetchPosts({
   providerContext: ProviderContext;
 }): Promise<Post[]> {
   try {
-    const baseUrl = await providerContext.getBaseUrl("1cinevood");
+    const baseUrl = await getBaseUrl("1cinevood");
     let url: string;
 
     // --- Build URL for category filter or search query
@@ -80,8 +97,8 @@ async function fetchPosts({
       url = `${baseUrl}${page > 1 ? `/page/${page}` : ""}`;
     }
 
-    const { axios, cheerio } = providerContext;
-    const res = await axios.get(url, { headers: defaultHeaders, signal });
+    const { axios, cheerio, commonHeaders, openWebView } = providerContext;
+    const res = await getWithWAF(url, axios, openWebView, commonHeaders);
     const $ = cheerio.load(res.data || "");
 
     const resolveUrl = (href: string) =>
@@ -106,7 +123,8 @@ async function fetchPosts({
       const card = $(el);
       let link = card.find("a[href]").first().attr("href") || "";
       if (!link) return;
-      link = resolveUrl(link);
+      const postUrl = new URL(link, url);
+      link = `${postUrl.pathname}${postUrl.search}${postUrl.hash}`;
       if (seen.has(link)) return;
 
       let title =
@@ -135,7 +153,7 @@ async function fetchPosts({
   } catch (err) {
     console.error(
       "HDMovie2 fetchPosts error:",
-      err instanceof Error ? err.message : String(err)
+      err instanceof Error ? err.message : String(err),
     );
     return [];
   }

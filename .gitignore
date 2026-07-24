@@ -30,5 +30,7 @@ history.json
 *.xlsx
 
 # Rust/Tauri build artifacts
+target/
+**/target/
 desktop-app/src-tauri/target/
 desktop-app

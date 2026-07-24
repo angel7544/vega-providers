@@ -1,4 +1,5 @@
 import { Info, Link, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 export const getMeta = async function ({
   link,
@@ -9,8 +10,8 @@ export const getMeta = async function ({
 }): Promise<Info> {
   try {
     const { axios, cheerio } = providerContext;
-    const url = link;
-    const baseUrl = link.split("/").slice(0, 3).join("/");
+    const baseUrl = await getBaseUrl("primewire");
+    const url = new URL(link, `${baseUrl}/`).href;
     const res = await axios.get(url);
     const html = await res.data;
     const $ = cheerio.load(html);
@@ -67,6 +68,7 @@ export const getMeta = async function ({
       synopsis: "",
       type: type,
       linkList: linkList,
+      webUrl: url,
     };
   } catch (error) {
     console.error(error);

@@ -1,4 +1,5 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 export const getPosts = async function ({
   filter,
@@ -12,11 +13,11 @@ export const getPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl, cheerio } = providerContext;
+  const { cheerio } = providerContext;
   const baseUrl = await getBaseUrl("4khdhub");
   const url = `${baseUrl + filter}/page/${page}`;
   console.log("4khdhubGetPosts url", url);
-  return posts({ url, signal, cheerio });
+  return posts({ baseUrl, url, signal, cheerio });
 };
 
 export const getSearchPosts = async function ({
@@ -31,21 +32,23 @@ export const getSearchPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl, cheerio } = providerContext;
+  const { cheerio } = providerContext;
   const baseUrl = await getBaseUrl("4khdhub");
   const url =
     page == 1
       ? `${baseUrl}/?s=${searchQuery}`
       : `${baseUrl}/page/${page}?s=${searchQuery}`;
   console.log("4khdhubGetSearchPosts url", url);
-  return posts({ url, signal, cheerio });
+  return posts({ baseUrl, url, signal, cheerio });
 };
 
 async function posts({
+  baseUrl,
   url,
   signal,
   cheerio,
 }: {
+  baseUrl: string;
   url: string;
   signal: AbortSignal;
   cheerio: ProviderContext["cheerio"];
@@ -70,9 +73,10 @@ async function posts({
         //   image
         // );
         if (title && link && image) {
+          const postUrl = new URL(link, `${baseUrl}/`);
           catalog.push({
             title: title,
-            link: link,
+            link: `${postUrl.pathname}${postUrl.search}${postUrl.hash}`,
             image: image,
           });
         }

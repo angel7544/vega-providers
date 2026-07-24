@@ -1,4 +1,5 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 const headers = {
   Accept:
@@ -31,11 +32,10 @@ export const getPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl } = providerContext;
   const baseUrl = await getBaseUrl("Topmovies");
   const url = `${baseUrl + filter}/page/${page}/`;
 
-  return posts(url, signal, providerContext);
+  return posts(baseUrl, url, signal, providerContext);
 };
 
 export const getSearchPosts = async function ({
@@ -50,13 +50,13 @@ export const getSearchPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl } = providerContext;
   const baseUrl = await getBaseUrl("Topmovies");
   const url = `${baseUrl}/search/${searchQuery}/page/${page}/`;
-  return posts(url, signal, providerContext);
+  return posts(baseUrl, url, signal, providerContext);
 };
 
 async function posts(
+  baseUrl: string,
   url: string,
   signal: AbortSignal,
   providerContext: ProviderContext,
@@ -79,7 +79,10 @@ async function posts(
         if (title && link) {
           catalog.push({
             title: title.replace("Download", "").trim(),
-            link: link,
+            link: (() => {
+              const postUrl = new URL(link, `${baseUrl}/`);
+              return `${postUrl.pathname}${postUrl.search}${postUrl.hash}`;
+            })(),
             image: image,
           });
         }

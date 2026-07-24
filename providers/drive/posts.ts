@@ -1,4 +1,5 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 export const getPosts = async function ({
   filter,
@@ -12,10 +13,9 @@ export const getPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl } = providerContext;
   const baseUrl = await getBaseUrl("drive");
   const url = `${baseUrl + filter}page/${page}/`;
-  return posts({ url, signal, providerContext });
+  return posts({ baseUrl, url, signal, providerContext });
 };
 
 export const getSearchPosts = async function ({
@@ -30,7 +30,6 @@ export const getSearchPosts = async function ({
   providerContext: ProviderContext;
   signal: AbortSignal;
 }): Promise<Post[]> {
-  const { getBaseUrl } = providerContext;
   const baseUrl = await getBaseUrl("drive");
   const url = buildSearchUrl(baseUrl, searchQuery, page);
   return searchPosts({
@@ -41,10 +40,12 @@ export const getSearchPosts = async function ({
 };
 
 async function posts({
+  baseUrl,
   url,
   signal,
   providerContext,
 }: {
+  baseUrl: string;
   url: string;
   signal: AbortSignal;
   providerContext: ProviderContext;
@@ -63,7 +64,7 @@ async function posts({
       if (title && link && image) {
         catalog.push({
           title: title.replace("Download", "").trim(),
-          link: link,
+          link: toRelativePath(baseUrl, link),
           image: image,
         });
       }
@@ -108,7 +109,7 @@ async function searchPosts({
           const document = hit.document;
           const title = document?.post_title?.trim();
           const link = document?.permalink
-            ? normalizeUrl(baseUrl, document.permalink)
+            ? toRelativePath(baseUrl, document.permalink)
             : "";
           const image = document?.post_thumbnail
             ? normalizeUrl(baseUrl, document.post_thumbnail)
@@ -161,6 +162,13 @@ function normalizeUrl(baseUrl: string, value: string): string {
   }
 
   return `${trimTrailingSlash(baseUrl)}/${trimLeadingSlash(value)}`;
+}
+
+function toRelativePath(baseUrl: string, value: string): string {
+  const absoluteUrl = normalizeUrl(baseUrl, value);
+  const postUrl = new URL(absoluteUrl);
+
+  return `${postUrl.pathname}${postUrl.search}${postUrl.hash}`;
 }
 
 function trimTrailingSlash(value: string): string {

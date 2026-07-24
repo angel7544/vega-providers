@@ -1,4 +1,5 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 const defaultHeaders = {
   accept:
@@ -71,7 +72,7 @@ async function fetchPosts({
   providerContext: ProviderContext;
 }): Promise<Post[]> {
   try {
-    const baseUrl = await providerContext.getBaseUrl("movies4u");
+    const baseUrl = await getBaseUrl("movies4u");
     let url: string;
 
     // --- Build URL for category filter or search query
@@ -171,7 +172,8 @@ async function fetchPosts({
       console.log("Processing card:", card.text().trim().slice(0, 50)); // Debug log
       let link = card.find("a[href]").first().attr("href") || "";
       if (!link) return;
-      link = resolveUrl(link);
+      const postUrl = new URL(link, url);
+      link = `${postUrl.pathname}${postUrl.search}${postUrl.hash}`;
       if (seen.has(link)) return;
 
       let title =
