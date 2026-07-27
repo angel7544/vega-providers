@@ -1,4 +1,32 @@
 import { Info, Link, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
+
+async function getWithWAF(
+  url: string,
+  axios: any,
+  openWebView: any,
+  headers: any,
+): Promise<any> {
+  const baseUrl = url.split("/").slice(0, 3).join("/");
+  try {
+    return await axios.get(url, { headers: { ...headers, Referer: baseUrl } });
+  } catch (error: any) {
+    if (error.response?.status === 403 && openWebView) {
+      console.log(`WAF detected (403) for ${url}, using solver...`);
+      const wafResult = await openWebView(baseUrl, {
+        title: "Solve the captcha below and click done",
+        description: "Required to bypass anti-bot protection.",
+        headers: { ...headers, Referer: baseUrl },
+        force: true,
+        waitForCookie: "cf_clearance",
+      });
+      return await axios.get(url, {
+        headers: { ...headers, Referer: baseUrl, Cookie: wafResult.cookies },
+      });
+    }
+    throw error;
+  }
+}
 
 export const getMeta = async function ({
   link,
@@ -8,9 +36,10 @@ export const getMeta = async function ({
   providerContext: ProviderContext;
 }): Promise<Info> {
   try {
-    const { axios, cheerio } = providerContext;
-    const url = link;
-    const res = await axios.get(url);
+    const { axios, cheerio, openWebView, commonHeaders } = providerContext;
+    const baseUrl = await getBaseUrl("kat");
+    const url = new URL(link, `${baseUrl}/`).href;
+    const res = await getWithWAF(url, axios, openWebView, commonHeaders);
     const data = res.data;
     const $ = cheerio.load(data);
     const container = $(".yQ8hqd.ksSzJd.LoQAYe").html()
@@ -116,6 +145,7 @@ export const getMeta = async function ({
       imdbId,
       type,
       linkList: links,
+      webUrl: url,
     };
   } catch (err) {
     console.error(err);

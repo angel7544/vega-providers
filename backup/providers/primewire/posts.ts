@@ -1,4 +1,5 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 export const getPosts = async function ({
   filter,
@@ -12,7 +13,7 @@ export const getPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl, axios, cheerio } = providerContext;
+  const { axios, cheerio } = providerContext;
 
   const baseUrl = await getBaseUrl("primewire");
   const url = `${baseUrl + filter}&page=${page}`;
@@ -31,7 +32,7 @@ export const getSearchPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl, axios, cheerio, Aes } = providerContext;
+  const { axios, cheerio, Aes } = providerContext;
   const getSHA256ofJSON = async function (input: any) {
     return await Aes.sha1(input);
   };
@@ -39,7 +40,7 @@ export const getSearchPosts = async function ({
   const hash = await getSHA256ofJSON(searchQuery + "JyjId97F9PVqUPuMO0");
   const url = `${baseUrl}/filter?s=${searchQuery}&page=${page}&ds=${hash.slice(
     0,
-    10
+    10,
   )}`;
   return posts({ baseUrl, url, signal, axios, cheerio });
 };
@@ -67,9 +68,10 @@ async function posts({
       const link = $(element).find("a").attr("href");
       const image = $(element).find("img").attr("src") || "";
       if (title && link) {
+        const postUrl = new URL(link, `${baseUrl}/`);
         catalog.push({
           title: title,
-          link: baseUrl + link,
+          link: `${postUrl.pathname}${postUrl.search}${postUrl.hash}`,
           image: image,
         });
       }

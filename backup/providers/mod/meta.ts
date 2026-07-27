@@ -1,4 +1,5 @@
 import { Info, Link, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 export const getMeta = async function ({
   link,
@@ -9,7 +10,8 @@ export const getMeta = async function ({
 }): Promise<Info> {
   try {
     const { axios, cheerio } = providerContext;
-    const url = link;
+    const baseUrl = await getBaseUrl("Moviesmod");
+    const url = new URL(link, `${baseUrl}/`).href;
     const res = await axios.get(url);
     const data = res.data;
     const $ = cheerio.load(data);
@@ -52,7 +54,7 @@ export const getMeta = async function ({
       const episodesLink = $(element)
         .next("p")
         .find(
-          ".maxbutton-episode-links,.maxbutton-g-drive,.maxbutton-af-download"
+          ".maxbutton-episode-links,.maxbutton-g-drive,.maxbutton-af-download",
         )
         .attr("href");
       const movieLink = $(element)
@@ -75,7 +77,7 @@ export const getMeta = async function ({
       }
     });
     // console.log('mod meta', links);
-    return { ...meta, linkList: links };
+    return { ...meta, linkList: links, webUrl: url };
   } catch (err) {
     console.error(err);
     return {
