@@ -1109,12 +1109,7 @@ async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId
         let posterImg = freshMeta.image || freshMeta.poster || freshMeta.cover || freshMeta.thumbnail || freshMeta.img || freshMeta.src || initialPoster;
         if (posterEl) {
             if (isValidImage(posterImg)) {
-                // On mobile, route poster through proxy to bypass hotlink protection
-                const isMobilePage = document.body.classList.contains('mobile-body');
-                const proxiedPoster = (isMobilePage && posterImg && posterImg.startsWith('http'))
-                    ? `${getApiUrl()}/image-proxy?url=${encodeURIComponent(posterImg)}`
-                    : posterImg;
-                posterEl.src = proxiedPoster;
+                posterEl.src = posterImg;
             } else {
                 handleImageError(posterEl, parsed.title);
             }
@@ -1124,10 +1119,7 @@ async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId
         if (backdropEl && isValidImage(posterImg)) {
             const isMobileB = document.body.classList.contains('mobile-body');
             if (isMobileB && backdropEl.tagName === 'IMG') {
-                const proxiedBackdrop = posterImg.startsWith('http')
-                    ? `${getApiUrl()}/image-proxy?url=${encodeURIComponent(posterImg)}`
-                    : posterImg;
-                backdropEl.src = proxiedBackdrop;
+                backdropEl.src = posterImg;
             } else {
                 backdropEl.style.backgroundImage = `url(${posterImg})`;
             }

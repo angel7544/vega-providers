@@ -232,12 +232,13 @@
     </nav>
 
     <div class="m-backdrop" id="heroBackdrop">
-        <img id="backdropImg" class="m-backdrop-img" src="" alt="" referrerpolicy="no-referrer" crossorigin="anonymous">
+        <img id="backdropImg" class="m-backdrop-img" src="" alt="" referrerpolicy="no-referrer" crossorigin="anonymous"
+             onerror="if(this.src && !this.src.includes('image-proxy') && this.src.startsWith('http')) { this.src = getApiUrl() + '/image-proxy?url=' + encodeURIComponent(this.src); }">
         <div class="m-backdrop-gradient"></div>
         <div class="m-backdrop-content">
             <div class="m-poster-wrap">
                 <img id="detailPoster" src="" alt="Poster" referrerpolicy="no-referrer" crossorigin="anonymous"
-                     onerror="handleImageError(this, document.getElementById('detailTitle')?.textContent)">
+                     onerror="if(this.src && !this.src.includes('image-proxy') && this.src.startsWith('http')) { this.src = getApiUrl() + '/image-proxy?url=' + encodeURIComponent(this.src); } else { handleImageError(this, document.getElementById('detailTitle')?.textContent); }">
             </div>
             <div class="m-hero-meta">
                 <div class="m-tags">
@@ -442,6 +443,19 @@
             return "auto";
         }
 
+        // Dynamically parse stream quality from stream details (not hardcoded)
+        function parseStreamQuality(stream) {
+            if (stream.quality) {
+                const q = String(stream.quality).toLowerCase();
+                if (q.includes("p") || q.includes("k") || q.includes("hd")) return q.toUpperCase();
+                return q.toUpperCase() + "P";
+            }
+            const textToSearch = ((stream.link || stream.url || "") + " " + (stream.server || "")).toLowerCase();
+            const match = textToSearch.match(/\b(2160p|1080p|720p|480p|360p|2k|4k)\b/i);
+            if (match) return match[1].toUpperCase();
+            return "HD";
+        }
+
         function getFormatBadgeClass(fmt) {
             if (fmt === "m3u8") return "src-fmt-m3u8";
             if (fmt === "mp4") return "src-fmt-mp4";
@@ -624,8 +638,7 @@
                 const fmt = detectFormat(url);
                 const fmtClass = getFormatBadgeClass(fmt);
                 const fmtLabel = formatLabel(fmt);
-                const quality = s.quality ? String(s.quality) : "HD";
-                const qText = (quality.toLowerCase().includes("p") || quality.toLowerCase().includes("k")) ? quality.toUpperCase() : quality + "P";
+                const qText = parseStreamQuality(s);
                 const serverText = s.server ? ("Server: " + s.server) : "Direct Stream";
 
                 const card = document.createElement("div");
@@ -674,8 +687,7 @@
                 return;
             }
             streams.forEach(s => {
-                const qRaw = s.quality ? s.quality.toString() : "HD";
-                const qText = (qRaw.toLowerCase().includes("p") || qRaw.toLowerCase().includes("k")) ? qRaw.toUpperCase() : qRaw + "P";
+                const qText = parseStreamQuality(s);
                 const serverText = s.server ? ("Server: " + s.server) : "Direct Stream";
                 const card = document.createElement("div");
                 card.className = "dl-stream-card";
