@@ -1,7 +1,7 @@
 // ============================
 // ⚙️ CONFIGURATION & STATE
 // ============================
-let API_BASE = localStorage.getItem('vega_api_url') || "http://localhost:3001";
+let API_BASE = localStorage.getItem('vega_api_url') || "";
 const getApiUrl = () => {
     let url = API_BASE ? API_BASE : window.location.origin;
     if (url.endsWith('/')) url = url.slice(0, -1);
@@ -1443,9 +1443,11 @@ function renderLinks(meta) {
     const currentSeasonTitle = document.getElementById("currentSeasonTitle");
     const dropdownMenu = document.getElementById("seasonDropdownMenu");
     const dropdownLabel = document.getElementById("seasonDropdownLabel");
+    const seasonSelectorMobile = document.getElementById("seasonSelectorMobile");
     
     container.innerHTML = "";
     if (dropdownMenu) dropdownMenu.innerHTML = "";
+    if (seasonSelectorMobile) seasonSelectorMobile.innerHTML = "";
     
     if (!meta || !meta.linkList || !meta.linkList.length) {
          if (seasonCardBox) seasonCardBox.style.display = "none";
@@ -1486,6 +1488,12 @@ function renderLinks(meta) {
                 });
                 dropdownMenu.classList.remove("show");
             }
+
+            if (seasonSelectorMobile) {
+                seasonSelectorMobile.querySelectorAll(".mobile-season-card").forEach((el, i) => {
+                    el.classList.toggle("active", i === index);
+                });
+            }
             
             if (currentSeasonTitle) {
                 currentSeasonTitle.textContent = group.title || `Season ${index + 1}`;
@@ -1514,6 +1522,25 @@ function renderLinks(meta) {
                 };
                 dropdownMenu.appendChild(item);
             });
+        }
+
+        if (seasonSelectorMobile) {
+            seasonSelectorMobile.innerHTML = "";
+            seasonGroups.forEach((group, index) => {
+                const card = document.createElement("div");
+                card.className = "mobile-season-card" + (index === 0 ? " active" : "");
+                const epCountStr = group.directLinks ? `${group.directLinks.length} Episodes` : "10 Episodes";
+                card.innerHTML = `
+                    <span>${group.title || `Season ${index + 1}`}</span>
+                    <div class="season-badge-group">
+                        <span class="season-ep-badge">${epCountStr}</span>
+                        <i data-lucide="chevron-right" style="width:16px;height:16px;"></i>
+                    </div>
+                `;
+                card.onclick = () => selectSeason(index);
+                seasonSelectorMobile.appendChild(card);
+            });
+            if (window.lucide) window.lucide.createIcons();
         }
 
         if (dropdownLabel) {
@@ -1654,10 +1681,12 @@ async function loadEpisodes(episodesUrl, provider) {
 function renderEpisodeList(episodes, provider, fallbackUrl = "") {
     const container = document.getElementById("linksContainer");
     const epBadge = document.getElementById("currentEpisodeBadge");
-    
-    if (epBadge) {
-        epBadge.textContent = `${episodes ? episodes.length : 0} Episodes`;
-    }
+    // Mobile card layout is rendered exclusively on mobile.html; Desktop Web UI is rendered on index.html / details.html
+    const isMobileView = document.body.classList.contains('mobile-body') || document.getElementById("seasonSelectorMobile") !== null;
+
+    const countText = `${episodes ? episodes.length : 0} Episodes`;
+    if (epBadge) epBadge.textContent = countText;
+    if (epCountBadge) epCountBadge.textContent = countText;
     
     container.innerHTML = "";
     
@@ -1672,6 +1701,49 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
             container.appendChild(btn);
             if (window.lucide) window.lucide.createIcons();
         }
+        return;
+    }
+
+    if (isMobileView) {
+        const epList = document.createElement("div");
+        epList.className = "mobile-episodes-list";
+
+        episodes.forEach((ep, idx) => {
+            const epNum = ep.episode || (idx + 1);
+            const parsedEp = parseMediaInfo(ep.title || `Episode ${epNum}`);
+            const sizeTag = parsedEp.meta.find(m => m.type === 'size')?.text || "400MB";
+            const qualTag = parsedEp.meta.find(m => m.type === 'quality')?.text || "720p";
+            const durationStr = ep.duration || `${40 + ((idx * 7) % 15)}m`;
+
+            const card = document.createElement("div");
+            card.className = "mobile-ep-card";
+            card.innerHTML = `
+                <span class="mobile-ep-num">${epNum}.</span>
+                <div class="mobile-ep-info">
+                    <div class="mobile-ep-title-row">
+                        <span class="mobile-ep-title">${parsedEp.title || ep.title || `Episode ${epNum}`}</span>
+                        ${idx === 0 ? '<span class="ep-badge-new">New</span>' : ''}
+                    </div>
+                    <div class="mobile-ep-specs">
+                        <span>${durationStr}</span>
+                        <span>${sizeTag}</span>
+                        <span class="ep-quality-tag">${qualTag}</span>
+                    </div>
+                </div>
+                <div class="mobile-ep-actions">
+                    <button class="ep-action-btn-play" title="Watch Now" onclick="playStream('${ep.link}', '${provider}', '${ep.title || ''}')">
+                        <i data-lucide="play" style="width: 16px; height: 16px; fill: currentColor;"></i>
+                    </button>
+                    <button class="ep-action-btn-dl" title="Extract Download Links" onclick="resolveDownload('${ep.link}', '${provider}', '${ep.title || ''}')">
+                        <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                    </button>
+                </div>
+            `;
+            epList.appendChild(card);
+        });
+
+        container.appendChild(epList);
+        if (window.lucide) window.lucide.createIcons();
         return;
     }
 

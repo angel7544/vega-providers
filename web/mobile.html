@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="referrer" content="no-referrer">
+    <title>Media Details | OrbixPlay Mobile</title>
+    <meta name="description" content="Watch & Download High Quality HD Movies, Series and Web Shows on OrbixPlay Mobile.">
+    <link rel="icon" type="image/x-icon" href="icon.ico">
+    <link rel="shortcut icon" type="image/png" href="icon.png">
+
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- PWA support -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#9333ea">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="artplayer.js"></script>
+</head>
+
+<body class="mobile-body">
+
+    <!-- MOBILE HEADER -->
+    <header class="mobile-navbar">
+        <button class="mobile-nav-icon-btn" onclick="location.href='index.html'" title="Menu">
+            <i data-lucide="menu" style="width: 22px; height: 22px;"></i>
+        </button>
+        <a href="index.html" class="logo" style="text-decoration: none;">
+            <img src="icon.png" alt="Logo" style="width: 28px; height: 28px; border-radius: 8px;">
+            <span class="logo-text">OrbixPlay</span>
+        </a>
+        <button class="mobile-nav-icon-btn" onclick="location.href='index.html'" title="Search">
+            <i data-lucide="search" style="width: 22px; height: 22px;"></i>
+        </button>
+    </header>
+
+    <!-- MAIN MOBILE CONTAINER -->
+    <main class="mobile-main-container">
+        
+        <!-- MOBILE HERO HEADER CARD -->
+        <div class="mobile-hero-card" id="detailHero">
+            <div class="mobile-hero-top-row">
+                <!-- Poster Box -->
+                <div class="mobile-poster-box">
+                    <img id="detailPoster" class="mobile-poster-img" src="" alt="" referrerpolicy="no-referrer">
+                </div>
+
+                <!-- Meta Box -->
+                <div class="mobile-meta-box">
+                    <!-- Platform Tag & Genres -->
+                    <div class="hero-top-tags">
+                        <span id="detailPlatform" class="platform-tag" style="display: none;">
+                            <i data-lucide="tv"></i> <span id="detailPlatformText">Apple TV+ Original</span>
+                        </span>
+                        <div id="detailGenres" class="genre-tags-list"></div>
+                    </div>
+
+                    <!-- Main Title -->
+                    <h1 id="detailTitle" class="mobile-hero-title">Loading Details...</h1>
+
+                    <!-- Ratings, Year, Seasons, Content Rating -->
+                    <div class="meta-tags-bar">
+                        <div id="detailRating" class="rating-badge-pill" style="display: none;">
+                            <i data-lucide="star" style="fill:#f59e0b; color:#f59e0b; width: 13px; height: 13px;"></i>
+                            <span id="detailRatingVal">8.7</span>
+                        </div>
+                        <span id="detailYear" class="meta-pill" style="display: none;"></span>
+                        <span id="detailSeasonsCount" class="meta-pill" style="display: none;"></span>
+                        <span id="detailAgeRating" class="meta-pill age-pill" style="display: none;">TV-14</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3-COLUMN SPECS BAR -->
+            <div class="mobile-specs-bar">
+                <div class="mobile-spec-item">
+                    <span class="spec-label">Language</span>
+                    <span class="spec-value" id="specLanguage">English</span>
+                </div>
+                <div class="mobile-spec-item">
+                    <span class="spec-label">Quality</span>
+                    <span class="spec-value" id="specQuality">WEB-DL 720p</span>
+                </div>
+                <div class="mobile-spec-item">
+                    <span class="spec-label">Size</span>
+                    <span class="spec-value" id="specSize">400MB</span>
+                </div>
+            </div>
+
+            <!-- WATCH NOW PRIMARY BUTTON -->
+            <button id="watchNowBtn" class="mobile-watch-now-btn" onclick="scrollToStreams()">
+                <i data-lucide="play" style="fill: white; width: 18px; height: 18px;"></i>
+                <span>Watch Now</span>
+            </button>
+
+            <!-- SECONDARY ACTION BUTTONS -->
+            <div class="mobile-actions-grid">
+                <button id="wishlistBtn" class="mobile-action-btn" onclick="toggleWishlist()">
+                    <i data-lucide="heart" style="width: 16px; height: 16px;"></i>
+                    <span id="wishlistText">Add to Wishlist</span>
+                </button>
+                <button id="shareBtn" class="mobile-action-btn" onclick="shareDetails()">
+                    <i data-lucide="share-2" style="width: 16px; height: 16px;"></i>
+                    <span>Share</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- SEASON SELECTOR CARDS -->
+        <div class="mobile-season-section" id="seasonCardBox">
+            <h3 class="mobile-section-title">Season</h3>
+            <div id="seasonSelectorMobile" class="mobile-season-list"></div>
+        </div>
+
+        <!-- EPISODES LIST PANEL -->
+        <div class="mobile-episodes-section">
+            <div class="mobile-episodes-header">
+                <h2 id="currentSeasonTitle">Streams</h2>
+                <span class="episodes-badge" id="episodesCountBadge">Available</span>
+            </div>
+            
+            <div id="linksContainer" class="mobile-episodes-list">
+                <div class="loader"><div class="spinner"></div></div>
+            </div>
+        </div>
+
+        <!-- DOWNLOADS SECTION -->
+        <div id="downloadsSectionWrapper" style="display: none; margin-top: 24px;">
+            <div class="mobile-episodes-header">
+                <h2>Downloads</h2>
+            </div>
+            <div id="downloadContainer" class="mobile-episodes-list"></div>
+        </div>
+
+    </main>
+
+    <!-- ARTPLAYER MODAL OVERLAY -->
+    <div id="playerOverlay" class="player-overlay" style="display: none;">
+        <div class="player-modal-content">
+            <div class="player-modal-header">
+                <span id="playerMediaTitle" class="player-modal-title">Now Playing</span>
+                <button class="player-modal-close" onclick="closePlayerModal()">&times;</button>
+            </div>
+            <div id="artplayerContainer" class="artplayer-container"></div>
+        </div>
+    </div>
+
+    <!-- DOWNLOAD MODAL -->
+    <div id="downloadModal" class="player-overlay" style="display: none;">
+        <div class="player-modal-content" style="max-width: 480px;">
+            <div class="player-modal-header">
+                <span class="player-modal-title">Download Options</span>
+                <button class="player-modal-close" onclick="closeDownloadModal()">&times;</button>
+            </div>
+            <div id="downloadModalBody" style="padding: 16px; display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="legal-footer" style="margin-top: 40px; padding: 20px;">
+        <div style="text-align: center; font-size: 12px; color: var(--text-muted);">
+            &copy; 2026 OrbixPlay. All rights reserved.
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const link = urlParams.get('link');
+            const provider = urlParams.get('provider') || 'vegamovies';
+            const title = urlParams.get('title');
+
+            if (link) {
+                showDetails(link, provider, null, null, null, null, title);
+            } else {
+                // Fallback test item if opened directly without query params
+                showDetails('https://vegamovies.pages.dev/demo', provider);
+            }
+        });
+    </script>
+</body>
+</html>
