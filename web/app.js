@@ -1,7 +1,7 @@
 // ============================
 // ⚙️ CONFIGURATION & STATE
 // ============================
-let API_BASE = localStorage.getItem('vega_api_url') || "";
+let API_BASE = localStorage.getItem('vega_api_url') || "http://192.168.0.104:3001";
 const getApiUrl = () => {
     let url = API_BASE ? API_BASE : window.location.origin;
     if (url.endsWith('/')) url = url.slice(0, -1);
@@ -1554,10 +1554,38 @@ function renderLinks(meta) {
             const group = seasonGroups[index];
             if (!group) return;
             
+            window.currentSeasonRawTitle = group.title || "";
             const cleanTitleText = parseMediaInfo(group.title || `Season ${index + 1}`).title;
             if (dropdownLabel) {
                 dropdownLabel.textContent = cleanTitleText;
             }
+
+            // Update Specs Bar dynamically for the selected season/group
+            const parsedGroup = parseMediaInfo(group.title || "");
+            const specLang = parsedGroup.meta.find(m => m.type === 'audio')?.text || "Dual";
+            const specQual = parsedGroup.meta.find(m => m.type === 'quality')?.text || "720p";
+            const specSize = parsedGroup.meta.find(m => m.type === 'size')?.text || "300MB";
+            
+            let codec = "x264";
+            const rawTitleLower = (group.title || "").toLowerCase();
+            if (rawTitleLower.includes("x265") || rawTitleLower.includes("hevc")) {
+                codec = "HEVC x265";
+            } else if (rawTitleLower.includes("x264")) {
+                codec = "x264";
+            }
+            if (rawTitleLower.includes("10bit")) {
+                codec += " 10Bit";
+            }
+
+            const setSafeText = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val;
+            };
+
+            setSafeText("specLanguage", specLang);
+            setSafeText("specQuality", specQual);
+            setSafeText("specSize", specSize);
+            setSafeText("specCodec", codec);
 
             // Mobile season selector display updates
             const mobLabel = document.getElementById("seasonSelectLabel");
@@ -1638,6 +1666,7 @@ function renderLinks(meta) {
             if (window.lucide) window.lucide.createIcons();
         }
 
+        window.currentSeasonRawTitle = seasonGroups[0].title || "Season 1";
         const initialCleanText = parseMediaInfo(seasonGroups[0].title || "Season 1").title;
         if (dropdownLabel) {
             dropdownLabel.textContent = initialCleanText;
@@ -1650,6 +1679,39 @@ function renderLinks(meta) {
         selectSeason(0);
     } else {
         if (seasonCardBox) seasonCardBox.style.display = "none";
+        
+        const firstMovieGroup = meta.linkList[0];
+        if (firstMovieGroup) {
+            window.currentSeasonRawTitle = firstMovieGroup.title || "";
+            const parsedGroup = parseMediaInfo(firstMovieGroup.title || "");
+            const specLang = parsedGroup.meta.find(m => m.type === 'audio')?.text || "Dual";
+            const specQual = parsedGroup.meta.find(m => m.type === 'quality')?.text || "720p";
+            const specSize = parsedGroup.meta.find(m => m.type === 'size')?.text || "300MB";
+            
+            let codec = "x264";
+            const rawTitleLower = (firstMovieGroup.title || "").toLowerCase();
+            if (rawTitleLower.includes("x265") || rawTitleLower.includes("hevc")) {
+                codec = "HEVC x265";
+            } else if (rawTitleLower.includes("x264")) {
+                codec = "x264";
+            }
+            if (rawTitleLower.includes("10bit")) {
+                codec += " 10Bit";
+            }
+
+            const setSafeText = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val;
+            };
+
+            setSafeText("specLanguage", specLang);
+            setSafeText("specQuality", specQual);
+            setSafeText("specSize", specSize);
+            setSafeText("specCodec", codec);
+        } else {
+            window.currentSeasonRawTitle = meta.title || "Streams";
+        }
+
         if (currentSeasonTitle) {
             currentSeasonTitle.textContent = meta.title || "Streams";
         }
@@ -1815,26 +1877,26 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
         return;
     }
 
+    // Extract dynamic fallbacks from parent title (season/group name)
+    const parentTitleText = window.currentSeasonRawTitle || "";
+    let fallbackSize = "300MB";
+    let fallbackQual = "720p";
+    if (parentTitleText) {
+        const sizeMatch = parentTitleText.match(/\[(\d+(?:\.\d+)?\s*(?:MB|GB|mb|gb)(?:\/[eE])?)\]/i) || parentTitleText.match(/(\d+(?:\.\d+)?\s*(?:MB|GB|mb|gb))/i);
+        if (sizeMatch) fallbackSize = sizeMatch[1] || sizeMatch[0];
+        const qualMatch = parentTitleText.match(/(\d{3,4}p|4k|2k)/i);
+        if (qualMatch) fallbackQual = qualMatch[1];
+    }
+
     if (isMobileView) {
         const epList = document.createElement("div");
         epList.className = "mobile-episodes-list";
-
-        const parentTitleText = document.getElementById("currentSeasonTitle")?.textContent || "";
-        let fallbackSize = "300MB";
-        let fallbackQual = "720p";
-        if (parentTitleText) {
-            const sizeMatch = parentTitleText.match(/\[(\d+(?:\.\d+)?\s*(?:MB|GB|mb|gb)(?:\/[eE])?)\]/i) || parentTitleText.match(/(\d+(?:\.\d+)?\s*(?:MB|GB|mb|gb))/i);
-            if (sizeMatch) fallbackSize = sizeMatch[1] || sizeMatch[0];
-            const qualMatch = parentTitleText.match(/(\d{3,4}p)/i);
-            if (qualMatch) fallbackQual = qualMatch[1];
-        }
 
         safeEpisodes.forEach((ep, idx) => {
             const epNum = ep.episode || (idx + 1);
             const parsedEp = parseMediaInfo(ep.title || `Episode ${epNum}`);
             const sizeTag = parsedEp.meta.find(m => m.type === 'size')?.text || fallbackSize;
             const qualTag = parsedEp.meta.find(m => m.type === 'quality')?.text || fallbackQual;
-            const durationStr = ep.duration || `${40 + ((idx * 7) % 15)}m`;
             const epTargetLink = ep.link || ep.url || ep.episodesLink || fallbackUrl || "";
 
             const card = document.createElement("div");
@@ -1875,7 +1937,6 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
             <tr>
                 <th style="width: 50px; text-align: center;">Episode</th>
                 <th>Title</th>
-                <th>Duration</th>
                 <th>Size</th>
                 <th>Quality</th>
                 <th style="text-align: right;">Action</th>
@@ -1889,9 +1950,8 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
     safeEpisodes.forEach((ep, idx) => {
         const epNum = ep.episode || (idx + 1);
         const parsedEp = parseMediaInfo(ep.title || `Episode ${epNum}`);
-        const sizeTag = parsedEp.meta.find(m => m.type === 'size')?.text || "400MB";
-        const qualTag = parsedEp.meta.find(m => m.type === 'quality')?.text || "720p";
-        const durationStr = ep.duration || `${40 + ((idx * 7) % 15)}m`;
+        const sizeTag = parsedEp.meta.find(m => m.type === 'size')?.text || fallbackSize;
+        const qualTag = parsedEp.meta.find(m => m.type === 'quality')?.text || fallbackQual;
 
         const tr = document.createElement("tr");
         tr.className = "ep-row-card";
@@ -1902,7 +1962,6 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
                 <span>${parsedEp.title || ep.title || `Episode ${epNum}`}</span>
                 ${idx === 0 ? '<span class="ep-badge-new">New</span>' : ''}
             </td>
-            <td style="color: #94a3b8; font-size: 12px;">${durationStr}</td>
             <td style="color: #94a3b8; font-size: 12px;">${sizeTag}</td>
             <td><span class="ep-quality-tag">${qualTag}</span></td>
             <td class="ep-actions-cell">

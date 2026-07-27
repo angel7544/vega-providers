@@ -80,7 +80,8 @@
                     <div class="hero-backdrop" id="detailBackdrop"></div>
                     <div class="hero-content">
                         <div class="hero-poster-box">
-                            <img id="detailPoster" class="hero-poster" src="" alt="" referrerpolicy="no-referrer">
+                            <img id="detailPoster" class="hero-poster" src="" alt="" referrerpolicy="no-referrer"
+                                 onerror="if(this.src && !this.src.includes('image-proxy') && this.src.startsWith('http')) { this.src = getApiUrl() + '/image-proxy?url=' + encodeURIComponent(this.src); } else { handleImageError(this, document.getElementById('detailTitle')?.textContent); }">
                         </div>
                         <div class="hero-meta">
                             <!-- Network / Platform Badges & Genre Tags -->
@@ -113,23 +114,23 @@
                             <div class="specs-pill-bar">
                                 <div class="spec-pill-item">
                                     <div class="spec-label"><i data-lucide="globe"></i> Language</div>
-                                    <div class="spec-value" id="specLanguage">English</div>
+                                    <div class="spec-value" id="specLanguage">-</div>
                                 </div>
                                 <div class="spec-pill-item">
                                     <div class="spec-label"><i data-lucide="captions"></i> Subtitles</div>
-                                    <div class="spec-value" id="specSubtitles">English</div>
+                                    <div class="spec-value" id="specSubtitles">-</div>
                                 </div>
                                 <div class="spec-pill-item">
                                     <div class="spec-label"><i data-lucide="monitor"></i> Quality</div>
-                                    <div class="spec-value" id="specQuality">WEB-DL 720p</div>
+                                    <div class="spec-value" id="specQuality">-</div>
                                 </div>
                                 <div class="spec-pill-item">
                                     <div class="spec-label"><i data-lucide="hard-drive"></i> Size</div>
-                                    <div class="spec-value" id="specSize">400MB</div>
+                                    <div class="spec-value" id="specSize">-</div>
                                 </div>
                                 <div class="spec-pill-item">
                                     <div class="spec-label"><i data-lucide="film"></i> Codec</div>
-                                    <div class="spec-value" id="specCodec">x264 E</div>
+                                    <div class="spec-value" id="specCodec">-</div>
                                 </div>
                             </div>
 
@@ -215,8 +216,8 @@
                     <!-- RIGHT COLUMN: Episodes / Streams & Downloads Table -->
                     <div class="details-right-col">
                         <div class="episodes-panel-header">
-                            <h2 id="currentSeasonTitle">Season 1</h2>
-                            <span id="currentEpisodeBadge" class="episodes-badge">0 Episodes</span>
+                            <h2 id="currentSeasonTitle">Streams</h2>
+                            <span id="currentEpisodeBadge" class="episodes-badge">-</span>
                         </div>
 
                         <!-- Episode Links Data Table -->
