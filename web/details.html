@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="referrer" content="no-referrer">
+    <title>Media Details | OrbixPlay</title>
+    <meta name="description" content="Watch & Download High Quality HD Movies, Series and Web Shows on OrbixPlay.">
+    <link rel="icon" type="image/x-icon" href="icon.ico">
+    <link rel="shortcut icon" type="image/png" href="icon.png">
+
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- PWA support -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#9333ea">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="artplayer.js"></script>
+</head>
+
+<body>
+
+    <!-- NAVBAR -->
+    <header class="navbar" id="mainNavbar">
+        <div class="nav-content">
+            <!-- LOGO -->
+            <a href="index.html" class="logo" style="text-decoration: none;">
+                <img src="icon.png" alt="Logo" style="width: 32px; height: 32px; border-radius: 8px;">
+                <span class="logo-text">OrbixPlay</span>
+            </a>
+
+            <!-- NAV LINKS -->
+            <nav class="nav-links">
+                <a href="index.html" class="nav-link">
+                    <i data-lucide="home" style="width:16px;height:16px;"></i>
+                    <span>Home</span>
+                </a>
+                <a href="about.html" class="nav-link">
+                    <i data-lucide="info" style="width:16px;height:16px;"></i>
+                    <span>About Us</span>
+                </a>
+                <a href="how-to-download.html" class="nav-link">
+                    <i data-lucide="download-cloud" style="width:16px;height:16px;"></i>
+                    <span>How to Download</span>
+                </a>
+                <a href="contact.html" class="nav-link">
+                    <i data-lucide="mail" style="width:16px;height:16px;"></i>
+                    <span>Contact Us</span>
+                </a>
+            </nav>
+
+            <!-- NAV ACTIONS -->
+            <div class="nav-actions">
+                <a href="index.html" class="stream-action-btn secondary" style="height: 38px; padding: 0 14px; text-decoration: none; font-size: 13px;">
+                    <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> Back to App
+                </a>
+                <button id="themeToggleBtn" onclick="toggleTheme()" class="nav-theme-btn" title="Toggle Light/Dark Theme">
+                    <i data-lucide="sun" id="themeBtnIcon" style="width:18px;height:18px;"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="main-container">
+        <div style="max-width: 1200px; margin: 0 auto; padding: 0;">
+
+            <!-- DETAILS PAGE VIEW -->
+            <div id="pageDetails" class="page-view active">
+                
+                <!-- HERO HEADER CONTAINER -->
+                <div class="hero-header-card" id="detailHero">
+                    <div class="hero-backdrop" id="detailBackdrop"></div>
+                    <div class="hero-content">
+                        <div class="hero-poster-box">
+                            <img id="detailPoster" class="hero-poster" src="" alt="" referrerpolicy="no-referrer"
+                                 onerror="if(this.src && !this.src.includes('image-proxy') && this.src.startsWith('http')) { this.src = getApiUrl() + '/image-proxy?url=' + encodeURIComponent(this.src); } else { handleImageError(this, document.getElementById('detailTitle')?.textContent); }">
+                        </div>
+                        <div class="hero-meta">
+                            <!-- Network / Platform Badges & Genre Tags -->
+                            <div class="hero-top-tags">
+                                <span id="detailPlatform" class="platform-tag" style="display: none;"><i data-lucide="tv"></i> <span id="detailPlatformText">Apple TV+ Original</span></span>
+                                <div id="detailGenres" class="genre-tags-list"></div>
+                            </div>
+
+                            <!-- Main Title -->
+                            <h1 id="detailTitle" class="hero-title">Loading Details...</h1>
+
+                            <!-- Ratings, Year, Seasons, Content Rating row -->
+                            <div class="meta-tags-bar">
+                                <div id="detailRating" class="rating-badge-pill" style="display: none;">
+                                    <i data-lucide="star" style="fill:#f59e0b; color:#f59e0b; width: 14px; height: 14px;"></i>
+                                    <span id="detailRatingVal">8.7</span>
+                                </div>
+                                <span id="detailYear" class="meta-pill" style="display: none;"></span>
+                                <span id="detailSeasonsCount" class="meta-pill" style="display: none;"></span>
+                                <span id="detailAgeRating" class="meta-pill age-pill" style="display: none;">TV-14</span>
+                            </div>
+
+                            <!-- Synopsis Description -->
+                            <div class="synopsis-wrapper" style="position: relative; width: 100%;">
+                                <p id="detailSynopsis" class="synopsis collapsed"></p>
+                                <button id="readMoreBtn" class="read-more-btn" onclick="toggleReadMore()" style="display: none;">.. readmore</button>
+                            </div>
+
+                            <!-- Specs Bar -->
+                            <div class="specs-pill-bar">
+                                <div class="spec-pill-item">
+                                    <div class="spec-label"><i data-lucide="globe"></i> Language</div>
+                                    <div class="spec-value" id="specLanguage">-</div>
+                                </div>
+                                <div class="spec-pill-item">
+                                    <div class="spec-label"><i data-lucide="captions"></i> Subtitles</div>
+                                    <div class="spec-value" id="specSubtitles">-</div>
+                                </div>
+                                <div class="spec-pill-item">
+                                    <div class="spec-label"><i data-lucide="monitor"></i> Quality</div>
+                                    <div class="spec-value" id="specQuality">-</div>
+                                </div>
+                                <div class="spec-pill-item">
+                                    <div class="spec-label"><i data-lucide="hard-drive"></i> Size</div>
+                                    <div class="spec-value" id="specSize">-</div>
+                                </div>
+                                <div class="spec-pill-item">
+                                    <div class="spec-label"><i data-lucide="film"></i> Codec</div>
+                                    <div class="spec-value" id="specCodec">-</div>
+                                </div>
+                            </div>
+
+                            <!-- Hero Action Buttons -->
+                            <div class="hero-actions-row">
+                                <button id="watchNowBtn" class="watch-now-btn" onclick="scrollToStreams()">
+                                    <i data-lucide="play" style="fill: white; width: 16px; height: 16px;"></i>
+                                    <span>Watch Now</span>
+                                </button>
+                                <button id="wishlistBtn" class="hero-action-btn" onclick="toggleWishlist()">
+                                    <i data-lucide="heart" style="width: 16px; height: 16px;"></i>
+                                    <span id="wishlistText">Add to Wishlist</span>
+                                </button>
+                                <button id="shareBtn" class="hero-action-btn" onclick="shareDetails()">
+                                    <i data-lucide="share-2" style="width: 16px; height: 16px;"></i>
+                                    <span>Share</span>
+                                </button>
+                                <a href="index.html" class="hero-action-btn icon-only-mobile" title="Back" style="text-decoration: none;">
+                                    <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i>
+                                    <span>Back</span>
+                                </a>
+                                <button id="refreshBtn" class="hero-action-btn icon-only-mobile" onclick="refreshDetails()" title="Refresh">
+                                    <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Series Information Card (Right side inside Hero Card for Desktop) -->
+                        <div class="hero-series-info-card">
+                            <div class="details-card-header">
+                                <h3 id="seriesInfoTitle">Series Information</h3>
+                            </div>
+                            <div class="series-info-list">
+                                <div class="info-row">
+                                    <span class="info-label">Title</span>
+                                    <span class="info-val" id="infoMetaTitle">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Genre</span>
+                                    <span class="info-val" id="infoMetaGenre">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label" id="infoMetaCreatorLabel">Created By</span>
+                                    <span class="info-val" id="infoMetaCreator">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label" id="infoMetaCastLabel">Starring</span>
+                                    <span class="info-val" id="infoMetaCast">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Country</span>
+                                    <span class="info-val" id="infoMetaCountry">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Language</span>
+                                    <span class="info-val" id="infoMetaLanguage">-</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TWO COLUMN MAIN CONTENT BODY -->
+                <div class="details-main-grid">
+                    <!-- LEFT COLUMN: Season Selector Card -->
+                    <div class="details-left-col">
+                        <!-- Season Selector Card with Left Side Dropdown -->
+                        <div class="details-card-box" id="seasonCardBox">
+                            <div class="details-card-header">
+                                <h3>Season</h3>
+                            </div>
+                            <!-- Left Side Season Dropdown -->
+                            <div class="season-dropdown-wrapper" id="seasonDropdownWrapper">
+                                <button id="seasonDropdownTrigger" class="season-dropdown-trigger" onclick="toggleSeasonDropdown(event)">
+                                    <span id="seasonDropdownLabel">Select Season</span>
+                                    <i data-lucide="chevron-down" style="width: 16px; height: 16px;"></i>
+                                </button>
+                                <div id="seasonDropdownMenu" class="season-dropdown-menu"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: Episodes / Streams & Downloads Table -->
+                    <div class="details-right-col">
+                        <div class="episodes-panel-header">
+                            <h2 id="currentSeasonTitle">Streams</h2>
+                            <span id="currentEpisodeBadge" class="episodes-badge">-</span>
+                        </div>
+
+                        <!-- Episode Links Data Table -->
+                        <div class="episodes-table-wrapper">
+                            <div id="linksContainer"></div>
+                        </div>
+
+                        <!-- Downloads Section -->
+                        <div id="downloadsSectionWrapper" style="display: none; margin-top: 24px;">
+                            <h3 class="section-subheading" id="downloadSectionTitle"><i data-lucide="download"></i> Downloads</h3>
+                            <div id="downloadContainer" class="downloads-table-wrapper"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- FULLSCREEN PLAYER PAGE -->
+    <div id="pagePlayer" class="page-view player-fullscreen-wrapper">
+        <div class="player-header">
+            <button class="close-player-btn" onclick="closePlayer()">
+                <i data-lucide="arrow-left"></i>
+                <span>Close Player</span>
+            </button>
+            <div class="player-title" id="playerTitleDisplay">Now Playing</div>
+        </div>
+        
+        <div id="artplayer-app" class="artplayer-container"></div>
+        <video id="native-player-app" class="artplayer-container" style="display: none; background: #000; object-fit: contain;" controls autoplay playsinline referrerpolicy="no-referrer"></video>
+    </div>
+
+    <!-- DOWNLOAD MODAL -->
+    <div id="downloadModal" class="modal-overlay" style="display: none;">
+        <div class="settings-dialog dl-modal-dialog">
+            <div class="dl-modal-header">
+                <h3 id="dlModalTitle" class="dl-modal-title">Download File</h3>
+                <button class="close-modal" onclick="closeDownloadModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="dl-modal-body">
+                <div id="dlModalMeta" class="dl-modal-meta">
+                    <i data-lucide="film" class="dl-modal-icon"></i>
+                    <div>
+                        <div id="dlModalEpName" class="dl-modal-ep-name">File Name</div>
+                        <div id="dlModalProvider" class="dl-modal-provider">Fetching Links...</div>
+                    </div>
+                </div>
+                <div id="dlModalContent">
+                    <div class="loader"><div class="spinner"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="legal-footer">
+        <div class="legal-footer-content">
+            <div class="legal-footer-branding">
+                <div class="legal-footer-logo">
+                    <img src="icon.png" alt="OrbixPlay">
+                    <span>OrbixPlay</span>
+                </div>
+                <p>The ultimate platform for high definition movies and web series with direct links.</p>
+            </div>
+            <div class="legal-footer-links">
+                <a href="about.html">About Us</a>
+                <a href="disclaimer.html">Disclaimer</a>
+                <a href="dmca.html">DMCA Policy</a>
+                <a href="how-to-download.html">How to Download</a>
+                <a href="contact.html">Contact Us</a>
+            </div>
+        </div>
+        <div class="legal-footer-bottom">
+            <p>&copy; 2026 OrbixPlay. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            if (window.lucide) window.lucide.createIcons();
+            
+            const params = new URLSearchParams(window.location.search);
+            const link = params.get('link') || params.get('url') || params.get('id');
+            const provider = params.get('provider') || localStorage.getItem('orbix_last_provider') || 'vega';
+            const title = params.get('title');
+
+            if (link) {
+                showDetails(link, provider, null, null, null, null, title);
+            } else {
+                // Default fallback state if no link param is present
+                showDetails("demo-silo", provider, null, null, null, null, "Silo Apple Original With Subtitle WEB x264 S3.E01 4 Added");
+            }
+        });
+    </script>
+</body>
+</html>
