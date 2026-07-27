@@ -2342,25 +2342,7 @@ h1, h2, h3, .logo-text {
 
 @media (max-width: 1024px) {
   .app-footer {
-    width: calc(100% - 24px) !important;
-    bottom: 74px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    padding: 10px 12px !important;
-  }
-
-  .footer-items-row {
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-  }
-
-  .footer-subtitle {
-    display: none;
-  }
-
-  .footer-separator {
-    display: none;
+    display: none !important;
   }
 }
 

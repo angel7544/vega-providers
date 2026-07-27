@@ -20,13 +20,13 @@ let tmdbKey = localStorage.getItem('tmdb_api_key') || "";
 // 🎨 THEME & UI MANAGER
 // ============================
 function initTheme() {
-    const savedTheme = localStorage.getItem('orbix_theme') || 'dark';
+    const savedTheme = localStorage.getItem('orbix_theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
     updateThemeUI(savedTheme);
 }
 
 function toggleTheme() {
-    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
     const newTheme = currentTheme === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('orbix_theme', newTheme);

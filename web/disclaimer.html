@@ -154,7 +154,7 @@
 
     <script>
         function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
             const newTheme = currentTheme === 'light' ? 'dark' : 'light';
             document.documentElement.setAttribute('data-theme', newTheme);
             localStorage.setItem('orbix_theme', newTheme);
@@ -169,7 +169,7 @@
             if (window.lucide) window.lucide.createIcons();
         }
 
-        const savedTheme = localStorage.getItem('orbix_theme') || 'dark';
+        const savedTheme = localStorage.getItem('orbix_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
         lucide.createIcons();
         updateThemeUI(savedTheme);
