@@ -1104,9 +1104,35 @@ h1, h2, h3, .logo-text {
   }
 }
 
+@media (max-width: 768px) {
+  .hero-content {
+    flex-direction: row;
+    align-items: flex-start;
+    text-align: left;
+    gap: 12px;
+  }
+  .hero-poster-box {
+    width: 130px;
+    height: 185px;
+    flex-shrink: 0;
+  }
+  .hero-series-info-card {
+    display: none;
+  }
+  .hero-top-tags, .meta-tags-bar, .hero-actions-row {
+    justify-content: flex-start;
+  }
+  .watch-now-btn {
+    width: 100%;
+  }
+  .specs-pill-bar {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 @media (max-width: 640px) {
   .specs-pill-bar {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
