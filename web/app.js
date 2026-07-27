@@ -1562,14 +1562,15 @@ function renderLinks(meta) {
             const group = seasonGroups[index];
             if (!group) return;
             
+            const cleanTitleText = parseMediaInfo(group.title || `Season ${index + 1}`).title;
             if (dropdownLabel) {
-                dropdownLabel.textContent = group.title || `Season ${index + 1}`;
+                dropdownLabel.textContent = cleanTitleText;
             }
 
             // Mobile season selector display updates
             const mobLabel = document.getElementById("seasonSelectLabel");
             if (mobLabel) {
-                mobLabel.textContent = group.title || `Season ${index + 1}`;
+                mobLabel.textContent = cleanTitleText;
             }
             const mobMenu = document.getElementById("mobileSeasonDropMenu");
             if (mobMenu) {
@@ -1594,7 +1595,7 @@ function renderLinks(meta) {
             }
             
             if (currentSeasonTitle) {
-                currentSeasonTitle.textContent = group.title || `Season ${index + 1}`;
+                currentSeasonTitle.textContent = cleanTitleText;
             }
             
             const groupTargetUrl = group.episodesLink || group.link || group.url;
@@ -1645,11 +1646,12 @@ function renderLinks(meta) {
             if (window.lucide) window.lucide.createIcons();
         }
 
+        const initialCleanText = parseMediaInfo(seasonGroups[0].title || "Season 1").title;
         if (dropdownLabel) {
-            dropdownLabel.textContent = seasonGroups[0].title || "Season 1";
+            dropdownLabel.textContent = initialCleanText;
         }
         if (currentSeasonTitle) {
-            currentSeasonTitle.textContent = seasonGroups[0].title || "Season 1";
+            currentSeasonTitle.textContent = initialCleanText;
         }
 
         // Render first season automatically
@@ -1825,11 +1827,21 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
         const epList = document.createElement("div");
         epList.className = "mobile-episodes-list";
 
+        const parentTitleText = document.getElementById("currentSeasonTitle")?.textContent || "";
+        let fallbackSize = "300MB";
+        let fallbackQual = "720p";
+        if (parentTitleText) {
+            const sizeMatch = parentTitleText.match(/\[(\d+(?:\.\d+)?\s*(?:MB|GB|mb|gb)(?:\/[eE])?)\]/i) || parentTitleText.match(/(\d+(?:\.\d+)?\s*(?:MB|GB|mb|gb))/i);
+            if (sizeMatch) fallbackSize = sizeMatch[1] || sizeMatch[0];
+            const qualMatch = parentTitleText.match(/(\d{3,4}p)/i);
+            if (qualMatch) fallbackQual = qualMatch[1];
+        }
+
         safeEpisodes.forEach((ep, idx) => {
             const epNum = ep.episode || (idx + 1);
             const parsedEp = parseMediaInfo(ep.title || `Episode ${epNum}`);
-            const sizeTag = parsedEp.meta.find(m => m.type === 'size')?.text || "400MB";
-            const qualTag = parsedEp.meta.find(m => m.type === 'quality')?.text || "720p";
+            const sizeTag = parsedEp.meta.find(m => m.type === 'size')?.text || fallbackSize;
+            const qualTag = parsedEp.meta.find(m => m.type === 'quality')?.text || fallbackQual;
             const durationStr = ep.duration || `${40 + ((idx * 7) % 15)}m`;
             const epTargetLink = ep.link || ep.url || ep.episodesLink || fallbackUrl || "";
 
@@ -1843,8 +1855,7 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
                         ${idx === 0 ? '<span class="ep-badge-new">New</span>' : ''}
                     </div>
                     <div class="mobile-ep-specs">
-                        <span>${durationStr}</span>
-                        <span>${sizeTag}</span>
+                        <span class="ep-quality-tag" style="background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); color:#60a5fa; margin-right:4px;">${sizeTag}</span>
                         <span class="ep-quality-tag">${qualTag}</span>
                     </div>
                 </div>

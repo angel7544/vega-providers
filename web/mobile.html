@@ -78,7 +78,7 @@
         .m-read-more { font-size: 12px; color: var(--accent2); font-weight: 600; cursor: pointer; background: none; border: none; padding: 6px 0 0; display: block; font-family: var(--font); }
 
         /* SPECS */
-        .m-specs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border); }
+        .m-specs-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--border); border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border); }
         .m-spec-item { background: var(--surface); padding: 11px 8px; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
         .m-spec-label { font-size: 9px; color: var(--text-muted); font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; }
         .m-spec-val { font-size: 13px; font-weight: 700; color: var(--text); }
@@ -90,16 +90,17 @@
 
         /* SEASON DROPDOWN */
         .m-season-dropdown-wrap { position: relative; }
-        .m-season-select-display { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius-md); padding: 12px 14px; cursor: pointer; font-size: 14px; font-weight: 700; color: var(--text); transition: border-color 0.15s; }
+        .m-season-select-display { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1.5px solid var(--border2); border-radius: var(--radius-md); padding: 12px 14px; cursor: pointer; font-size: 13px; font-weight: 700; color: var(--text); transition: border-color 0.15s; gap: 8px; }
         .m-season-select-display:active { border-color: var(--accent2); }
-        .m-season-drop-menu { position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-md); z-index: 50; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.5); animation: slideDown 0.18s ease; }
+        .m-season-select-display span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; text-align: left; }
+        .m-season-drop-menu { position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-md); z-index: 50; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.5); animation: slideDown 0.18s ease; max-height: 280px; overflow-y: auto; }
         @keyframes slideDown { from { opacity:0; transform: translateY(-6px); } to { opacity:1; transform: translateY(0); } }
         #seasonSelectorMobile { display: flex; flex-direction: column; width: 100%; }
-        .mobile-season-card { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; background: transparent; border: none; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s; width: 100%; min-width: unset; border-radius: 0; }
+        .mobile-season-card { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; background: transparent; border: none; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s; width: 100%; min-width: unset; border-radius: 0; gap: 12px; }
         .mobile-season-card:last-child { border-bottom: none; }
         .mobile-season-card:active { background: var(--surface3); }
         .mobile-season-card.active { background: rgba(147,51,234,0.12); }
-        .mobile-season-card span { font-size: 13px; font-weight: 700; color: var(--text-dim); }
+        .mobile-season-card span { font-size: 12px; font-weight: 700; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; text-align: left; }
         .mobile-season-card.active span { color: #e9d5ff; }
         .season-badge-group { display: flex; align-items: center; gap: 6px; }
         .season-ep-badge { font-size: 10px; font-weight: 600; color: var(--text-muted); background: var(--surface3); padding: 2px 7px; border-radius: 10px; }
@@ -286,16 +287,6 @@
                 <span class="m-spec-label">Quality</span>
                 <span class="m-spec-val" id="specQuality">WEB-DL</span>
             </div>
-            <div class="m-spec-item">
-                <span class="m-spec-label">Size</span>
-                <span class="m-spec-val" id="specSize">400MB</span>
-            </div>
-        </div>
-
-        <div class="m-synopsis-box" id="synopsisBox" style="display:none;">
-            <div class="m-synopsis-label">Synopsis</div>
-            <p class="m-synopsis-text" id="detailSynopsis"></p>
-            <button class="m-read-more" id="readMoreBtn" onclick="toggleReadMore()" style="display:none;">Read more</button>
         </div>
 
         <!-- Synopsis removed from here — now inline in hero area -->
