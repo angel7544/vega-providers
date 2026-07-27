@@ -147,51 +147,159 @@
         <!-- DETAILS PAGE -->
         <div id="pageDetails" class="page-view">
             
-            <!-- HERO HEADER -->
-            <div class="hero-header" id="detailHero">
+            <!-- HERO HEADER CONTAINER -->
+            <div class="hero-header-card" id="detailHero">
                 <div class="hero-backdrop" id="detailBackdrop"></div>
                 <div class="hero-content">
-                    <img id="detailPoster" class="hero-poster" src="" alt="" referrerpolicy="no-referrer">
+                    <div class="hero-poster-box">
+                        <img id="detailPoster" class="hero-poster" src="" alt="" referrerpolicy="no-referrer">
+                    </div>
                     <div class="hero-meta">
-                        <h1 id="detailTitle"></h1>
-                        <div class="meta-tags">
-                            <span id="detailYear"></span>
-                            <span id="detailType" class="type-tag"></span>
-                            <span id="detailProvider" class="provider-info"></span>
-                            <div id="detailRating" class="rating-badge" style="display:inline-flex;margin-left:8px;"></div>
+                        <!-- Network / Platform Badges & Genre Tags -->
+                        <div class="hero-top-tags">
+                            <span id="detailPlatform" class="platform-tag" style="display: none;"><i data-lucide="tv"></i> <span id="detailPlatformText">Apple TV+ Original</span></span>
+                            <div id="detailGenres" class="genre-tags-list"></div>
                         </div>
+
+                        <!-- Main Title -->
+                        <h1 id="detailTitle" class="hero-title"></h1>
+
+                        <!-- Ratings, Year, Seasons, Content Rating row -->
+                        <div class="meta-tags-bar">
+                            <div id="detailRating" class="rating-badge-pill" style="display: none;">
+                                <i data-lucide="star" style="fill:#f59e0b; color:#f59e0b; width: 14px; height: 14px;"></i>
+                                <span id="detailRatingVal">8.7</span>
+                            </div>
+                            <span id="detailYear" class="meta-pill" style="display: none;"></span>
+                            <span id="detailSeasonsCount" class="meta-pill" style="display: none;"></span>
+                            <span id="detailAgeRating" class="meta-pill age-pill" style="display: none;">TV-14</span>
+                        </div>
+
+                        <!-- Synopsis Description -->
                         <div class="synopsis-wrapper" style="position: relative; width: 100%;">
                             <p id="detailSynopsis" class="synopsis collapsed"></p>
                             <button id="readMoreBtn" class="read-more-btn" onclick="toggleReadMore()" style="display: none;">.. readmore</button>
                         </div>
-                        <div class="hero-actions">
-                            <button id="backBtn" class="stream-btn hero-btn" onclick="backToBrowse()">
-                                <i data-lucide="arrow-left"></i><span>Back</span>
+
+                        <!-- Specs Bar -->
+                        <div class="specs-pill-bar">
+                            <div class="spec-pill-item">
+                                <div class="spec-label"><i data-lucide="globe"></i> Language</div>
+                                <div class="spec-value" id="specLanguage">English</div>
+                            </div>
+                            <div class="spec-pill-item">
+                                <div class="spec-label"><i data-lucide="captions"></i> Subtitles</div>
+                                <div class="spec-value" id="specSubtitles">English</div>
+                            </div>
+                            <div class="spec-pill-item">
+                                <div class="spec-label"><i data-lucide="monitor"></i> Quality</div>
+                                <div class="spec-value" id="specQuality">WEB-DL 720p</div>
+                            </div>
+                            <div class="spec-pill-item">
+                                <div class="spec-label"><i data-lucide="hard-drive"></i> Size</div>
+                                <div class="spec-value" id="specSize">400MB</div>
+                            </div>
+                            <div class="spec-pill-item">
+                                <div class="spec-label"><i data-lucide="film"></i> Codec</div>
+                                <div class="spec-value" id="specCodec">x264 E</div>
+                            </div>
+                        </div>
+
+                        <!-- Hero Action Buttons -->
+                        <div class="hero-actions-row">
+                            <button id="watchNowBtn" class="watch-now-btn" onclick="scrollToStreams()">
+                                <i data-lucide="play" style="fill: white; width: 16px; height: 16px;"></i>
+                                <span>Watch Now</span>
                             </button>
-                            <button id="wishlistBtn" class="stream-btn hero-btn" onclick="toggleWishlist()">
-                                <i data-lucide="heart"></i> <span id="wishlistText">Add to Wishlist</span>
+                            <button id="wishlistBtn" class="hero-action-btn" onclick="toggleWishlist()">
+                                <i data-lucide="heart" style="width: 16px; height: 16px;"></i>
+                                <span id="wishlistText">Add to Wishlist</span>
                             </button>
-                            <button id="refreshBtn" class="stream-btn hero-btn" style="background: rgba(139, 92, 246, 0.1); border-color: var(--glass-border);" onclick="refreshDetails()">
-                                <i data-lucide="refresh-cw"></i> <span>Refresh</span>
+                            <button id="shareBtn" class="hero-action-btn" onclick="shareDetails()">
+                                <i data-lucide="share-2" style="width: 16px; height: 16px;"></i>
+                                <span>Share</span>
                             </button>
+                            <button id="backBtn" class="hero-action-btn icon-only-mobile" onclick="backToBrowse()" title="Back">
+                                <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i>
+                                <span>Back</span>
+                            </button>
+                            <button id="refreshBtn" class="hero-action-btn icon-only-mobile" onclick="refreshDetails()" title="Refresh">
+                                <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Series Information Card (Right side inside Hero Card for Desktop) -->
+                    <div class="hero-series-info-card">
+                        <div class="details-card-header">
+                            <h3 id="seriesInfoTitle">Series Information</h3>
+                        </div>
+                        <div class="series-info-list">
+                            <div class="info-row">
+                                <span class="info-label">Title</span>
+                                <span class="info-val" id="infoMetaTitle">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Genre</span>
+                                <span class="info-val" id="infoMetaGenre">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label" id="infoMetaCreatorLabel">Created By</span>
+                                <span class="info-val" id="infoMetaCreator">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label" id="infoMetaCastLabel">Starring</span>
+                                <span class="info-val" id="infoMetaCast">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Country</span>
+                                <span class="info-val" id="infoMetaCountry">-</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Language</span>
+                                <span class="info-val" id="infoMetaLanguage">-</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- TABS & MAIN CONTENT -->
-            <div class="details-content">
-                <div class="details-tabs">
-                    <button id="tabBtn-episodes" class="detail-tab active" onclick="switchDetailTab('episodes')">Episodes & Streams</button>
+            <!-- TWO COLUMN MAIN CONTENT BODY -->
+            <div class="details-main-grid">
+                <!-- LEFT COLUMN: Season Selector Card -->
+                <div class="details-left-col">
+                    <!-- Season Selector Card -->
+                    <div class="details-card-box" id="seasonCardBox">
+                        <div class="details-card-header">
+                            <h3>Season</h3>
+                        </div>
+                        <div class="season-dropdown-wrapper" id="seasonDropdownWrapper">
+                            <button id="seasonDropdownTrigger" class="season-dropdown-trigger" onclick="toggleSeasonDropdown(event)">
+                                <span id="seasonDropdownLabel">Select Season</span>
+                                <i data-lucide="chevron-down" style="width: 16px; height: 16px;"></i>
+                            </button>
+                            <div id="seasonDropdownMenu" class="season-dropdown-menu"></div>
+                        </div>
+                    </div>
                 </div>
 
-                <div id="tab-episodes" class="detail-tab-content active">
-                    <!-- Season Selector -->
-                    <div id="seasonSelector" class="season-tabs"></div>
-                    <div id="linksContainer" class="links-list"></div>
-                    
-                    <h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 18px;" id="downloadSectionTitle">Downloads</h3>
-                    <div id="downloadContainer" class="links-list"></div>
+                <!-- RIGHT COLUMN: Episodes / Streams & Downloads Table -->
+                <div class="details-right-col">
+                    <div class="episodes-panel-header">
+                        <h2 id="currentSeasonTitle">Season 1</h2>
+                        <span id="currentEpisodeBadge" class="episodes-badge">0 Episodes</span>
+                    </div>
+
+                    <!-- Episode Links Data Table -->
+                    <div class="episodes-table-wrapper">
+                        <div id="linksContainer"></div>
+                    </div>
+
+                    <!-- Downloads Section -->
+                    <div id="downloadsSectionWrapper" style="display: none; margin-top: 24px;">
+                        <h3 class="section-subheading" id="downloadSectionTitle"><i data-lucide="download"></i> Downloads</h3>
+                        <div id="downloadContainer" class="downloads-table-wrapper"></div>
+                    </div>
                 </div>
             </div>
         </div>

@@ -1,7 +1,7 @@
 // ============================
 // ⚙️ CONFIGURATION & STATE
 // ============================
-let API_BASE = localStorage.getItem('vega_api_url') || "";
+let API_BASE = localStorage.getItem('vega_api_url') || "http://localhost:3001";
 const getApiUrl = () => {
     let url = API_BASE ? API_BASE : window.location.origin;
     if (url.endsWith('/')) url = url.slice(0, -1);
@@ -885,6 +885,56 @@ function extractTitleFromUrl(url) {
 // ============================
 // 📽️ DETAILS
 // ============================
+function handleImageError(imgEl, title = "") {
+    if (!imgEl) return;
+    imgEl.onerror = null;
+    const displayTitle = (title || currentMeta?.title || "OrbixPlay").trim();
+    const encodedTitle = encodeURIComponent(displayTitle.length > 25 ? displayTitle.substring(0, 25) + "..." : displayTitle);
+    imgEl.src = `https://placehold.co/400x600/1a1a24/a78bfa.svg?text=${encodedTitle}`;
+}
+
+function refreshDetails() {
+    if (currentMeta && currentMeta.__link) {
+        showDetails(currentMeta.__link, currentMeta.__provider, currentMeta.image || currentMeta.poster, currentMeta.tmdbId, currentMeta.type, currentMeta.imdbId, currentMeta.title);
+    } else {
+        const urlParams = new URLSearchParams(window.location.search);
+        const link = urlParams.get('link');
+        const provider = urlParams.get('provider');
+        if (link && provider) {
+            showDetails(link, provider);
+        }
+    }
+}
+
+function scrollToStreams() {
+    const el = document.getElementById("linksContainer");
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+function shareDetails() {
+    const title = currentMeta?.title || document.getElementById("detailTitle")?.textContent || "OrbixPlay";
+    const url = window.location.href;
+    if (navigator.share) {
+        navigator.share({
+            title: title,
+            text: `Check out ${title} on OrbixPlay!`,
+            url: url
+        }).catch(() => {});
+    } else {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(url).then(() => {
+                alert("Link copied to clipboard!");
+            }).catch(() => {
+                alert("Share URL: " + url);
+            });
+        } else {
+            alert("Share URL: " + url);
+        }
+    }
+}
+
 async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId = null, explicitType = null, explicitImdbId = null, explicitTitle = null) {
     window.scrollTo(0, 0); // scroll to top when opening details
     
@@ -900,7 +950,7 @@ async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId
     const posterEl = document.getElementById("detailPoster");
     const backdropEl = document.getElementById("detailBackdrop");
 
-    // 1. Initial UI state (Prioritize explicitTitle, cachedItem, or URL slug over generic placeholders)
+    // 1. Initial UI state
     const urlSlugTitle = extractTitleFromUrl(link);
     const candidateInitial = [
         explicitTitle,
@@ -916,15 +966,20 @@ async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId
         titleEl.textContent = "Loading...";
     }
 
-    if (cachedItem && cachedItem.synopsis) {
-        if (synopsisEl) synopsisEl.textContent = cachedItem.synopsis;
-    } else {
-        if (synopsisEl) synopsisEl.textContent = "";
+    if (synopsisEl) {
+        synopsisEl.textContent = (cachedItem && cachedItem.synopsis) ? cachedItem.synopsis : "";
     }
 
     const initialPoster = isValidImage(fallbackPoster) ? fallbackPoster : (cachedItem && isValidImage(cachedItem.image) ? cachedItem.image : (cachedItem && isValidImage(cachedItem.coverUrl) ? cachedItem.coverUrl : null));
-    if (posterEl) posterEl.src = initialPoster || "missing.jpg";
-    if (backdropEl && initialPoster) backdropEl.style.backgroundImage = `url(${initialPoster})`;
+    if (posterEl) {
+        posterEl.onerror = () => handleImageError(posterEl, initialTitle);
+        if (isValidImage(initialPoster)) {
+            posterEl.src = initialPoster;
+        } else {
+            handleImageError(posterEl, initialTitle);
+        }
+    }
+    if (backdropEl && isValidImage(initialPoster)) backdropEl.style.backgroundImage = `url(${initialPoster})`;
 
     if (cachedItem) {
         currentMeta = {
@@ -935,9 +990,9 @@ async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId
             __provider: provider
         };
         checkWishlistState();
-        document.getElementById("wishlistBtn").style.display = "flex";
+        document.getElementById("wishlistBtn").style.display = "inline-flex";
     } else {
-        document.getElementById("wishlistBtn").style.display = "none";
+        document.getElementById("wishlistBtn").style.display = "inline-flex";
     }
 
     document.getElementById("linksContainer").innerHTML = `<div class="loader"><div class="spinner"></div></div>`;
@@ -956,7 +1011,7 @@ async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId
         const freshMeta = await resp.json();
         currentMeta = { ...freshMeta, __link: link, __provider: provider };
 
-        // 🎬 Comprehensive Title Extraction across all provider schemas with strict validation
+        // 🎬 Title Extraction
         const candidateMetaTitles = [
             freshMeta.title,
             freshMeta.name,
@@ -978,13 +1033,28 @@ async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId
         titleEl.textContent = parsed.title;
         currentMeta.title = parsed.title;
 
-        // 🎬 Comprehensive Synopsis Extraction across all provider schemas
+        // Populate Specs Bar & Series Info
+        const specLang = parsed.meta.find(m => m.type === 'audio')?.text || freshMeta.language || "English";
+        const specQual = parsed.meta.find(m => m.type === 'quality')?.text || freshMeta.quality || "WEB-DL 720p";
+        const specSize = parsed.meta.find(m => m.type === 'size')?.text || freshMeta.size || "400MB";
+
+        document.getElementById("specLanguage").textContent = specLang;
+        document.getElementById("specSubtitles").textContent = freshMeta.subtitles || "English";
+        document.getElementById("specQuality").textContent = specQual;
+        document.getElementById("specSize").textContent = specSize;
+        document.getElementById("specCodec").textContent = freshMeta.codec || "x264 E";
+
+        document.getElementById("infoMetaTitle").textContent = parsed.title;
+        document.getElementById("infoMetaLanguage").textContent = specLang;
+        document.getElementById("infoMetaGenre").textContent = freshMeta.genre || freshMeta.genres || "Sci-Fi, Mystery, Drama";
+
+        // 🎬 Synopsis Extraction
         let metaSynopsis = freshMeta.description || freshMeta.synopsis || freshMeta.summary || freshMeta.overview || freshMeta.story || freshMeta.plot || freshMeta.desc || (cachedItem ? cachedItem.synopsis : "");
         if (synopsisEl) {
             synopsisEl.textContent = metaSynopsis || "No synopsis available.";
         }
         
-        // 🎬 Comprehensive Poster Extraction across all provider schemas
+        // 🎬 Poster Extraction
         let posterImg = freshMeta.image || freshMeta.poster || freshMeta.cover || freshMeta.thumbnail || freshMeta.img || freshMeta.src || initialPoster;
         if (posterEl) {
             if (isValidImage(posterImg)) {
@@ -993,20 +1063,17 @@ async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId
             posterEl.onerror = () => handleImageError(posterEl, parsed.title);
         }
 
-        document.getElementById("detailRating").textContent = "";
-        document.getElementById("detailYear").textContent = "";
-
         if (backdropEl && isValidImage(posterImg)) {
             backdropEl.style.backgroundImage = `url(${posterImg})`;
         }
         
         checkWishlistState();
-        document.getElementById("wishlistBtn").style.display = "flex";
+        document.getElementById("wishlistBtn").style.display = "inline-flex";
 
         renderLinks(currentMeta);
         renderDownloads(currentMeta);
 
-        // 🌟 Enrich missing metadata & synopsis via TMDB/TVMaze
+        // 🌟 Enrich metadata via TMDB/TVMaze
         const metaTmdbId = currentMeta.tmdbId || currentMeta.tmdb || currentMeta.tmdb_id || explicitTmdbId || (cachedItem ? cachedItem.tmdbId : null);
         const metaType = currentMeta.type || explicitType || (cachedItem ? cachedItem.type : null);
         const metaImdbId = currentMeta.imdbId || currentMeta.imdb || currentMeta.imdb_id || explicitImdbId || (cachedItem ? cachedItem.imdbId : null);
@@ -1082,16 +1149,43 @@ async function enrichMetadata(title, explicitTmdbId = null, mediaType = null, ex
                 
                 if (item.vote_average) {
                     const ratingEl = document.getElementById("detailRating");
-                    ratingEl.innerHTML = `<i data-lucide="star" style="width:14px;height:14px;margin-right:4px;"></i> ${item.vote_average.toFixed(1)}`;
-                    ratingEl.style.display = "inline-flex";
-                    lucide.createIcons();
+                    const ratingVal = document.getElementById("detailRatingVal");
+                    if (ratingVal) ratingVal.textContent = item.vote_average.toFixed(1);
+                    if (ratingEl) ratingEl.style.display = "inline-flex";
                 }
                 
                 const year = item.release_date ? item.release_date.split('-')[0] : (item.first_air_date ? item.first_air_date.split('-')[0] : "");
                 if (year) {
                     const yearEl = document.getElementById("detailYear");
-                    yearEl.textContent = year;
-                    yearEl.style.display = "inline-block";
+                    if (yearEl) {
+                        yearEl.textContent = year;
+                        yearEl.style.display = "inline-block";
+                    }
+                }
+
+                if (item.number_of_seasons) {
+                    const seasonPill = document.getElementById("detailSeasonsCount");
+                    if (seasonPill) {
+                        seasonPill.textContent = `${item.number_of_seasons} Season${item.number_of_seasons > 1 ? 's' : ''}`;
+                        seasonPill.style.display = "inline-block";
+                    }
+                }
+
+                const genresContainer = document.getElementById("detailGenres");
+                if (genresContainer && item.genre_ids) {
+                    genresContainer.innerHTML = "";
+                    const genreNames = item.genres ? item.genres.map(g => g.name) : ["Sci-Fi", "Mystery", "Drama"];
+                    genreNames.slice(0, 3).forEach(g => {
+                        const pill = document.createElement("span");
+                        pill.className = "genre-pill";
+                        pill.textContent = g;
+                        genresContainer.appendChild(pill);
+                    });
+                    document.getElementById("infoMetaGenre").textContent = genreNames.join(", ");
+                }
+
+                if (item.origin_country && item.origin_country[0]) {
+                    document.getElementById("infoMetaCountry").textContent = item.origin_country[0] === 'US' ? 'United States' : item.origin_country[0];
                 }
 
                 if (item.backdrop_path) {
@@ -1125,21 +1219,50 @@ async function enrichMetadata(title, explicitTmdbId = null, mediaType = null, ex
                 
                 if (show.rating?.average) {
                     const ratingEl = document.getElementById("detailRating");
-                    ratingEl.innerHTML = `<i data-lucide="star" style="width:14px;height:14px;margin-right:4px;"></i> ${show.rating.average}`;
-                    ratingEl.style.display = "inline-flex";
-                    lucide.createIcons();
+                    const ratingVal = document.getElementById("detailRatingVal");
+                    if (ratingVal) ratingVal.textContent = show.rating.average;
+                    if (ratingEl) ratingEl.style.display = "inline-flex";
                 }
                 
                 const year = show.premiered ? show.premiered.split('-')[0] : "";
                 if (year) {
                     const yearEl = document.getElementById("detailYear");
-                    yearEl.textContent = year;
-                    yearEl.style.display = "inline-block";
+                    if (yearEl) {
+                        yearEl.textContent = year;
+                        yearEl.style.display = "inline-block";
+                    }
+                }
+
+                if (show.genres && show.genres.length > 0) {
+                    const genresContainer = document.getElementById("detailGenres");
+                    if (genresContainer) {
+                        genresContainer.innerHTML = "";
+                        show.genres.slice(0, 3).forEach(g => {
+                            const pill = document.createElement("span");
+                            pill.className = "genre-pill";
+                            pill.textContent = g;
+                            genresContainer.appendChild(pill);
+                        });
+                    }
+                    document.getElementById("infoMetaGenre").textContent = show.genres.join(", ");
+                }
+
+                if (show.network?.country?.name) {
+                    document.getElementById("infoMetaCountry").textContent = show.network.country.name;
+                }
+                if (show.network?.name) {
+                    const platformTag = document.getElementById("detailPlatform");
+                    const platformText = document.getElementById("detailPlatformText");
+                    if (platformTag && platformText) {
+                        platformText.textContent = `${show.network.name} Original`;
+                        platformTag.style.display = "inline-flex";
+                    }
                 }
             }
         } catch (e) { console.error("TVMaze enrich failed", e); }
     }
     
+    if (window.lucide) window.lucide.createIcons();
     checkSynopsisLength();
 }
 
@@ -1298,30 +1421,36 @@ function switchDetailTab(tabId) {
     if (targetBtn) targetBtn.classList.add('active');
 }
 
+function toggleSeasonDropdown(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById("seasonDropdownMenu");
+    if (menu) {
+        menu.classList.toggle("show");
+    }
+}
+
+document.addEventListener('click', (e) => {
+    const wrapper = document.getElementById("seasonDropdownWrapper");
+    const menu = document.getElementById("seasonDropdownMenu");
+    if (menu && wrapper && !wrapper.contains(e.target)) {
+        menu.classList.remove("show");
+    }
+});
+
 function renderLinks(meta) {
     const container = document.getElementById("linksContainer");
-    const seasonSelector = document.getElementById("seasonSelector");
-    container.innerHTML = "";
-    if (seasonSelector) seasonSelector.innerHTML = "";
+    const seasonCardBox = document.getElementById("seasonCardBox");
+    const currentSeasonTitle = document.getElementById("currentSeasonTitle");
+    const dropdownMenu = document.getElementById("seasonDropdownMenu");
+    const dropdownLabel = document.getElementById("seasonDropdownLabel");
     
-    switchDetailTab('episodes');
-
-    if (!meta.linkList || !meta.linkList.length) {
-         if (meta.episodes || meta.seasons) {
-             container.innerHTML = "<p>Data structure has episodes but it's not handled by the default provider output format natively yet.</p>";
-         } else {
-             container.innerHTML = "<p style='color: var(--text-dim)'>No playable streams found.</p>";
-         }
-         
-         const searchBtn = document.createElement("button");
-         searchBtn.className = "stream-btn";
-         searchBtn.style.marginTop = "10px";
-         searchBtn.innerHTML = `<i data-lucide="search"></i> Search This Provider`;
-         searchBtn.onclick = () => {
-             fetchData(parseMediaInfo(meta.title).title, true);
-         };
-         container.appendChild(searchBtn);
-         lucide.createIcons();
+    container.innerHTML = "";
+    if (dropdownMenu) dropdownMenu.innerHTML = "";
+    
+    if (!meta || !meta.linkList || !meta.linkList.length) {
+         if (seasonCardBox) seasonCardBox.style.display = "none";
+         if (currentSeasonTitle) currentSeasonTitle.textContent = meta.title || "Streams";
+         container.innerHTML = "<p style='color: var(--text-dim); padding: 20px 0;'>No playable streams found for this content.</p>";
          return;
     }
 
@@ -1342,145 +1471,58 @@ function renderLinks(meta) {
     });
 
     if (seasonGroups.length > 0) {
-        if (seasonSelector) {
-            seasonSelector.style.display = "block";
-            seasonSelector.innerHTML = "";
+        if (seasonCardBox) seasonCardBox.style.display = "flex";
+        
+        const selectSeason = (index) => {
+            const group = seasonGroups[index];
             
-            // 1. Create custom colorful dropdown container (for mobile)
-            const dropdown = document.createElement("div");
-            dropdown.className = "colorful-dropdown mobile-only-dropdown";
-            
-            const trigger = document.createElement("button");
-            trigger.className = "colorful-dropdown-trigger";
-            trigger.type = "button";
-            trigger.setAttribute("aria-haspopup", "listbox");
-            trigger.setAttribute("aria-expanded", "false");
-            
-            const valueSpan = document.createElement("div");
-            valueSpan.className = "colorful-dropdown-value";
-            valueSpan.style.width = "100%";
-            valueSpan.innerHTML = createStreamBadgeHtml(seasonGroups[0].title, "layers");
-            
-            // Centering helper: overwrite default align-items for trigger badge layout
-            const centerBadgeLayout = (container) => {
-                const innerContainer = container.querySelector('div');
-                if (innerContainer) {
-                    innerContainer.style.alignItems = 'center';
-                    innerContainer.style.textAlign = 'center';
-                    innerContainer.style.justifyContent = 'center';
-                    const firstRow = innerContainer.querySelector('div');
-                    if (firstRow) {
-                        firstRow.style.justifyContent = 'center';
-                    }
-                    const badgesDiv = innerContainer.querySelector('div:nth-child(2)');
-                    if (badgesDiv) {
-                        badgesDiv.style.justifyContent = 'center';
-                        badgesDiv.style.paddingLeft = '0';
-                    }
-                }
-            };
-            centerBadgeLayout(valueSpan);
-            
-            const chevron = document.createElement("i");
-            chevron.setAttribute("data-lucide", "chevron-down");
-            chevron.className = "dropdown-chevron";
-            chevron.style.width = "18px";
-            chevron.style.height = "18px";
-            
-            trigger.appendChild(valueSpan);
-            trigger.appendChild(chevron);
-            
-            const menu = document.createElement("div");
-            menu.className = "colorful-dropdown-menu";
-            
-            const closeDropdown = () => {
-                trigger.setAttribute("aria-expanded", "false");
-                menu.classList.remove("show");
-            };
-            
-            trigger.onclick = (e) => {
-                e.stopPropagation();
-                const isExpanded = trigger.getAttribute("aria-expanded") === "true";
-                document.querySelectorAll('.custom-dropdown, .colorful-dropdown').forEach(other => {
-                    if (other !== dropdown) {
-                        const otherTrigger = other.querySelector('.custom-dropdown-trigger, .colorful-dropdown-trigger');
-                        const otherMenu = other.querySelector('.custom-dropdown-menu, .colorful-dropdown-menu');
-                        if (otherTrigger) otherTrigger.setAttribute('aria-expanded', 'false');
-                        if (otherMenu) otherMenu.classList.remove('show');
-                    }
-                });
-                trigger.setAttribute("aria-expanded", !isExpanded ? "true" : "false");
-                menu.classList.toggle("show", !isExpanded);
-            };
-            
-            // 2. Create cards container (for desktop)
-            const cardsContainer = document.createElement("div");
-            cardsContainer.className = "season-cards-container desktop-only-cards";
-            
-            const selectSeason = (index) => {
-                const group = seasonGroups[index];
-                
-                // Update dropdown state
-                menu.querySelectorAll(".colorful-dropdown-item").forEach((el, i) => {
+            if (dropdownLabel) {
+                dropdownLabel.textContent = group.title || `Season ${index + 1}`;
+            }
+
+            if (dropdownMenu) {
+                dropdownMenu.querySelectorAll(".season-dropdown-item").forEach((el, i) => {
                     el.classList.toggle("selected", i === index);
                 });
-                valueSpan.innerHTML = createStreamBadgeHtml(group.title, "layers");
-                centerBadgeLayout(valueSpan);
-                
-                // Update cards state
-                cardsContainer.querySelectorAll(".season-tab").forEach((el, i) => {
-                    el.classList.toggle("active", i === index);
-                });
-                
-                if (window.lucide) window.lucide.createIcons();
-                
-                if (group.directLinks && group.directLinks.length > 0) {
-                    renderEpisodeList(group.directLinks, currentProvider);
-                } else {
-                    loadEpisodes(group.episodesLink || group.link, currentProvider);
-                }
-            };
+                dropdownMenu.classList.remove("show");
+            }
             
-            // Populate dropdown & card lists
+            if (currentSeasonTitle) {
+                currentSeasonTitle.textContent = group.title || `Season ${index + 1}`;
+            }
+            
+            if (group.directLinks && group.directLinks.length > 0) {
+                renderEpisodeList(group.directLinks, currentProvider);
+            } else {
+                loadEpisodes(group.episodesLink || group.link, currentProvider);
+            }
+        };
+
+        if (dropdownMenu) {
+            dropdownMenu.innerHTML = "";
             seasonGroups.forEach((group, index) => {
-                // Dropdown item
                 const item = document.createElement("div");
-                item.className = "colorful-dropdown-item" + (index === 0 ? " selected" : "");
-                item.innerHTML = createStreamBadgeHtml(group.title, "layers");
-                centerBadgeLayout(item);
+                item.className = "season-dropdown-item" + (index === 0 ? " selected" : "");
+                const epCountStr = group.directLinks ? `${group.directLinks.length} Episodes` : "Available";
+                item.innerHTML = `
+                    <span>${group.title || `Season ${index + 1}`}</span>
+                    <span style="font-size: 11px; opacity: 0.7;">${epCountStr}</span>
+                `;
                 item.onclick = (e) => {
                     e.stopPropagation();
-                    closeDropdown();
                     selectSeason(index);
                 };
-                menu.appendChild(item);
-                
-                // Card item
-                const card = document.createElement("button");
-                card.className = "season-tab" + (index === 0 ? " active" : "");
-                card.innerHTML = createStreamBadgeHtml(group.title, "layers");
-                card.onclick = () => {
-                    selectSeason(index);
-                };
-                cardsContainer.appendChild(card);
+                dropdownMenu.appendChild(item);
             });
-            
-            dropdown.appendChild(trigger);
-            dropdown.appendChild(menu);
-            
-            seasonSelector.appendChild(dropdown);
-            seasonSelector.appendChild(cardsContainer);
-            
-            // Register close dropdown on clicking outside
-            document.addEventListener('click', (e) => {
-                if (!dropdown.contains(e.target)) {
-                    closeDropdown();
-                }
-            });
-            
-            if (window.lucide) window.lucide.createIcons();
         }
-        
+
+        if (dropdownLabel) {
+            dropdownLabel.textContent = seasonGroups[0].title || "Season 1";
+        }
+        if (currentSeasonTitle) {
+            currentSeasonTitle.textContent = seasonGroups[0].title || "Season 1";
+        }
+
         // Render first season automatically
         if (seasonGroups[0].directLinks && seasonGroups[0].directLinks.length > 0) {
             renderEpisodeList(seasonGroups[0].directLinks, currentProvider);
@@ -1488,75 +1530,37 @@ function renderLinks(meta) {
             loadEpisodes(seasonGroups[0].episodesLink || seasonGroups[0].link, currentProvider);
         }
     } else {
-        if (seasonSelector) seasonSelector.style.display = "none";
+        if (seasonCardBox) seasonCardBox.style.display = "none";
+        if (currentSeasonTitle) {
+            currentSeasonTitle.textContent = meta.title || "Streams";
+        }
         
         if (movieGroups.length > 0) {
-            const dropdownContainer = document.createElement("div");
-            dropdownContainer.className = "stream-dropdown-container";
-            dropdownContainer.style.width = "100%";
-            dropdownContainer.style.marginBottom = "16px";
-            
-            const select = document.createElement("select");
-            select.className = "movie-select";
-            select.id = "movieStreamSelect";
-            
-            movieGroups.forEach((group, index) => {
-                const opt = document.createElement("option");
-                opt.value = index;
-                opt.textContent = getStreamLabel(group);
-                select.appendChild(opt);
-            });
-            
-            const playBtn1 = document.createElement("button");
-            playBtn1.className = "stream-action-btn";
-            playBtn1.innerHTML = `<i data-lucide="play-circle"></i> Play`;
-            playBtn1.onclick = () => {
-                const selectedIndex = parseInt(select.value);
-                const group = movieGroups[selectedIndex];
-                const link = group.directLinks?.[0]?.link || group.link;
-                if (link) {
-                    currentPlayerType = 1;
-                    playStream(link, currentProvider);
-                } else {
-                    alert("No direct link found.");
-                }
-            };
-            
-            const playBtn2 = document.createElement("button");
-            playBtn2.className = "stream-action-btn secondary";
-            playBtn2.innerHTML = `<i data-lucide="play"></i> Play Native`;
-            playBtn2.title = "Play with Player 2 (Native)";
-            playBtn2.onclick = () => {
-                const selectedIndex = parseInt(select.value);
-                const group = movieGroups[selectedIndex];
-                const link = group.directLinks?.[0]?.link || group.link;
-                if (link) {
-                    currentPlayerType = 2;
-                    playStream(link, currentProvider);
-                } else {
-                    alert("No direct link found.");
-                }
-            };
-            
-            dropdownContainer.appendChild(select);
-            dropdownContainer.appendChild(playBtn1);
-            dropdownContainer.appendChild(playBtn2);
-            
-            container.appendChild(dropdownContainer);
+            const streamList = movieGroups.map((g, idx) => ({
+                title: g.title || `Stream Link ${idx + 1}`,
+                link: g.directLinks?.[0]?.link || g.link
+            }));
+            renderEpisodeList(streamList, currentProvider);
+        } else if (meta.linkList && meta.linkList.length > 0) {
+            const streamList = meta.linkList.map((g, idx) => ({
+                title: g.title || `Stream Link ${idx + 1}`,
+                link: g.directLinks?.[0]?.link || g.link
+            }));
+            renderEpisodeList(streamList, currentProvider);
         } else {
-            container.innerHTML = "<p style='color: var(--text-dim)'>No playable streams found.</p>";
+            container.innerHTML = "<p style='color: var(--text-dim); padding: 20px 0;'>No playable streams found.</p>";
         }
     }
 }
 
 function renderDownloads(meta) {
+    const wrapper = document.getElementById("downloadsSectionWrapper");
     const container = document.getElementById("downloadContainer");
-    const titleObj = document.getElementById("downloadSectionTitle");
     
     if (container) container.innerHTML = "";
     
     if (!meta || !meta.linkList) {
-        if (titleObj) titleObj.style.display = 'none';
+        if (wrapper) wrapper.style.display = 'none';
         return;
     }
     
@@ -1567,77 +1571,59 @@ function renderDownloads(meta) {
     });
     
     if (downloadGroups.length === 0) {
-        if (titleObj) titleObj.style.display = 'none';
+        if (wrapper) wrapper.style.display = 'none';
         return;
     }
     
-    if (titleObj) titleObj.style.display = 'block';
+    if (wrapper) wrapper.style.display = 'block';
     
-    const isMobile = window.innerWidth <= 1024;
+    const table = document.createElement("table");
+    table.className = "ep-table";
+    table.innerHTML = `
+        <thead>
+            <tr>
+                <th style="width: 50px; text-align: center;">#</th>
+                <th>Download Title</th>
+                <th>Quality</th>
+                <th style="text-align: right;">Action</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    `;
     
-    if (isMobile) {
-        downloadGroups.forEach(group => {
-            const row = document.createElement("div");
-            row.className = "ep-row";
+    const tbody = table.querySelector("tbody");
 
-            const btn1 = document.createElement("button");
-            btn1.className = "ep-btn";
-            btn1.innerHTML = createStreamBadgeHtml(group.title || "Download Link", "download");
-            btn1.onclick = () => {
-                resolveDownload(group.link, currentProvider, group.title);
-            };
+    downloadGroups.forEach((group, idx) => {
+        const parsed = parseMediaInfo(group.title || "Download Link");
+        const qualTag = parsed.meta.find(m => m.type === 'quality')?.text || "WEB-DL";
 
-            const dlBtn = document.createElement("button");
-            dlBtn.className = "ep-btn-dl";
-            dlBtn.innerHTML = `<i data-lucide="download"></i>`;
-            dlBtn.title = "Get Download Links";
-            dlBtn.onclick = () => {
-                resolveDownload(group.link, currentProvider, group.title);
-            };
+        const tr = document.createElement("tr");
+        tr.className = "ep-row-card";
+        
+        tr.innerHTML = `
+            <td class="ep-num-cell">${idx + 1}</td>
+            <td class="ep-title-cell">
+                <span>${parsed.title || group.title || "Download Link"}</span>
+            </td>
+            <td><span class="ep-quality-tag">${qualTag}</span></td>
+            <td class="ep-actions-cell">
+                <button class="ep-action-btn-dl" title="Get Download Links" onclick="resolveDownload('${group.link}', '${currentProvider}', '${group.title || ''}')">
+                    <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                </button>
+            </td>
+        `;
 
-            row.appendChild(btn1);
-            row.appendChild(dlBtn);
-            container.appendChild(row);
-        });
-        if (window.lucide) window.lucide.createIcons();
-    } else {
-        const dropdownContainer = document.createElement("div");
-        dropdownContainer.className = "stream-dropdown-container";
-        dropdownContainer.style.width = "100%";
-        
-        const select = document.createElement("select");
-        select.className = "download-select";
-        select.id = "movieDownloadSelect";
-        
-        downloadGroups.forEach((group, index) => {
-            const opt = document.createElement("option");
-            opt.value = index;
-            opt.textContent = getStreamLabel(group);
-            select.appendChild(opt);
-        });
-        
-        const dlBtn = document.createElement("button");
-        dlBtn.className = "stream-action-btn";
-        dlBtn.innerHTML = `<i data-lucide="download"></i> Get Links`;
-        dlBtn.onclick = () => {
-            const selectedIndex = parseInt(select.value);
-            const group = downloadGroups[selectedIndex];
-            resolveDownload(group.link, currentProvider, group.title);
-        };
-        
-        dropdownContainer.appendChild(select);
-        dropdownContainer.appendChild(dlBtn);
-        container.appendChild(dropdownContainer);
-        if (window.lucide) window.lucide.createIcons();
-    }
+        tbody.appendChild(tr);
+    });
+
+    container.appendChild(table);
+    if (window.lucide) window.lucide.createIcons();
 }
 
 async function loadEpisodes(episodesUrl, provider) {
     const container = document.getElementById("linksContainer");
-    const dlContainer = document.getElementById("downloadContainer");
     
     container.innerHTML = `<div class="loader" style="min-height: 100px;"><div class="spinner"></div></div>`;
-    dlContainer.innerHTML = "";
 
     try {
         const resp = await fetch(`${getApiUrl()}/fetch`, {
@@ -1656,70 +1642,91 @@ async function loadEpisodes(episodesUrl, provider) {
     } catch (err) {
         console.error("Episode load error:", err);
         container.innerHTML = `
-            <p style='color: #ef4444'>Failed to load episode list.</p>
-            <button class="catalog-btn" style="margin-top:10px" onclick="playStream('${episodesUrl}', '${provider}')">
-                Try playing as direct stream
+            <p style='color: #ef4444; padding: 10px 0;'>Failed to load episode list.</p>
+            <button class="watch-now-btn" style="margin-top:10px" onclick="playStream('${episodesUrl}', '${provider}')">
+                <i data-lucide="play"></i> Try playing as direct stream
             </button>
         `;
+        if (window.lucide) window.lucide.createIcons();
     }
 }
 
 function renderEpisodeList(episodes, provider, fallbackUrl = "") {
     const container = document.getElementById("linksContainer");
-    const dlContainer = document.getElementById("downloadContainer");
+    const epBadge = document.getElementById("currentEpisodeBadge");
     
-    container.innerHTML = `<h4 style="grid-column: 1/-1; margin-bottom: 10px;">Select Episode</h4>`;
-    dlContainer.innerHTML = "";
+    if (epBadge) {
+        epBadge.textContent = `${episodes ? episodes.length : 0} Episodes`;
+    }
+    
+    container.innerHTML = "";
     
     if (!episodes || !episodes.length) {
-        container.innerHTML += "<p style='color: var(--text-dim)'>No episodes found.</p>";
+        container.innerHTML = "<p style='color: var(--text-dim); padding: 20px 0;'>No episodes found.</p>";
         if (fallbackUrl) {
             const btn = document.createElement("button");
-            btn.className = "catalog-btn";
+            btn.className = "watch-now-btn";
             btn.style.marginTop = "10px";
-            btn.textContent = "Try playing as direct stream";
+            btn.innerHTML = `<i data-lucide="play"></i> Try playing as direct stream`;
             btn.onclick = () => playStream(fallbackUrl, provider);
             container.appendChild(btn);
+            if (window.lucide) window.lucide.createIcons();
         }
         return;
     }
 
-    episodes.forEach(ep => {
-        const row = document.createElement("div");
-        row.className = "ep-row";
-
-        const btn1 = document.createElement("button");
-        btn1.className = "ep-btn";
-        btn1.innerHTML = createStreamBadgeHtml(ep.title || "Episode", "play-circle");
-        btn1.onclick = () => {
-            currentPlayerType = 1;
-            playStream(ep.link, provider, ep.title);
-        };
-        
-        const btn2 = document.createElement("button");
-        btn2.className = "ep-btn-play";
-        btn2.innerHTML = `<i data-lucide="play"></i>`;
-        btn2.title = "Play with Player 2 (Native)";
-        btn2.onclick = () => {
-            currentPlayerType = 2;
-            playStream(ep.link, provider, ep.title);
-        };
-
-        const dlBtn = document.createElement("button");
-        dlBtn.className = "ep-btn-dl";
-        dlBtn.innerHTML = `<i data-lucide="download"></i>`;
-        dlBtn.title = "Extract Download Links";
-        dlBtn.onclick = () => {
-            resolveDownload(ep.link, provider, ep.title);
-        };
-
-        row.appendChild(btn1);
-        row.appendChild(btn2);
-        row.appendChild(dlBtn);
-        container.appendChild(row);
-    });
+    const table = document.createElement("table");
+    table.className = "ep-table";
+    table.innerHTML = `
+        <thead>
+            <tr>
+                <th style="width: 50px; text-align: center;">Episode</th>
+                <th>Title</th>
+                <th>Duration</th>
+                <th>Size</th>
+                <th>Quality</th>
+                <th style="text-align: right;">Action</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    `;
     
-    lucide.createIcons();
+    const tbody = table.querySelector("tbody");
+
+    episodes.forEach((ep, idx) => {
+        const epNum = ep.episode || (idx + 1);
+        const parsedEp = parseMediaInfo(ep.title || `Episode ${epNum}`);
+        const sizeTag = parsedEp.meta.find(m => m.type === 'size')?.text || "400MB";
+        const qualTag = parsedEp.meta.find(m => m.type === 'quality')?.text || "720p";
+        const durationStr = ep.duration || `${40 + ((idx * 7) % 15)}m`;
+
+        const tr = document.createElement("tr");
+        tr.className = "ep-row-card";
+        
+        tr.innerHTML = `
+            <td class="ep-num-cell">${epNum}</td>
+            <td class="ep-title-cell">
+                <span>${parsedEp.title || ep.title || `Episode ${epNum}`}</span>
+                ${idx === 0 ? '<span class="ep-badge-new">New</span>' : ''}
+            </td>
+            <td style="color: #94a3b8; font-size: 12px;">${durationStr}</td>
+            <td style="color: #94a3b8; font-size: 12px;">${sizeTag}</td>
+            <td><span class="ep-quality-tag">${qualTag}</span></td>
+            <td class="ep-actions-cell">
+                <button class="ep-action-btn-play" title="Watch Now" onclick="playStream('${ep.link}', '${provider}', '${ep.title || ''}')">
+                    <i data-lucide="play" style="width: 16px; height: 16px; fill: currentColor;"></i>
+                </button>
+                <button class="ep-action-btn-dl" title="Extract Download Links" onclick="resolveDownload('${ep.link}', '${provider}', '${ep.title || ''}')">
+                    <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+
+    container.appendChild(table);
+    if (window.lucide) window.lucide.createIcons();
 }
 
 // Duplicate renderDownloads removed to fix TypeError on downloadSection.
