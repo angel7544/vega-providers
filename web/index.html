@@ -42,7 +42,6 @@
             <nav class="nav-links">
                 <a href="#" class="nav-link active" onclick="loadHome()" id="navHome">
                     <i data-lucide="home" style="width:16px;height:16px;"></i>
-                    <span>Home</span>
                 </a>
                 <div class="custom-dropdown" id="categoriesDropdownContainer">
                     <select id="categoriesDropdown" class="nav-dropdown-hidden" onchange="onCategorySelect(this.value)" style="display: none;">
@@ -91,6 +90,10 @@
                 <button id="themeToggleBtn" onclick="toggleTheme()" class="nav-theme-btn" title="Toggle Theme">
                     <i data-lucide="sun" id="themeBtnIcon" style="width:18px;height:18px;"></i>
                 </button>
+
+                <button class="nav-settings-btn" onclick="openInfoModal('about')" title="About Us & Information" style="margin-right: 2px;">
+                    <i data-lucide="info" style="width:18px;height:18px;"></i>
+                </button>
                 
                 <button class="nav-settings-btn" onclick="openSettingsModal()" title="Settings">
                     <i data-lucide="settings" style="width:18px;height:18px;"></i>
@@ -115,37 +118,27 @@
                 </div>
             </section>
 
-            <!-- FOOTER -->
+            <!-- APP FOOTER -->
             <footer class="app-footer">
-                <div class="footer-item">
-                    <i data-lucide="monitor" class="footer-icon" style="width:20px;height:20px;"></i>
-                    <div class="footer-text">
-                        <span class="footer-title">1080p as 2k</span>
-                        <span class="footer-subtitle">Best Quality</span>
+                <div class="footer-items-row">
+                    <div class="footer-item">
+                        <i data-lucide="monitor" class="footer-icon" style="width:16px;height:16px;"></i>
+                        <span class="footer-title">1080p Web Only</span>
                     </div>
-                </div>
-                <div class="footer-separator"></div>
-                <div class="footer-item">
-                    <i data-lucide="volume-x" class="footer-icon" style="width:20px;height:20px;"></i>
-                    <div class="footer-text">
-                        <span class="footer-title">No Audio</span>
-                        <span class="footer-subtitle">In Browser</span>
+                    <div class="footer-separator"></div>
+                    <div class="footer-item">
+                        <i data-lucide="volume-x" class="footer-icon" style="width:16px;height:16px;"></i>
+                        <span class="footer-title">No Audio <span class="footer-subtitle">(2K/4K)</span></span>
                     </div>
-                </div>
-                <div class="footer-separator"></div>
-                <div class="footer-item">
-                    <i data-lucide="shield-check" class="footer-icon" style="width:20px;height:20px;"></i>
-                    <div class="footer-text">
+                    <div class="footer-separator"></div>
+                    <div class="footer-item">
+                        <i data-lucide="shield-check" class="footer-icon" style="width:16px;height:16px;"></i>
                         <span class="footer-title">Browser Only</span>
-                        <span class="footer-subtitle">No External Player</span>
                     </div>
-                </div>
-                <div class="footer-separator"></div>
-                <div class="footer-item">
-                    <i data-lucide="heart" class="footer-icon footer-heart" style="width:20px;height:20px;"></i>
-                    <div class="footer-text">
-                        <span class="footer-title">Made with</span>
-                        <span class="footer-subtitle author-highlight">by Angel (Mehul)</span>
+                    <div class="footer-separator"></div>
+                    <div class="footer-item">
+                        <i data-lucide="heart" class="footer-icon footer-heart" style="width:16px;height:16px;"></i>
+                        <span class="footer-title">Made by <span class="author-highlight">Angel (Mehul)</span></span>
                     </div>
                 </div>
             </footer>
@@ -207,26 +200,33 @@
 
     <!-- MOBILE BOTTOM NAVBAR -->
     <nav class="mobile-bottom-nav">
-        <a href="#" class="mobile-nav-logo" onclick="window.location.reload()">
-            <img src="icon.png" alt="Logo">
-            <span>OrbixPlay</span>
+        <a href="#" class="mobile-nav-logo" onclick="window.location.reload(); return false;">
+            <img src="icon.png" alt="Logo" style="width: 22px; height: 22px; border-radius: 6px;">
         </a>
-        <a href="#" class="mobile-nav-link active" onclick="loadHome()">
-            <i data-lucide="home"></i><span>Home</span>
+        <a href="#" class="mobile-nav-link active" onclick="loadHome(); return false;">
+            <i data-lucide="home"></i>
+            <span>Home</span>
         </a>
         <div class="mobile-nav-dropdown-wrapper" style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; flex: 1;">
             <select id="mobileCategoriesDropdown" class="mobile-nav-dropdown" onchange="onCategorySelect(this.value)" style="position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; z-index: 10;">
                 <option value="" disabled selected>Categories</option>
             </select>
             <div class="mobile-nav-link" style="pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                <i data-lucide="grid" style="width:20px;height:20px;"></i><span>Browse</span>
+                <i data-lucide="grid" style="width:20px;height:20px;"></i>
+                <span>Browse</span>
             </div>
         </div>
-        <a href="#" class="mobile-nav-link" onclick="loadWishlist()">
-            <i data-lucide="heart"></i><span>Wishlist</span>
+        <a href="#" class="mobile-nav-link" onclick="loadWishlist(); return false;">
+            <i data-lucide="heart"></i>
+            <span>Wishlist</span>
         </a>
-        <a href="#" class="mobile-nav-link" onclick="openSettingsModal()">
-            <i data-lucide="settings"></i><span>Settings</span>
+        <a href="about.html" class="mobile-nav-link">
+            <i data-lucide="info"></i>
+            <span>Info</span>
+        </a>
+        <a href="#" class="mobile-nav-link" onclick="openSettingsModal(); return false;">
+            <i data-lucide="settings"></i>
+            <span>Settings</span>
         </a>
     </nav>
 
@@ -274,6 +274,180 @@
                         <p>Extracting direct links...</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- INFO & LEGAL MODAL -->
+    <div id="infoModal" class="modal-overlay" style="display: none;">
+        <div class="info-modal-dialog">
+            <!-- Header -->
+            <div class="info-modal-header">
+                <h2 class="info-modal-title">
+                    <i data-lucide="sparkles" style="color: var(--accent);"></i> OrbixPlay
+                </h2>
+                <button class="close-modal" onclick="closeInfoModal()" style="position: static; background: transparent; border: none; color: var(--text-muted); cursor: pointer;">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+
+            <!-- Tab Navigation Bar -->
+            <div class="info-tabs-bar">
+                <button id="infoTabBtn-about" class="info-tab-btn active" onclick="switchInfoTab('about')">
+                    <i data-lucide="info" style="width:15px;height:15px;"></i> About Us
+                </button>
+                <button id="infoTabBtn-disclaimer" class="info-tab-btn" onclick="switchInfoTab('disclaimer')">
+                    <i data-lucide="shield-alert" style="width:15px;height:15px;"></i> Site Disclaimer
+                </button>
+                <button id="infoTabBtn-dmca" class="info-tab-btn" onclick="switchInfoTab('dmca')">
+                    <i data-lucide="file-text" style="width:15px;height:15px;"></i> DMCA Policy
+                </button>
+                <button id="infoTabBtn-download" class="info-tab-btn" onclick="switchInfoTab('download')">
+                    <i data-lucide="download-cloud" style="width:15px;height:15px;"></i> How to Download
+                </button>
+                <button id="infoTabBtn-contact" class="info-tab-btn" onclick="switchInfoTab('contact')">
+                    <i data-lucide="mail" style="width:15px;height:15px;"></i> Contact Us
+                </button>
+            </div>
+
+            <!-- Body Contents -->
+            <div class="info-modal-body">
+                
+                <!-- TAB 1: ABOUT US -->
+                <div id="infoTab-about" class="info-tab-content active">
+                    <div class="info-card">
+                        <h3><i data-lucide="film" style="color: var(--accent);"></i> About OrbixPlay</h3>
+                        <p><strong>OrbixPlay</strong> is the Best Website/Platform for Bollywood and Hollywood HD Movies.</p>
+                        <p>We provide direct download links without any irritating ads or pop-ups, ensuring a seamless experience. On OrbixPlay, you can find various file-sharing site links for each movie in multiple quality formats like Bluray, HDRip, BRRip, WeB-DL, 1080p, 720p, 4K, and more.</p>
+                    </div>
+
+                    <div class="info-card">
+                        <h3><i data-lucide="play-circle" style="color: var(--accent);"></i> Download and Watch Movies Online for Free</h3>
+                        <p>Download dual/multi-audio high-quality movies and TV/web series directly without any popup ads. We offer a wide range of content, including English movies, Hollywood dual audio movies, Bollywood movies, TV/web series, TV shows, anime, and many more.</p>
+                        
+                        <div style="margin-top: 14px;">
+                            <strong style="font-size: 13px; color: var(--text-main); display: block; margin-bottom: 6px;">Our Official Network & Branding:</strong>
+                            <div class="info-badge-list">
+                                <span class="info-badge">OrbixPlay</span>
+                                <span class="info-badge">OrbixPlay.org</span>
+                                <span class="info-badge">OrbixPlay.band</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="info-card" style="border-left: 3px solid var(--accent);">
+                        <h3><i data-lucide="scale" style="color: var(--accent);"></i> Legal Disclaimer & Independence</h3>
+                        <p><strong>Disclaimer:</strong> All posts are freely available on the Internet and posted by somebody else. We are not violating any COPYRIGHTED LAW. If anything is against the law, please notify us.</p>
+                        <p>If you think content was shared without permission, you can contact us via our Contact Us page. We never host any file on our server; all content points to third-party websites.</p>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-top: 8px;"><em>Note: OrbixPlay operates as an independent platform entity.</em></p>
+                    </div>
+                </div>
+
+                <!-- TAB 2: SITE DISCLAIMER -->
+                <div id="infoTab-disclaimer" class="info-tab-content">
+                    <div class="info-card">
+                        <h3><i data-lucide="shield-alert" style="color: #f59e0b;"></i> Site Disclaimer</h3>
+                        <p>We do not store any copyright-protected content on our websites/servers. All the posts are made only for educational purposes and any linked content is stored only in third-party websites. Since freedom of speech is allowed in this fashion, we do not attend in any kind of copyright infringing.</p>
+                        <p>This is a promotional website only, all the downloadable content provided on this site (All materials) is for testing/promotion purposes only. All files placed here are for introducing purpose.</p>
+                    </div>
+
+                    <div class="info-card" style="background: rgba(245, 158, 11, 0.05); border-color: rgba(245, 158, 11, 0.2);">
+                        <h3 style="color: #f59e0b;"><i data-lucide="shopping-bag" style="color: #f59e0b;"></i> Support Original Authors & Rights</h3>
+                        <p>We highly <strong>ENCOURAGE</strong> users to <strong>BUY</strong> the CDs or DVDs of the movie or the music they like. Please, buy original contents from author or developer site!</p>
+                        <p>If you Do not agree to all the terms, please disconnect from this site now itself.</p>
+                        <p>By remaining at this site, you affirm your understanding and compliance of the above disclaimer and absolve this site of any responsibility henceforth.</p>
+                    </div>
+
+                    <div class="info-card">
+                        <h3><i data-lucide="globe" style="color: var(--accent);"></i> Public Domain & Property Rights</h3>
+                        <p>All files found on this site have been collected from various sources across the web and are believed to be in the “public domain”. All the logos and stuff are the property of their respective owners.</p>
+                        <p>You should <strong>DELETE IT (data) within 24 hours</strong> and make a point to buy the original CD or DVD from a local or online store.</p>
+                        <p>If you are the rightful owner of any contents posted here and object to them being displayed or If you are one of the representatives of copy rights department and you don’t like our conditions of store, please mail us or Contact Us immediately and we will delete it!</p>
+                    </div>
+                </div>
+
+                <!-- TAB 3: DMCA -->
+                <div id="infoTab-dmca" class="info-tab-content">
+                    <div class="info-card">
+                        <h3><i data-lucide="file-text" style="color: #ef4444;"></i> Digital Millennium Copyright Act (DMCA)</h3>
+                        <p><strong>Digital Millennium Copyright Act (DMCA)</strong> is a United States copyright law that allows specific files to be removed by their owners if they are being used without proper permission. In order to file a complaint, connect with us and we will respond you in 24 hours.</p>
+                    </div>
+
+                    <div class="info-card" style="border-left: 3px solid #ef4444;">
+                        <h3 style="color: #ef4444;"><i data-lucide="alert-circle"></i> How to File a DMCA Complaint</h3>
+                        <p>If you believe that copyrighted material has been linked or shared without authorization, please submit a notice to our compliance team containing the following information:</p>
+                        <ul style="color: var(--text-dim); font-size: 14px; margin-left: 20px; line-height: 1.8;">
+                            <li>Exact URL or link of the material on OrbixPlay or third-party source.</li>
+                            <li>Proof of ownership or legal representation authority.</li>
+                            <li>Your official name, organization, and contact email address.</li>
+                        </ul>
+                        <p style="margin-top: 14px;">You can use our <a href="contact.html" style="color: var(--accent); font-weight: 700; text-decoration: underline;">Contact Us Page</a> to reach our team.</p>
+                    </div>
+                </div>
+
+                <!-- TAB 4: HOW TO DOWNLOAD -->
+                <div id="infoTab-download" class="info-tab-content">
+                    <div class="info-card" style="margin-bottom: 20px;">
+                        <h3><i data-lucide="download-cloud" style="color: var(--accent);"></i> How to Download Movies & Series</h3>
+                        <p>Follow our simple step-by-step guide to download high-quality movies and TV series effortlessly from OrbixPlay.</p>
+                    </div>
+
+                    <div class="download-steps">
+                        <div class="step-card">
+                            <div class="step-number">1</div>
+                            <div class="step-text">First, click on the <strong>Download</strong> or <strong>Google Drive</strong> button on the OrbixPlay Site. <span style="color: #10b981; font-weight: 700;">[ Recommended Fast Gdrive Server ]</span></div>
+                        </div>
+
+                        <div class="step-card">
+                            <div class="step-number">2</div>
+                            <div class="step-text">Direct download links or subdomains (links or episodes) will be Opened then Choose the <strong>Server</strong> or <strong>Episode number</strong>.</div>
+                        </div>
+
+                        <div class="step-card">
+                            <div class="step-number">3</div>
+                            <div class="step-text">After this, a blog will be opened (<code>tech.unblockedgames.world</code>) and follow the <strong>Continue</strong>, <strong>Download</strong>, and <strong>Verify</strong> Buttons.</div>
+                        </div>
+
+                        <div class="step-card">
+                            <div class="step-number">4</div>
+                            <div class="step-text">Click on <strong>Generate Download Link</strong>, Then Click on <strong>Verify Human</strong> after this on the Post Page Click <strong>Generate</strong> and wait for <strong>10 seconds</strong>.</div>
+                        </div>
+
+                        <div class="step-card">
+                            <div class="step-number">5</div>
+                            <div class="step-text">After clicking <strong>Continue</strong> you will be scrolled to the bottom there you will get a generated link in a few seconds Click on <strong>Download</strong>.</div>
+                        </div>
+
+                        <div class="step-card">
+                            <div class="step-number">6</div>
+                            <div class="step-text">After Clicking on <strong>Download</strong> you will be redirected to the Final Download Page of that Server.</div>
+                        </div>
+                    </div>
+
+                    <div class="info-card" style="margin-top: 20px; background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.2);">
+                        <p style="color: #60a5fa; font-size: 13px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="help-circle" style="width: 16px; height: 16px;"></i> Note: If you face any Problem or broken link, please use our <a href="contact.html?type=broken" style="color: white; text-decoration: underline;">Report Broken Links</a> section or comment down.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- TAB 5: CONTACT US -->
+                <div id="infoTab-contact" class="info-tab-content">
+                    <div class="info-card" style="padding: 28px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 16px;">
+                        <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--accent-glow); display: flex; align-items: center; justify-content: center; border: 1px solid var(--accent);">
+                            <i data-lucide="mail" style="width: 24px; height: 24px; color: var(--accent);"></i>
+                        </div>
+                        <h3 style="font-size: 18px; font-weight: 800; margin: 0;">Official Support Email</h3>
+                        <p style="color: var(--text-dim); max-width: 480px; margin: 0; font-size: 14px; line-height: 1.6;">
+                            For inquiries, broken link reports, or technical support regarding OrbixPlay, please email our team directly:
+                        </p>
+                        <div style="background: var(--surface-light); border: 1px solid var(--glass-border); padding: 12px 24px; border-radius: var(--radius-md); font-size: 15px; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 10px; margin-top: 4px;">
+                            <i data-lucide="send" style="width: 16px; height: 16px;"></i>
+                            <a href="mailto:contact@orbixplay.org" style="color: var(--accent); text-decoration: none;">contact@orbixplay.org</a>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>

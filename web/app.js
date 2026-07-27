@@ -285,6 +285,78 @@ function closeSettingsModal() {
     setTimeout(() => settingsModal.style.display = "none", 300);
 }
 
+// ============================
+// ℹ️ INFO & LEGAL MODAL HANDLERS
+// ============================
+function openInfoModal(tab = 'about', subOption = '') {
+    switchInfoTab(tab, subOption);
+    const infoModal = document.getElementById('infoModal');
+    if (infoModal) {
+        infoModal.style.display = "flex";
+        setTimeout(() => infoModal.classList.add('active'), 10);
+    }
+}
+
+function closeInfoModal() {
+    const infoModal = document.getElementById('infoModal');
+    if (infoModal) {
+        infoModal.classList.remove('active');
+        setTimeout(() => infoModal.style.display = "none", 300);
+    }
+}
+
+function switchInfoTab(tabName, subOption = '') {
+    const tabs = document.querySelectorAll('.info-tab-btn');
+    const contents = document.querySelectorAll('.info-tab-content');
+    tabs.forEach(t => t.classList.remove('active'));
+    contents.forEach(c => c.classList.remove('active'));
+
+    const targetTab = document.getElementById(`infoTabBtn-${tabName}`);
+    const targetContent = document.getElementById(`infoTab-${tabName}`);
+
+    if (targetTab) targetTab.classList.add('active');
+    if (targetContent) targetContent.classList.add('active');
+
+    if (tabName === 'contact' && subOption) {
+        const contactSubject = document.getElementById('contactSubject');
+        if (contactSubject) contactSubject.value = subOption;
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+}
+
+function handleContactSubmit(e) {
+    e.preventDefault();
+    const toast = document.getElementById('contactToast');
+    if (toast) {
+        toast.style.display = 'block';
+        setTimeout(() => {
+            toast.style.display = 'none';
+            document.getElementById('contactForm')?.reset();
+        }, 4000);
+    }
+}
+
+// Modal Backdrop Click Handlers & Escape Key Handler
+document.addEventListener('click', (e) => {
+    const infoModal = document.getElementById('infoModal');
+    if (infoModal && e.target === infoModal) {
+        closeInfoModal();
+    }
+    const settingsModal = document.getElementById('settingsModal');
+    if (settingsModal && e.target === settingsModal) {
+        closeSettingsModal();
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeInfoModal();
+        closeSettingsModal();
+        if (typeof closeDownloadModal === 'function') closeDownloadModal();
+    }
+});
+
 function saveSettings() {
     // Save disabled providers list
     const checkboxes = document.querySelectorAll("#settingsProvidersList input[type='checkbox']");
