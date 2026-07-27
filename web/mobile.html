@@ -24,13 +24,28 @@
             --accent: #9333ea; --accent2: #a855f7; --accent-glow: rgba(147,51,234,0.3);
             --accent-glass: rgba(147,51,234,0.12); --green: #22c55e; --gold: #f59e0b;
             --font: "Outfit", sans-serif; --radius-sm: 8px; --radius-md: 14px; --nav-h: 56px;
+            --backdrop-gradient: linear-gradient(to bottom, rgba(8,8,16,0.1) 0%, rgba(8,8,16,0.55) 50%, var(--bg) 100%);
+            --backdrop-brightness: brightness(0.28);
+            --title-color: #ffffff;
+            --nav-bg: rgba(8,8,16,0.92);
+        }
+        [data-theme="light"] {
+            --bg: #f8fafc; --surface: #ffffff; --surface2: #f1f5f9; --surface3: #e2e8f0;
+            --border: rgba(0,0,0,0.06); --border2: rgba(0,0,0,0.10);
+            --text: #0f172a; --text-dim: #334155; --text-muted: #64748b;
+            --accent: #7c3aed; --accent2: #8b5cf6; --accent-glow: rgba(124,58,237,0.15);
+            --accent-glass: rgba(124,58,237,0.08);
+            --backdrop-gradient: linear-gradient(to bottom, rgba(248,250,252,0.15) 0%, rgba(248,250,252,0.65) 50%, var(--bg) 100%);
+            --backdrop-brightness: brightness(0.68);
+            --title-color: var(--text);
+            --nav-bg: rgba(248,250,252,0.92);
         }
         html { scroll-behavior: smooth; }
         body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; -webkit-font-smoothing: antialiased; }
         ::-webkit-scrollbar { display: none; } * { scrollbar-width: none; }
 
         /* NAV */
-        .m-nav { position: sticky; top: 0; z-index: 200; height: var(--nav-h); background: rgba(8,8,16,0.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; gap: 12px; }
+        .m-nav { position: sticky; top: 0; z-index: 200; height: var(--nav-h); background: var(--nav-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 16px; gap: 12px; }
         .m-nav-btn { width: 38px; height: 38px; border-radius: var(--radius-sm); background: var(--surface2); border: 1px solid var(--border2); color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: transform 0.1s; }
         .m-nav-btn:active { transform: scale(0.92); }
         .m-logo { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); flex: 1; justify-content: center; }
@@ -39,8 +54,8 @@
 
         /* BACKDROP */
         .m-backdrop { position: relative; width: 100%; min-height: 230px; overflow: hidden; background: var(--surface); }
-        .m-backdrop-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: brightness(0.28) blur(4px); transform: scale(1.06); }
-        .m-backdrop-gradient { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(8,8,16,0.1) 0%, rgba(8,8,16,0.5) 50%, var(--bg) 100%); }
+        .m-backdrop-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: var(--backdrop-brightness) blur(4px); transform: scale(1.06); }
+        .m-backdrop-gradient { position: absolute; inset: 0; background: var(--backdrop-gradient); }
         .m-backdrop-content { position: relative; display: flex; align-items: flex-start; padding: 16px 14px 20px; gap: 13px; }
 
         /* POSTER */
@@ -51,7 +66,7 @@
         .m-tags { display: flex; flex-wrap: wrap; gap: 5px; }
         .m-platform-tag { display: inline-flex; align-items: center; gap: 4px; background: rgba(147,51,234,0.2); border: 1px solid rgba(147,51,234,0.4); color: #c084fc; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
         .m-genre-pill { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); color: var(--text-dim); font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
-        .m-title { font-size: 14px; font-weight: 800; line-height: 1.3; color: #fff; word-break: break-word; }
+        .m-title { font-size: 14px; font-weight: 800; line-height: 1.3; color: var(--title-color); word-break: break-word; }
         .m-meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
         .m-rating { display: inline-flex; align-items: center; gap: 3px; background: rgba(245,158,11,0.18); border: 1px solid rgba(245,158,11,0.35); color: var(--gold); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; }
         .m-pill { background: rgba(255,255,255,0.08); border: 1px solid var(--border2); color: var(--text-dim); font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; }
@@ -226,9 +241,14 @@
             <img src="icon.png" alt="OrbixPlay">
             <span class="m-logo-text">OrbixPlay</span>
         </a>
-        <button class="m-nav-btn" onclick="refreshDetails()" aria-label="Refresh">
-            <i data-lucide="refresh-cw" style="width:19px;height:19px;"></i>
-        </button>
+        <div style="display: flex; gap: 8px;">
+            <button id="themeToggleBtn" class="m-nav-btn" onclick="toggleTheme()" aria-label="Toggle Theme" title="Toggle Theme">
+                <i data-lucide="sun" id="themeBtnIcon" style="width:19px;height:19px;"></i>
+            </button>
+            <button class="m-nav-btn" onclick="refreshDetails()" aria-label="Refresh">
+                <i data-lucide="refresh-cw" style="width:19px;height:19px;"></i>
+            </button>
+        </div>
     </nav>
 
     <div class="m-backdrop" id="heroBackdrop">
@@ -697,14 +717,32 @@
             });
             if (window.lucide) lucide.createIcons();
         };
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute("data-theme") || "dark";
+            const target = current === "dark" ? "light" : "dark";
+            document.documentElement.setAttribute("data-theme", target);
+            localStorage.setItem("orbix_theme", target);
+            updateThemeIcon(target);
+        }
+        function updateThemeIcon(theme) {
+            const icon = document.getElementById("themeBtnIcon");
+            if (!icon) return;
+            if (theme === "light") {
+                icon.setAttribute("data-lucide", "moon");
+            } else {
+                icon.setAttribute("data-lucide", "sun");
+            }
+            if (window.lucide) window.lucide.createIcons();
+        }
         function closeDownloadModal() {
             const modal = document.getElementById("downloadModal");
             if (modal) modal.style.display = "none";
         }
         document.addEventListener("DOMContentLoaded", async () => {
-            if (window.lucide) lucide.createIcons();
             const theme = localStorage.getItem("orbix_theme") || "dark";
             document.documentElement.setAttribute("data-theme", theme);
+            updateThemeIcon(theme);
+            if (window.lucide) lucide.createIcons();
             const params = new URLSearchParams(window.location.search);
             const link = params.get("link");
             const provider = params.get("provider") || localStorage.getItem("orbix_last_provider") || "vega";
