@@ -364,13 +364,17 @@ function loadWishlist() {
     updateActiveNav(1); 
     switchPage('pageBrowse'); 
     catalogContainer.style.display = "flex";
+    
+    const wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    const countText = wishlist.length ? `${wishlist.length} item${wishlist.length === 1 ? '' : 's'}` : 'Empty';
+
     catalogContainer.innerHTML = `
         <button class="catalog-btn active" onclick="refreshWishlistData()" style="display: flex; align-items: center; gap: 8px;">
-            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh Wishlist Data
+            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh Wishlist (${countText})
         </button>
     `;
-    lucide.createIcons();
-    const wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    if (window.lucide) lucide.createIcons();
+    
     renderGrid(wishlist);
     setStatus(wishlist.length ? "Online" : "Wishlist is empty");
 }
@@ -667,25 +671,37 @@ function createMediaCard(item) {
         const provider = item.__provider || currentProvider;
         const tmdbId = item.tmdbId || item.tmdb || item.tmdb_id || null;
         const imdbId = item.imdbId || item.imdb || item.imdb_id || null;
-        showDetails(item.link, provider, item.image, tmdbId, item.type, imdbId);
+        const poster = isValidImage(item.image) ? item.image : (isValidImage(item.coverUrl) ? item.coverUrl : null);
+        const itemTitle = item.title || item.rawTitle || item.name || null;
+        showDetails(item.link, provider, poster, tmdbId, item.type, imdbId, itemTitle);
     };
 
-    const validImg = isValidImage(item.image) ? item.image : null;
+    const validImg = isValidImage(item.image) ? item.image : (isValidImage(item.coverUrl) ? item.coverUrl : null);
     const proxiedImage = validImg || "missing.jpg";
 
-    const providerDisplayName = item.__provider && providersMap[item.__provider] 
+    const providerDisplayName = item.providerName || (item.__provider && providersMap[item.__provider] 
         ? providersMap[item.__provider].display_name 
-        : item.__provider;
+        : item.__provider);
+
+    const isWishlistMode = currentFilter === "wishlist";
+    const itemTitle = item.title || item.rawTitle || "Untitled";
+    const safeTitleArg = itemTitle.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+    const safeLinkArg = (item.link || "").replace(/'/g, "\\'");
 
     card.innerHTML = `
-        <div class="media-poster-container">
+        <div class="media-poster-container" style="position: relative;">
             <img class="media-poster" src="${proxiedImage}" loading="lazy" referrerpolicy="no-referrer"
-            onerror="handleImageError(this, '${(item.title || '').replace(/'/g, "\\'")}')">
+            onerror="handleImageError(this, '${safeTitleArg}')">
+            ${isWishlistMode ? `
+                <button class="wishlist-remove-btn" onclick="removeFromWishlist('${safeLinkArg}', event)" title="Remove from Wishlist">
+                    <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
+                </button>
+            ` : ''}
             <div class="media-overlay">
-                <div class="media-title">${item.title}</div>
+                <div class="media-title">${itemTitle}</div>
                 <div class="media-meta">
                     <span>${item.type || 'Media'}</span>
-                    ${providerDisplayName ? `<span style="color:var(--accent)">${providerDisplayName}</span>` : ""}
+                    ${providerDisplayName ? `<span style="color:var(--accent); font-weight:700;">${providerDisplayName}</span>` : ""}
                 </div>
             </div>
         </div>
@@ -757,21 +773,102 @@ function renderGrid(data, append = false) {
     lucide.createIcons();
 }
 
+// Helper to validate whether a resolved title is meaningful (rejects placeholder strings)
+function isValidTitle(title) {
+    if (!title || typeof title !== 'string') return false;
+    const clean = title.trim().toLowerCase();
+    if (!clean || clean.length < 2) return false;
+    if (['media details', 'media detail', 'unknown', 'unknown title', 'details', 'loading...', 'failed to load details', 'null', 'undefined', 'media', 'untitled'].includes(clean)) {
+        return false;
+    }
+    return true;
+}
+
+// Helper to extract clean media title from URL path slug if provider fails to output title
+function extractTitleFromUrl(url) {
+    if (!url || typeof url !== 'string') return "";
+    try {
+        let cleanUrl = url.split('?')[0].split('#')[0];
+        if (cleanUrl.endsWith('/')) cleanUrl = cleanUrl.slice(0, -1);
+        const segments = cleanUrl.split('/').filter(Boolean);
+        if (segments.length === 0) return "";
+        
+        let lastSegment = segments[segments.length - 1];
+        if (/^\d+$/.test(lastSegment) && segments.length > 1) {
+            lastSegment = segments[segments.length - 2];
+        }
+
+        lastSegment = decodeURIComponent(lastSegment).replace(/\.(html|htm|php|aspx|phtml)$/i, "");
+        let rawTitle = lastSegment.replace(/[-_+]/g, " ").trim();
+        
+        if (!rawTitle || rawTitle.length < 2 || /^(watch|download|movie|series|post|item|view|details|index|home)$/i.test(rawTitle)) {
+            return "";
+        }
+        return rawTitle;
+    } catch (e) {
+        return "";
+    }
+}
+
 // ============================
 // 📽️ DETAILS
 // ============================
-async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId = null, explicitType = null, explicitImdbId = null) {
+async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId = null, explicitType = null, explicitImdbId = null, explicitTitle = null) {
     window.scrollTo(0, 0); // scroll to top when opening details
     
     currentProvider = provider;
     switchPage('pageDetails');
     
-    // Clear old details while loading
-    document.getElementById("detailTitle").textContent = "Loading...";
-    document.getElementById("detailSynopsis").textContent = "";
-    document.getElementById("detailPoster").src = fallbackPoster || "";
+    // Check local Wishlist Data Store for cached metadata
+    const wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    const cachedItem = wishlist.find(item => (item.link === link || item.url === link || item.id === link));
+
+    const titleEl = document.getElementById("detailTitle");
+    const synopsisEl = document.getElementById("detailSynopsis");
+    const posterEl = document.getElementById("detailPoster");
+    const backdropEl = document.getElementById("detailBackdrop");
+
+    // 1. Initial UI state (Prioritize explicitTitle, cachedItem, or URL slug over generic placeholders)
+    const urlSlugTitle = extractTitleFromUrl(link);
+    const candidateInitial = [
+        explicitTitle,
+        cachedItem?.title,
+        cachedItem?.rawTitle,
+        urlSlugTitle
+    ];
+    const initialTitle = candidateInitial.find(t => isValidTitle(t)) || "";
+    
+    if (isValidTitle(initialTitle)) {
+        titleEl.textContent = parseMediaInfo(initialTitle).title || initialTitle;
+    } else {
+        titleEl.textContent = "Loading...";
+    }
+
+    if (cachedItem && cachedItem.synopsis) {
+        if (synopsisEl) synopsisEl.textContent = cachedItem.synopsis;
+    } else {
+        if (synopsisEl) synopsisEl.textContent = "";
+    }
+
+    const initialPoster = isValidImage(fallbackPoster) ? fallbackPoster : (cachedItem && isValidImage(cachedItem.image) ? cachedItem.image : (cachedItem && isValidImage(cachedItem.coverUrl) ? cachedItem.coverUrl : null));
+    if (posterEl) posterEl.src = initialPoster || "missing.jpg";
+    if (backdropEl && initialPoster) backdropEl.style.backgroundImage = `url(${initialPoster})`;
+
+    if (cachedItem) {
+        currentMeta = {
+            title: cachedItem.rawTitle || cachedItem.title,
+            image: cachedItem.coverUrl || cachedItem.image,
+            type: cachedItem.type,
+            __link: link,
+            __provider: provider
+        };
+        checkWishlistState();
+        document.getElementById("wishlistBtn").style.display = "flex";
+    } else {
+        document.getElementById("wishlistBtn").style.display = "none";
+    }
+
     document.getElementById("linksContainer").innerHTML = `<div class="loader"><div class="spinner"></div></div>`;
-    document.getElementById("wishlistBtn").style.display = "none";
 
     try {
         const resp = await fetch(`${getApiUrl()}/fetch`, {
@@ -780,41 +877,56 @@ async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId
             body: JSON.stringify({
                 provider,
                 functionName: "getMeta",
-                params: { link }
+                params: { link, url: link, id: link }
             })
         });
 
-        currentMeta = await resp.json();
+        const freshMeta = await resp.json();
+        currentMeta = { ...freshMeta, __link: link, __provider: provider };
 
-        // 🎬 Ultra-Minimalist UI
-        let metaTitle = currentMeta.title || currentMeta.name || "Media Details";
+        // 🎬 Comprehensive Title Extraction across all provider schemas with strict validation
+        const candidateMetaTitles = [
+            freshMeta.title,
+            freshMeta.name,
+            freshMeta.postTitle,
+            freshMeta.caption,
+            freshMeta.heading,
+            freshMeta.details && freshMeta.details.title,
+            freshMeta.movieName,
+            freshMeta.showName,
+            freshMeta.linkList && freshMeta.linkList[0] && freshMeta.linkList[0].title,
+            initialTitle,
+            cachedItem && cachedItem.title,
+            cachedItem && cachedItem.rawTitle,
+            extractTitleFromUrl(link)
+        ];
+
+        const metaTitle = candidateMetaTitles.find(t => isValidTitle(t)) || "Media Details";
         const parsed = parseMediaInfo(metaTitle);
-        document.getElementById("detailTitle").textContent = parsed.title;
-        document.getElementById("detailSynopsis").textContent =
-            currentMeta.description || currentMeta.synopsis || "No synopsis available.";
-        
-        const posterImg = isValidImage(currentMeta.image) ? currentMeta.image : (isValidImage(fallbackPoster) ? fallbackPoster : null);
-        const imgEl = document.getElementById("detailPoster");
-        
-        imgEl.src = posterImg || "missing.jpg";
-        // Fix for detail page posters failing (like Vegamovies)
-        imgEl.onerror = () => handleImageError(imgEl, parsed.title);
+        titleEl.textContent = parsed.title;
+        currentMeta.title = parsed.title;
 
-        // Hide Rating/Year placeholders (already hidden in CSS/HTML but ensuring state here)
+        // 🎬 Comprehensive Synopsis Extraction across all provider schemas
+        let metaSynopsis = freshMeta.description || freshMeta.synopsis || freshMeta.summary || freshMeta.overview || freshMeta.story || freshMeta.plot || freshMeta.desc || (cachedItem ? cachedItem.synopsis : "");
+        if (synopsisEl) {
+            synopsisEl.textContent = metaSynopsis || "No synopsis available.";
+        }
+        
+        // 🎬 Comprehensive Poster Extraction across all provider schemas
+        let posterImg = freshMeta.image || freshMeta.poster || freshMeta.cover || freshMeta.thumbnail || freshMeta.img || freshMeta.src || initialPoster;
+        if (posterEl) {
+            if (isValidImage(posterImg)) {
+                posterEl.src = posterImg;
+            }
+            posterEl.onerror = () => handleImageError(posterEl, parsed.title);
+        }
+
         document.getElementById("detailRating").textContent = "";
         document.getElementById("detailYear").textContent = "";
 
-        // Update backdrop safely
-        const backdropEl = document.getElementById("detailBackdrop");
-        if (posterImg) {
+        if (backdropEl && isValidImage(posterImg)) {
             backdropEl.style.backgroundImage = `url(${posterImg})`;
-        } else {
-            backdropEl.style.backgroundImage = 'none';
         }
-
-        // Attach wishlist metadata context to the global variable for saving later
-        currentMeta.__link = link;
-        currentMeta.__provider = provider;
         
         checkWishlistState();
         document.getElementById("wishlistBtn").style.display = "flex";
@@ -822,16 +934,23 @@ async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId
         renderLinks(currentMeta);
         renderDownloads(currentMeta);
 
-        // 🌟 Enrich missing metadata via TMDB/TVMaze
-        const metaTmdbId = currentMeta.tmdbId || currentMeta.tmdb || currentMeta.tmdb_id || explicitTmdbId;
-        const metaType = currentMeta.type || explicitType;
-        const metaImdbId = currentMeta.imdbId || currentMeta.imdb || currentMeta.imdb_id || explicitImdbId;
+        // 🌟 Enrich missing metadata & synopsis via TMDB/TVMaze
+        const metaTmdbId = currentMeta.tmdbId || currentMeta.tmdb || currentMeta.tmdb_id || explicitTmdbId || (cachedItem ? cachedItem.tmdbId : null);
+        const metaType = currentMeta.type || explicitType || (cachedItem ? cachedItem.type : null);
+        const metaImdbId = currentMeta.imdbId || currentMeta.imdb || currentMeta.imdb_id || explicitImdbId || (cachedItem ? cachedItem.imdbId : null);
         enrichMetadata(parsed.title, metaTmdbId, metaType, metaImdbId);
 
     } catch (err) {
         console.error("Details fetch error:", err);
-        document.getElementById("detailTitle").textContent = "Failed to load Details";
-        document.getElementById("linksContainer").innerHTML = `<p>Stream retrieval failed.</p><pre style="color:red; font-size:12px; margin-top:10px; white-space:pre-wrap">${err.stack || err.message}</pre>`;
+        if (initialTitle || cachedItem) {
+            if (titleEl.textContent === "Loading...") {
+                titleEl.textContent = parseMediaInfo(initialTitle).title || initialTitle;
+            }
+            document.getElementById("linksContainer").innerHTML = `<p style="color: var(--text-dim); text-align: center; padding: 20px;">Unable to fetch live provider streams. Server may be unreachable or link structure changed.</p>`;
+        } else {
+            titleEl.textContent = "Failed to load Details";
+            document.getElementById("linksContainer").innerHTML = `<p style="color:#ef4444">Stream retrieval failed.</p><pre style="color:red; font-size:12px; margin-top:10px; white-space:pre-wrap">${err.stack || err.message}</pre>`;
+        }
     }
 }
 
@@ -1647,10 +1766,11 @@ async function resolveDownload(link, provider, title) {
     setTimeout(() => modal.classList.add('active'), 10);
     
     document.getElementById("dlModalEpName").innerText = title || "Extracting Media";
-    document.getElementById("dlModalProvider").innerText = "Fetching links from " + provider + "...";
+    const providerName = (providersMap[provider]?.display_name || provider || "Server");
+    document.getElementById("dlModalProvider").innerText = "Fetching direct links from " + providerName + "...";
     
     const container = document.getElementById("dlModalLinksContainer");
-    container.innerHTML = `<div class="loader" style="min-height: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
+    container.innerHTML = `<div class="loader dl-loader">
                         <div class="spinner" style="width: 24px; height: 24px;"></div>
                         <p style="font-size: 13px; color: var(--text-dim);">Extracting direct links...</p>
                     </div>`;
@@ -1659,85 +1779,54 @@ async function resolveDownload(link, provider, title) {
     
     container.innerHTML = "";
     if (!streams || !streams.length) {
-        container.innerHTML = "<p style='color: #ef4444; font-size:13px; text-align:center;'>Failed to extract direct download links.</p>";
+        container.innerHTML = "<p style='color: #ef4444; font-size: 14px; text-align: center; padding: 20px;'>Failed to extract direct download links for this stream.</p>";
         return;
     }
 
-    document.getElementById("dlModalProvider").innerText = `Found ${streams.length} stream(s)`;
+    document.getElementById("dlModalProvider").innerText = `Found ${streams.length} direct stream link(s) via ${providerName}`;
 
-    streams.forEach((s, index) => {
-        const row = document.createElement("div");
-        row.style.display = "flex";
-        row.style.justifyContent = "space-between";
-        row.style.alignItems = "center";
-        row.style.padding = "12px";
-        row.style.border = "1px solid var(--glass-border)";
-        row.style.borderRadius = "12px";
-        row.style.background = "rgba(255,255,255,0.02)";
+    streams.forEach((s) => {
+        const card = document.createElement("div");
+        card.className = "dl-stream-card";
 
-        const info = document.createElement("div");
-        info.style.display = "flex";
-        info.style.flexDirection = "column";
-        info.style.gap = "4px";
-        
-        const qText = s.quality ? s.quality + "p " : "Unknown Quality ";
-        const serverText = s.server ? `Server: ${s.server}` : "";
-        info.innerHTML = `
-            <div style="font-size: 14px; font-weight: 600; color: #fff;">${qText}</div>
-            <div style="font-size: 12px; color: var(--text-muted);">${serverText}</div>
+        const qRaw = s.quality ? s.quality.toString() : "HD";
+        const qText = qRaw.toLowerCase().includes('p') || qRaw.toLowerCase().includes('k') ? qRaw.toUpperCase() : qRaw + "P";
+        const serverText = s.server ? `Server: ${s.server}` : "Direct Stream Server";
+
+        card.innerHTML = `
+            <div class="dl-stream-info">
+                <div class="dl-quality-row">
+                    <span class="dl-quality-badge">${qText}</span>
+                    <span class="dl-server-tag">${serverText}</span>
+                </div>
+            </div>
+            <div class="dl-actions">
+                <button class="copy-link-btn" title="Copy Direct Link">
+                    <i data-lucide="copy" style="width: 16px; height: 16px;"></i>
+                </button>
+                <a href="${s.link}" target="_blank" rel="noreferrer" class="dl-action-btn">
+                    <i data-lucide="download" style="width: 15px; height: 15px;"></i> Direct Download
+                </a>
+            </div>
         `;
 
-        const actions = document.createElement("div");
-        actions.style.display = "flex";
-        actions.style.gap = "8px";
-
-        // Download Button
-        const dlBtn = document.createElement("a");
-        dlBtn.href = s.link;
-        dlBtn.target = "_blank";
-        dlBtn.rel = "noreferrer";
-        dlBtn.style.background = "var(--accent)";
-        dlBtn.style.color = "#fff";
-        dlBtn.style.padding = "8px 16px";
-        dlBtn.style.borderRadius = "8px";
-        dlBtn.style.fontSize = "13px";
-        dlBtn.style.fontWeight = "600";
-        dlBtn.style.textDecoration = "none";
-        dlBtn.style.display = "flex";
-        dlBtn.style.alignItems = "center";
-        dlBtn.style.gap = "6px";
-        dlBtn.innerHTML = `<i data-lucide="download" style="width: 16px; height: 16px;"></i> Download`;
-
-        // Copy Link Button
-        const copyBtn = document.createElement("button");
-        copyBtn.style.background = "rgba(139, 92, 246, 0.1)";
-        copyBtn.style.color = "var(--accent)";
-        copyBtn.style.border = "none";
-        copyBtn.style.width = "36px";
-        copyBtn.style.height = "36px";
-        copyBtn.style.borderRadius = "8px";
-        copyBtn.style.display = "flex";
-        copyBtn.style.alignItems = "center";
-        copyBtn.style.justifyContent = "center";
-        copyBtn.style.cursor = "pointer";
-        copyBtn.title = "Copy Link";
-        copyBtn.innerHTML = `<i data-lucide="copy" style="width: 16px; height: 16px;"></i>`;
+        const copyBtn = card.querySelector(".copy-link-btn");
         copyBtn.onclick = () => {
-            navigator.clipboard.writeText(s.link);
-            const originalHtml = copyBtn.innerHTML;
-            copyBtn.innerHTML = `<i data-lucide="check" style="width: 16px; height: 16px; color: #22c55e;"></i>`;
-            setTimeout(() => { copyBtn.innerHTML = originalHtml; lucide.createIcons(); }, 2000);
+            if (s.link) {
+                navigator.clipboard.writeText(s.link);
+                copyBtn.innerHTML = `<i data-lucide="check" style="width: 16px; height: 16px; color: #22c55e;"></i>`;
+                showScrollToast("Stream link copied to clipboard!");
+                setTimeout(() => { 
+                    copyBtn.innerHTML = `<i data-lucide="copy" style="width: 16px; height: 16px;"></i>`; 
+                    if (window.lucide) lucide.createIcons(); 
+                }, 2000);
+            }
         };
 
-        actions.appendChild(copyBtn);
-        actions.appendChild(dlBtn);
-
-        row.appendChild(info);
-        row.appendChild(actions);
-        container.appendChild(row);
+        container.appendChild(card);
     });
     
-    lucide.createIcons();
+    if (window.lucide) window.lucide.createIcons();
 }
 
 // ============================
@@ -2317,15 +2406,18 @@ document.addEventListener('click', (e) => {
 });
 
 // ============================
-// ❤️ WISHLIST
+// ❤️ WISHLIST & DATA STORE
 // ============================
 function checkWishlistState() {
     if (!currentMeta || !currentMeta.__link) return;
     const wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
-    const isSaved = wishlist.some(item => item.link === currentMeta.__link);
+    const targetLink = currentMeta.__link;
+    const isSaved = wishlist.some(item => (item.link === targetLink || item.url === targetLink || item.id === targetLink));
     const btn = document.getElementById("wishlistBtn");
     const text = document.getElementById("wishlistText");
     
+    if (!btn || !text) return;
+
     if (isSaved) {
         btn.classList.add("saved");
         btn.style.background = "";
@@ -2339,11 +2431,25 @@ function checkWishlistState() {
     }
 }
 
+window.removeFromWishlist = function(link, e) {
+    if (e) e.stopPropagation();
+    let wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
+    wishlist = wishlist.filter(item => (item.link !== link && item.url !== link && item.id !== link));
+    localStorage.setItem('orbix_wishlist', JSON.stringify(wishlist));
+    updateWishlistBadge();
+    checkWishlistState();
+    if (currentFilter === "wishlist") {
+        renderGrid(wishlist);
+        setStatus(wishlist.length ? "Online" : "Wishlist is empty");
+    }
+};
+
 async function toggleWishlist() {
     if (!currentMeta || !currentMeta.__link) return;
     
     let wishlist = JSON.parse(localStorage.getItem('orbix_wishlist') || "[]");
-    const index = wishlist.findIndex(item => item.link === currentMeta.__link);
+    const targetLink = currentMeta.__link;
+    const index = wishlist.findIndex(item => (item.link === targetLink || item.url === targetLink || item.id === targetLink));
     
     if (index > -1) {
         wishlist.splice(index, 1);
@@ -2353,24 +2459,59 @@ async function toggleWishlist() {
     } else {
         const btn = document.getElementById("wishlistBtn");
         const text = document.getElementById("wishlistText");
-        const originalText = text ? text.textContent : "Add to Wishlist";
         if (text) text.textContent = "Caching Poster...";
         if (btn) btn.disabled = true;
         
-        let posterUrl = currentMeta.image || "";
+        // 1. Robust Title Resolution across all provider schemas with validation
+        const detailTitleEl = document.getElementById("detailTitle");
+        const titleText = (detailTitleEl && isValidTitle(detailTitleEl.textContent))
+            ? detailTitleEl.textContent 
+            : "";
+        
+        const candidateWishlistTitles = [
+            currentMeta?.title,
+            currentMeta?.name,
+            currentMeta?.postTitle,
+            currentMeta?.caption,
+            currentMeta?.heading,
+            currentMeta?.details?.title,
+            currentMeta?.movieName,
+            currentMeta?.showName,
+            titleText,
+            extractTitleFromUrl(targetLink)
+        ];
+        const rawTitle = candidateWishlistTitles.find(t => isValidTitle(t)) || "Media Item";
+        const parsedTitle = parseMediaInfo(rawTitle).title || rawTitle;
+        
+        // 2. Poster & Image Cache Resolution across all provider schemas
+        let posterUrl = currentMeta.image || currentMeta.poster || currentMeta.cover || currentMeta.thumbnail || currentMeta.img || currentMeta.src || "";
         const imgEl = document.getElementById("detailPoster");
-        if (imgEl && imgEl.src && !imgEl.src.includes('missing.jpg') && !imgEl.src.includes('placeholder')) {
+        if (imgEl && imgEl.src && !imgEl.src.includes('missing.jpg') && !imgEl.src.includes('placeholder') && !imgEl.src.includes('data:image/svg')) {
             posterUrl = imgEl.src;
         }
         
         const base64Image = await fetchImageAsBase64(posterUrl);
+        const providerId = currentMeta.__provider || currentProvider || "";
+        const providerDisplayName = providerId && providersMap[providerId] 
+            ? providersMap[providerId].display_name 
+            : providerId;
         
         wishlist.push({
-            title: parseMediaInfo(currentMeta.title).title || currentMeta.title,
-            image: base64Image || posterUrl,
-            link: currentMeta.__link,
-            __provider: currentMeta.__provider,
-            type: currentMeta.type || "Media"
+            title: parsedTitle,
+            rawTitle: rawTitle,
+            image: base64Image || posterUrl || "missing.jpg",
+            coverUrl: posterUrl || "",
+            link: targetLink,
+            url: targetLink,
+            id: targetLink,
+            __provider: providerId,
+            provider: providerId,
+            providerName: providerDisplayName || providerId,
+            type: currentMeta.type || "Media",
+            tmdbId: currentMeta.tmdbId || currentMeta.tmdb || currentMeta.tmdb_id || null,
+            imdbId: currentMeta.imdbId || currentMeta.imdb || currentMeta.imdb_id || null,
+            synopsis: currentMeta.description || currentMeta.synopsis || document.getElementById("detailSynopsis")?.textContent || "",
+            addedAt: Date.now()
         });
         
         localStorage.setItem('orbix_wishlist', JSON.stringify(wishlist));
@@ -2605,36 +2746,57 @@ async function refreshWishlistData() {
     let successCount = 0;
     for (let i = 0; i < wishlist.length; i++) {
         const item = wishlist[i];
-        setStatus(`Refreshing ${i + 1}/${wishlist.length}: ${item.title}...`, "#8b5cf6");
+        
+        const targetProvider = item.__provider || item.provider || currentProvider;
+        const targetLink = item.link || item.url || item.id;
+        
+        if (!targetProvider || !targetLink) continue;
+
+        setStatus(`Refreshing ${i + 1}/${wishlist.length}: ${item.title || item.rawTitle || 'Item'}...`, "#8b5cf6");
         
         try {
             const resp = await fetch(`${getApiUrl()}/fetch`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    provider: item.__provider,
+                    provider: targetProvider,
                     functionName: "getMeta",
-                    params: { link: item.link }
+                    params: { link: targetLink, url: targetLink, id: targetLink }
                 }),
-                signal: AbortSignal.timeout(10000)
+                signal: AbortSignal.timeout(25000)
             });
 
             if (resp.ok) {
                 const freshMeta = await resp.json();
-                if (freshMeta && freshMeta.title) {
-                    item.title = parseMediaInfo(freshMeta.title).title || freshMeta.title;
+                const freshTitle = freshMeta.title || freshMeta.name || freshMeta.postTitle || freshMeta.caption || freshMeta.heading || (freshMeta.details && freshMeta.details.title);
+                if (freshMeta && freshTitle) {
+                    item.rawTitle = freshTitle;
+                    item.title = parseMediaInfo(freshTitle).title || freshTitle;
                     item.type = freshMeta.type || item.type;
+                    if (freshMeta.synopsis || freshMeta.description) {
+                        item.synopsis = freshMeta.description || freshMeta.synopsis;
+                    }
                     
-                    let posterUrl = freshMeta.image || item.image;
-                    if (posterUrl) {
+                    let posterUrl = freshMeta.image || freshMeta.poster || freshMeta.cover || freshMeta.thumbnail || freshMeta.img || freshMeta.src || item.coverUrl || item.image;
+                    if (posterUrl && isValidImage(posterUrl)) {
+                        item.coverUrl = posterUrl;
                         const base64Img = await fetchImageAsBase64(posterUrl);
                         if (base64Img) item.image = base64Img;
                     }
+                    
+                    // Normalize provider metadata
+                    item.__provider = targetProvider;
+                    item.provider = targetProvider;
+                    item.providerName = (providersMap[targetProvider]?.display_name || targetProvider);
+                    item.link = targetLink;
+                    item.url = targetLink;
+                    item.id = targetLink;
+
                     successCount++;
                 }
             }
         } catch (err) {
-            console.error(`Failed to refresh item ${item.title}:`, err);
+            console.error(`Failed to refresh item ${item.title || item.rawTitle}:`, err);
         }
     }
 

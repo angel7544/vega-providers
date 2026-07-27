@@ -1892,24 +1892,42 @@ async function toggleWishlist() {
     } else {
         const btn = document.getElementById("wishlistBtn");
         const text = document.getElementById("wishlistText");
-        const originalText = text ? text.textContent : "Add to Wishlist";
         if (text) text.textContent = "Caching Poster...";
         if (btn) btn.disabled = true;
         
+        // 1. Robust Title Resolution
+        const detailTitleEl = document.getElementById("detailTitle");
+        const titleText = (detailTitleEl && detailTitleEl.textContent !== "Loading..." && detailTitleEl.textContent !== "Failed to load Details")
+            ? detailTitleEl.textContent 
+            : "";
+        const rawTitle = currentMeta.title || currentMeta.name || titleText || "Media Item";
+        const parsedTitle = parseMediaInfo(rawTitle).title || rawTitle || "Media Details";
+        
+        // 2. Poster & Image Cache Resolution
         let posterUrl = currentMeta.image || "";
         const imgEl = document.getElementById("detailPoster");
-        if (imgEl && imgEl.src && !imgEl.src.includes('missing.jpg') && !imgEl.src.includes('placeholder')) {
+        if (imgEl && imgEl.src && !imgEl.src.includes('missing.jpg') && !imgEl.src.includes('placeholder') && !imgEl.src.includes('data:image/svg')) {
             posterUrl = imgEl.src;
         }
         
         const base64Image = await fetchImageAsBase64(posterUrl);
+        const providerDisplayName = currentMeta.__provider && providersMap[currentMeta.__provider] 
+            ? providersMap[currentMeta.__provider].display_name 
+            : currentMeta.__provider;
         
         wishlist.push({
-            title: parseMediaInfo(currentMeta.title).title || currentMeta.title,
-            image: base64Image || posterUrl,
+            title: parsedTitle,
+            rawTitle: rawTitle,
+            image: base64Image || posterUrl || "missing.jpg",
+            coverUrl: posterUrl || currentMeta.image || "",
             link: currentMeta.__link,
             __provider: currentMeta.__provider,
-            type: currentMeta.type || "Media"
+            providerName: providerDisplayName || currentMeta.__provider,
+            type: currentMeta.type || "Media",
+            tmdbId: currentMeta.tmdbId || currentMeta.tmdb || currentMeta.tmdb_id || null,
+            imdbId: currentMeta.imdbId || currentMeta.imdb || currentMeta.imdb_id || null,
+            synopsis: currentMeta.description || currentMeta.synopsis || document.getElementById("detailSynopsis")?.textContent || "",
+            addedAt: Date.now()
         });
         
         await db.set('orbix_wishlist', wishlist);

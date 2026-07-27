@@ -2498,4 +2498,244 @@ h1, h2, h3, .logo-text {
     width: 100%;
   }
 }
+
+/* ============================
+ * 📥 DOWNLOAD & EXTRACTION MODAL (LIGHT & DARK MODE)
+ * ============================ */
+.dl-modal-dialog {
+  max-width: 540px;
+  width: 92%;
+  background: var(--surface-deep);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--glass-shadow);
+  color: var(--text-main);
+  overflow: hidden;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.dl-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+}
+
+.dl-modal-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-main);
+}
+
+.dl-modal-body {
+  padding: 20px 24px;
+  max-height: 65vh;
+  overflow-y: auto;
+}
+
+.dl-modal-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--glass-bg);
+  padding: 16px;
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+  border: 1px solid var(--glass-border);
+}
+
+.dl-modal-icon {
+  width: 26px;
+  height: 26px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.dl-modal-ep-name {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 2px;
+  color: var(--text-main);
+}
+
+.dl-modal-provider {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.dl-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+  letter-spacing: -0.01em;
+}
+
+.dl-links-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dl-loader {
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-dim);
+}
+
+.dl-stream-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  transition: all 0.2s ease;
+  gap: 12px;
+}
+
+.dl-stream-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 16px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.dl-stream-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.dl-quality-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dl-quality-badge {
+  font-size: 11px;
+  font-weight: 800;
+  background: var(--accent);
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dl-server-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dl-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.dl-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--accent-gradient);
+  color: #ffffff;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+}
+
+.dl-action-btn:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+.copy-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: var(--surface-light);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.copy-link-btn:hover {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+/* ============================
+ * ❤️ WISHLIST BADGE & CARD IMPROVEMENTS
+ * ============================ */
+.wishlist-remove-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: all 0.2s ease;
+  z-index: 5;
+}
+
+.media-card:hover .wishlist-remove-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.wishlist-remove-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
+[data-theme="light"] .wishlist-remove-btn {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
 
