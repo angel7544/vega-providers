@@ -2276,19 +2276,21 @@ h1, h2, h3, .logo-text {
   }
 }
 
-/* DEVELOPER & FEATURE BADGES FOOTER */
+/* DEVELOPER & FEATURE BADGES FIXED FLOATING FOOTER */
 .app-footer {
-  position: relative;
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
   width: calc(100% - 80px);
   max-width: 1400px;
-  margin: 40px auto 24px auto;
   background: var(--glass-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   z-index: 900;
-  padding: 14px 28px;
+  padding: 12px 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2341,13 +2343,15 @@ h1, h2, h3, .logo-text {
 @media (max-width: 1024px) {
   .app-footer {
     width: calc(100% - 24px) !important;
-    padding: 14px 12px !important;
-    margin: 30px auto 80px auto !important;
+    bottom: 74px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    padding: 10px 12px !important;
   }
 
   .footer-items-row {
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
     justify-content: center;
   }
 
