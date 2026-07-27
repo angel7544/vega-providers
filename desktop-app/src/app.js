@@ -6,15 +6,14 @@ import db from './db.js';
 // ============================
 // ⚙️ CONFIGURATION & STATE
 // ============================
-// These are populated from the JSON DB during init()
 let API_BASE = "http://localhost:3001";
 const getApiUrl = () => {
-    let url = API_BASE;
+    let url = API_BASE ? API_BASE : window.location.origin;
     if (url.endsWith('/')) url = url.slice(0, -1);
     return url;
 };
 
-let currentProvider = "VegaMovies";
+let currentProvider = "";
 let currentMeta = null;
 let player = null;
 let currentPlayerType = 1; // 1 = Artplayer, 2 = Native HTML5/HLS.js player
@@ -25,6 +24,10 @@ let tmdbKey = "";
 // ============================
 // 🎨 THEME & UI MANAGER
 // ============================
+
+
+
+
 function initTheme() {
     const savedTheme = db.get('orbix_theme', 'light');
     document.documentElement.setAttribute('data-theme', savedTheme);
@@ -32,7 +35,7 @@ function initTheme() {
 }
 
 function toggleTheme() {
-    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
     const newTheme = currentTheme === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', newTheme);
     db.set('orbix_theme', newTheme);
@@ -296,6 +299,78 @@ function closeSettingsModal() {
     setTimeout(() => settingsModal.style.display = "none", 300);
 }
 
+// ============================
+// ℹ️ INFO & LEGAL MODAL HANDLERS
+// ============================
+function openInfoModal(tab = 'about', subOption = '') {
+    switchInfoTab(tab, subOption);
+    const infoModal = document.getElementById('infoModal');
+    if (infoModal) {
+        infoModal.style.display = "flex";
+        setTimeout(() => infoModal.classList.add('active'), 10);
+    }
+}
+
+function closeInfoModal() {
+    const infoModal = document.getElementById('infoModal');
+    if (infoModal) {
+        infoModal.classList.remove('active');
+        setTimeout(() => infoModal.style.display = "none", 300);
+    }
+}
+
+function switchInfoTab(tabName, subOption = '') {
+    const tabs = document.querySelectorAll('.info-tab-btn');
+    const contents = document.querySelectorAll('.info-tab-content');
+    tabs.forEach(t => t.classList.remove('active'));
+    contents.forEach(c => c.classList.remove('active'));
+
+    const targetTab = document.getElementById(`infoTabBtn-${tabName}`);
+    const targetContent = document.getElementById(`infoTab-${tabName}`);
+
+    if (targetTab) targetTab.classList.add('active');
+    if (targetContent) targetContent.classList.add('active');
+
+    if (tabName === 'contact' && subOption) {
+        const contactSubject = document.getElementById('contactSubject');
+        if (contactSubject) contactSubject.value = subOption;
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+}
+
+function handleContactSubmit(e) {
+    e.preventDefault();
+    const toast = document.getElementById('contactToast');
+    if (toast) {
+        toast.style.display = 'block';
+        setTimeout(() => {
+            toast.style.display = 'none';
+            document.getElementById('contactForm')?.reset();
+        }, 4000);
+    }
+}
+
+// Modal Backdrop Click Handlers & Escape Key Handler
+document.addEventListener('click', (e) => {
+    const infoModal = document.getElementById('infoModal');
+    if (infoModal && e.target === infoModal) {
+        closeInfoModal();
+    }
+    const settingsModal = document.getElementById('settingsModal');
+    if (settingsModal && e.target === settingsModal) {
+        closeSettingsModal();
+    }
+});
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeInfoModal();
+        closeSettingsModal();
+        if (typeof closeDownloadModal === 'function') closeDownloadModal();
+    }
+});
+
 async function saveSettings() {
     // Save disabled providers list
     const checkboxes = document.querySelectorAll("#settingsProvidersList input[type='checkbox']");
@@ -317,12 +392,6 @@ async function saveSettings() {
     closeSettingsModal();
     window.location.reload();
 }
-
-function setQuickApi(url) {
-    const input = document.getElementById('apiUrlInput');
-    if (input) input.value = url;
-}
-window.setQuickApi = setQuickApi;
 
 function renderSettingsProviders() {
     const container = document.getElementById("settingsProvidersList");
@@ -388,13 +457,17 @@ function loadWishlist() {
     updateActiveNav(1); 
     switchPage('pageBrowse'); 
     catalogContainer.style.display = "flex";
+    
+    const wishlist = db.get('orbix_wishlist', []);
+    const countText = wishlist.length ? `${wishlist.length} item${wishlist.length === 1 ? '' : 's'}` : 'Empty';
+
     catalogContainer.innerHTML = `
         <button class="catalog-btn active" onclick="refreshWishlistData()" style="display: flex; align-items: center; gap: 8px;">
-            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh Wishlist Data
+            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh Wishlist (${countText})
         </button>
     `;
-    lucide.createIcons();
-    const wishlist = db.get('orbix_wishlist', []);
+    if (window.lucide) lucide.createIcons();
+    
     renderGrid(wishlist);
     setStatus(wishlist.length ? "Online" : "Wishlist is empty");
 }
@@ -461,7 +534,7 @@ async function loadProviders() {
         const providers = await resp.json();
         allProviders = providers; // Keep full list for Settings panel
 
-        providerSelect.innerHTML = "";
+        if (providerSelect) providerSelect.innerHTML = "";
         providersMap = {};
 
         // Track and map all providers
@@ -473,26 +546,38 @@ async function loadProviders() {
         const disabledProviders = db.get('orbix_disabled_providers', []);
         const enabledProviders = providers.filter(p => !disabledProviders.includes(p.value));
 
-        enabledProviders.forEach(p => {
-            const opt = document.createElement('option');
-            opt.value = p.value;
-            opt.textContent = p.display_name;
-            providerSelect.appendChild(opt);
-        });
+        if (providerSelect) {
+            enabledProviders.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.value;
+                opt.textContent = p.display_name;
+                providerSelect.appendChild(opt);
+            });
+        }
 
         const isCurrentProviderDisabled = disabledProviders.includes(currentProvider);
         if (!currentProvider || currentProvider === "__all__" || !providersMap[currentProvider] || isCurrentProviderDisabled) {
             currentProvider = enabledProviders[0]?.value || "";
-            await db.set('orbix_last_provider', currentProvider);
+            db.set('orbix_last_provider', currentProvider);
         }
-        providerSelect.value = currentProvider;
-        syncCustomDropdown("providerDropdownContainer", "providerSelect");
+        
+        if (providerSelect) {
+            providerSelect.value = currentProvider;
+            syncCustomDropdown("providerDropdownContainer", "providerSelect");
 
-        providerSelect.onchange = async (e) => {
-            currentProvider = e.target.value;
-            await db.set('orbix_last_provider', currentProvider);
-            window.location.reload();
-        };
+            providerSelect.onchange = async (e) => {
+                currentProvider = e.target.value;
+                db.set('orbix_last_provider', currentProvider);
+                window.location.reload();
+            };
+        }
+
+        // On mobile.html: just load providers map and stop — no grid/catalog needed
+        const isMobilePage = document.body.classList.contains('mobile-body');
+        if (isMobilePage) {
+            setStatus("Online");
+            return;
+        }
 
         if (currentProvider) {
             await loadCatalog();
@@ -503,18 +588,8 @@ async function loadProviders() {
         setStatus("Online");
 
     } catch (err) {
-        console.error("API Connection Error:", err);
+        console.error(err);
         setStatus("Offline. Check API Settings.", "#ef4444");
-        
-        // Show Server Down Modal
-        const modal = document.getElementById("serverDownModal");
-        const label = document.getElementById("serverDownUrlLabel");
-        if (modal && label) {
-            label.textContent = getApiUrl();
-            modal.style.display = "flex";
-            setTimeout(() => modal.classList.add("active"), 10);
-            if (window.lucide) window.lucide.createIcons();
-        }
     }
 }
 
@@ -614,7 +689,7 @@ async function fetchData(filter, search = false, append = false) {
         switchPage('pageBrowse'); // Ensure we are on browse page
         isBrowseCached = false;
 
-        contentGrid.innerHTML = `
+        if (contentGrid) contentGrid.innerHTML = `
             <div class="loader">
                 <div class="spinner"></div>
                 <p>Scanning library...</p>
@@ -701,25 +776,37 @@ function createMediaCard(item) {
         const provider = item.__provider || currentProvider;
         const tmdbId = item.tmdbId || item.tmdb || item.tmdb_id || null;
         const imdbId = item.imdbId || item.imdb || item.imdb_id || null;
-        showDetails(item.link, provider, item.image, tmdbId, item.type, imdbId);
+        const poster = isValidImage(item.image) ? item.image : (isValidImage(item.coverUrl) ? item.coverUrl : null);
+        const itemTitle = item.title || item.rawTitle || item.name || null;
+        showDetails(item.link, provider, poster, tmdbId, item.type, imdbId, itemTitle);
     };
 
-    const validImg = isValidImage(item.image) ? item.image : null;
+    const validImg = isValidImage(item.image) ? item.image : (isValidImage(item.coverUrl) ? item.coverUrl : null);
     const proxiedImage = validImg || "missing.jpg";
 
-    const providerDisplayName = item.__provider && providersMap[item.__provider] 
+    const providerDisplayName = item.providerName || (item.__provider && providersMap[item.__provider] 
         ? providersMap[item.__provider].display_name 
-        : item.__provider;
+        : item.__provider);
+
+    const isWishlistMode = currentFilter === "wishlist";
+    const itemTitle = item.title || item.rawTitle || "Untitled";
+    const safeTitleArg = itemTitle.replace(/'/g, "\\'").replace(/"/g, "&quot;");
+    const safeLinkArg = (item.link || "").replace(/'/g, "\\'");
 
     card.innerHTML = `
-        <div class="media-poster-container">
+        <div class="media-poster-container" style="position: relative;">
             <img class="media-poster" src="${proxiedImage}" loading="lazy" referrerpolicy="no-referrer"
-            onerror="handleImageError(this, '${(item.title || '').replace(/'/g, "\\'")}')">
+            onerror="handleImageError(this, '${safeTitleArg}')">
+            ${isWishlistMode ? `
+                <button class="wishlist-remove-btn" onclick="removeFromWishlist('${safeLinkArg}', event)" title="Remove from Wishlist">
+                    <i data-lucide="trash-2" style="width:15px;height:15px;"></i>
+                </button>
+            ` : ''}
             <div class="media-overlay">
-                <div class="media-title">${item.title}</div>
+                <div class="media-title">${itemTitle}</div>
                 <div class="media-meta">
                     <span>${item.type || 'Media'}</span>
-                    ${providerDisplayName ? `<span style="color:var(--accent)">${providerDisplayName}</span>` : ""}
+                    ${providerDisplayName ? `<span style="color:var(--accent); font-weight:700;">${providerDisplayName}</span>` : ""}
                 </div>
             </div>
         </div>
@@ -731,7 +818,7 @@ window.switchToProvider = async function(providerId) {
     providerSelect.value = providerId;
     syncCustomDropdown("providerDropdownContainer", "providerSelect");
     currentProvider = providerId;
-    await db.set('orbix_last_provider', currentProvider);
+    db.set('orbix_last_provider', currentProvider);
     await loadCatalog();
     const defaultFilter = currentCatalogItems[0] ? currentCatalogItems[0].filter : "";
     fetchData(defaultFilter);
@@ -739,7 +826,7 @@ window.switchToProvider = async function(providerId) {
 
 function renderGrid(data, append = false) {
     if (!append) {
-        contentGrid.innerHTML = "";
+        if (contentGrid) contentGrid.innerHTML = "";
     }
 
     if (!data || (data.isGrouped && data.groups.length === 0) || (!data.isGrouped && data.length === 0)) {
@@ -791,21 +878,164 @@ function renderGrid(data, append = false) {
     lucide.createIcons();
 }
 
+// Helper to validate whether a resolved title is meaningful (rejects placeholder strings)
+function isValidTitle(title) {
+    if (!title || typeof title !== 'string') return false;
+    const clean = title.trim().toLowerCase();
+    if (!clean || clean.length < 2) return false;
+    if (['media details', 'media detail', 'unknown', 'unknown title', 'details', 'loading...', 'failed to load details', 'null', 'undefined', 'media', 'untitled'].includes(clean)) {
+        return false;
+    }
+    return true;
+}
+
+// Helper to extract clean media title from URL path slug if provider fails to output title
+function extractTitleFromUrl(url) {
+    if (!url || typeof url !== 'string') return "";
+    try {
+        let cleanUrl = url.split('?')[0].split('#')[0];
+        if (cleanUrl.endsWith('/')) cleanUrl = cleanUrl.slice(0, -1);
+        const segments = cleanUrl.split('/').filter(Boolean);
+        if (segments.length === 0) return "";
+        
+        let lastSegment = segments[segments.length - 1];
+        if (/^\d+$/.test(lastSegment) && segments.length > 1) {
+            lastSegment = segments[segments.length - 2];
+        }
+
+        lastSegment = decodeURIComponent(lastSegment).replace(/\.(html|htm|php|aspx|phtml)$/i, "");
+        let rawTitle = lastSegment.replace(/[-_+]/g, " ").trim();
+        
+        if (!rawTitle || rawTitle.length < 2 || /^(watch|download|movie|series|post|item|view|details|index|home)$/i.test(rawTitle)) {
+            return "";
+        }
+        return rawTitle;
+    } catch (e) {
+        return "";
+    }
+}
+
 // ============================
 // 📽️ DETAILS
 // ============================
-async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId = null, explicitType = null, explicitImdbId = null) {
+
+
+function refreshDetails() {
+    if (currentMeta && currentMeta.__link) {
+        showDetails(currentMeta.__link, currentMeta.__provider, currentMeta.image || currentMeta.poster, currentMeta.tmdbId, currentMeta.type, currentMeta.imdbId, currentMeta.title);
+    } else {
+        const urlParams = new URLSearchParams(window.location.search);
+        const link = urlParams.get('link');
+        const provider = urlParams.get('provider');
+        if (link && provider) {
+            showDetails(link, provider);
+        }
+    }
+}
+
+function scrollToStreams() {
+    const el = document.getElementById("linksContainer");
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+function shareDetails() {
+    const title = currentMeta?.title || document.getElementById("detailTitle")?.textContent || "OrbixPlay";
+    const url = window.location.href;
+    if (navigator.share) {
+        navigator.share({
+            title: title,
+            text: `Check out ${title} on OrbixPlay!`,
+            url: url
+        }).catch(() => {});
+    } else {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(url).then(() => {
+                alert("Link copied to clipboard!");
+            }).catch(() => {
+                alert("Share URL: " + url);
+            });
+        } else {
+            alert("Share URL: " + url);
+        }
+    }
+}
+
+async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId = null, explicitType = null, explicitImdbId = null, explicitTitle = null) {
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    const isMobilePage = document.body.classList.contains('mobile-body');
+
+    // Automatically navigate to dedicated mobile.html UI when on mobile devices
+    if (isMobileDevice && !isMobilePage && !window.location.pathname.includes('mobile.html')) {
+        const titleParam = explicitTitle ? `&title=${encodeURIComponent(explicitTitle)}` : '';
+        window.location.href = `mobile.html?link=${encodeURIComponent(link)}&provider=${encodeURIComponent(provider || 'vegamovies')}${titleParam}`;
+        return;
+    }
+
     window.scrollTo(0, 0); // scroll to top when opening details
     
     currentProvider = provider;
-    switchPage('pageDetails');
+    if (!isMobilePage) switchPage('pageDetails');
     
-    // Clear old details while loading
-    document.getElementById("detailTitle").textContent = "Loading...";
-    document.getElementById("detailSynopsis").textContent = "";
-    document.getElementById("detailPoster").src = fallbackPoster || "";
-    document.getElementById("linksContainer").innerHTML = `<div class="loader"><div class="spinner"></div></div>`;
-    document.getElementById("wishlistBtn").style.display = "none";
+    // Check local Wishlist Data Store for cached metadata
+    const wishlist = db.get('orbix_wishlist', []);
+    const cachedItem = wishlist.find(item => (item.link === link || item.url === link || item.id === link));
+
+    const titleEl = document.getElementById("detailTitle");
+    const synopsisEl = document.getElementById("detailSynopsis");
+    const posterEl = document.getElementById("detailPoster");
+    const backdropEl = document.getElementById("detailBackdrop") || document.getElementById("backdropImg");
+
+    // 1. Initial UI state
+    const urlSlugTitle = extractTitleFromUrl(link);
+    const candidateInitial = [
+        explicitTitle,
+        cachedItem?.title,
+        cachedItem?.rawTitle,
+        urlSlugTitle
+    ];
+    const initialTitle = candidateInitial.find(t => isValidTitle(t)) || "";
+    
+    if (titleEl) {
+        if (isValidTitle(initialTitle)) {
+            titleEl.textContent = parseMediaInfo(initialTitle).title || initialTitle;
+        } else {
+            titleEl.textContent = "Loading...";
+        }
+    }
+
+    if (synopsisEl) {
+        synopsisEl.textContent = (cachedItem && cachedItem.synopsis) ? cachedItem.synopsis : "";
+    }
+
+    const initialPoster = isValidImage(fallbackPoster) ? fallbackPoster : (cachedItem && isValidImage(cachedItem.image) ? cachedItem.image : (cachedItem && isValidImage(cachedItem.coverUrl) ? cachedItem.coverUrl : null));
+    if (posterEl) {
+        posterEl.onerror = () => handleImageError(posterEl, initialTitle);
+        if (isValidImage(initialPoster)) {
+            posterEl.src = initialPoster;
+        } else {
+            handleImageError(posterEl, initialTitle);
+        }
+    }
+    if (backdropEl && isValidImage(initialPoster)) backdropEl.style.backgroundImage = `url(${initialPoster})`;
+
+    if (cachedItem) {
+        currentMeta = {
+            title: cachedItem.rawTitle || cachedItem.title,
+            image: cachedItem.coverUrl || cachedItem.image,
+            type: cachedItem.type,
+            __link: link,
+            __provider: provider
+        };
+        checkWishlistState();
+    }
+
+    const wishlistBtn = document.getElementById("wishlistBtn");
+    if (wishlistBtn) wishlistBtn.style.display = "inline-flex";
+
+    const linksContainer = document.getElementById("linksContainer");
+    if (linksContainer) linksContainer.innerHTML = `<div class="loader"><div class="spinner"></div></div>`;
 
     try {
         const resp = await fetch(`${getApiUrl()}/fetch`, {
@@ -814,58 +1044,114 @@ async function showDetails(link, provider, fallbackPoster = null, explicitTmdbId
             body: JSON.stringify({
                 provider,
                 functionName: "getMeta",
-                params: { link }
+                params: { link, url: link, id: link }
             })
         });
 
-        currentMeta = await resp.json();
+        const freshMeta = await resp.json();
+        currentMeta = { ...freshMeta, __link: link, __provider: provider };
 
-        // 🎬 Ultra-Minimalist UI
-        let metaTitle = currentMeta.title || currentMeta.name || "Media Details";
+        // 🎬 Title Extraction
+        const candidateMetaTitles = [
+            freshMeta.title,
+            freshMeta.name,
+            freshMeta.postTitle,
+            freshMeta.caption,
+            freshMeta.heading,
+            freshMeta.details && freshMeta.details.title,
+            freshMeta.movieName,
+            freshMeta.showName,
+            freshMeta.linkList && freshMeta.linkList[0] && freshMeta.linkList[0].title,
+            initialTitle,
+            cachedItem && cachedItem.title,
+            cachedItem && cachedItem.rawTitle,
+            extractTitleFromUrl(link)
+        ];
+
+        const metaTitle = candidateMetaTitles.find(t => isValidTitle(t)) || "Media Details";
         const parsed = parseMediaInfo(metaTitle);
-        document.getElementById("detailTitle").textContent = parsed.title;
-        document.getElementById("detailSynopsis").textContent =
-            currentMeta.description || currentMeta.synopsis || "No synopsis available.";
-        
-        const posterImg = isValidImage(currentMeta.image) ? currentMeta.image : (isValidImage(fallbackPoster) ? fallbackPoster : null);
-        const imgEl = document.getElementById("detailPoster");
-        
-        imgEl.src = posterImg || "missing.jpg";
-        // Fix for detail page posters failing (like Vegamovies)
-        imgEl.onerror = () => handleImageError(imgEl, parsed.title);
+        if (titleEl) titleEl.textContent = parsed.title;
+        currentMeta.title = parsed.title;
 
-        // Hide Rating/Year placeholders (already hidden in CSS/HTML but ensuring state here)
-        document.getElementById("detailRating").textContent = "";
-        document.getElementById("detailYear").textContent = "";
+        // Populate Specs Bar & Series Info
+        const specLang = parsed.meta.find(m => m.type === 'audio')?.text || freshMeta.language || "English";
+        const specQual = parsed.meta.find(m => m.type === 'quality')?.text || freshMeta.quality || "WEB-DL 720p";
+        const specSize = parsed.meta.find(m => m.type === 'size')?.text || freshMeta.size || "400MB";
 
-        // Update backdrop safely
-        const backdropEl = document.getElementById("detailBackdrop");
-        if (posterImg) {
-            backdropEl.style.backgroundImage = `url(${posterImg})`;
-        } else {
-            backdropEl.style.backgroundImage = 'none';
+        const setSafeText = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        };
+
+        setSafeText("specLanguage", specLang);
+        setSafeText("specSubtitles", freshMeta.subtitles || "English");
+        setSafeText("specQuality", specQual);
+        setSafeText("specSize", specSize);
+        setSafeText("specCodec", freshMeta.codec || "x264 E");
+
+        setSafeText("infoMetaTitle", parsed.title);
+        setSafeText("infoMetaLanguage", specLang);
+        setSafeText("infoMetaGenre", freshMeta.genre || freshMeta.genres || "Sci-Fi, Mystery, Drama");
+
+        // 🎬 Synopsis Extraction
+        let metaSynopsis = freshMeta.description || freshMeta.synopsis || freshMeta.summary || freshMeta.overview || freshMeta.story || freshMeta.plot || freshMeta.desc || (cachedItem ? cachedItem.synopsis : "");
+        if (synopsisEl) {
+            synopsisEl.textContent = metaSynopsis || "No synopsis available.";
+        }
+        
+        // 🎬 Poster Extraction
+        let posterImg = freshMeta.image || freshMeta.poster || freshMeta.cover || freshMeta.thumbnail || freshMeta.img || freshMeta.src || initialPoster;
+        if (posterEl) {
+            if (isValidImage(posterImg)) {
+                posterEl.src = posterImg;
+            } else {
+                handleImageError(posterEl, parsed.title);
+            }
+            posterEl.onerror = () => handleImageError(posterEl, parsed.title);
         }
 
-        // Attach wishlist metadata context to the global variable for saving later
-        currentMeta.__link = link;
-        currentMeta.__provider = provider;
+        if (backdropEl && isValidImage(posterImg)) {
+            const isMobileB = document.body.classList.contains('mobile-body');
+            if (isMobileB && backdropEl.tagName === 'IMG') {
+                backdropEl.src = posterImg;
+            } else {
+                backdropEl.style.backgroundImage = `url(${posterImg})`;
+            }
+        }
         
         checkWishlistState();
-        document.getElementById("wishlistBtn").style.display = "flex";
+        if (wishlistBtn) wishlistBtn.style.display = "inline-flex";
 
         renderLinks(currentMeta);
         renderDownloads(currentMeta);
 
-        // 🌟 Enrich missing metadata via TMDB/TVMaze
-        const metaTmdbId = currentMeta.tmdbId || currentMeta.tmdb || currentMeta.tmdb_id || explicitTmdbId;
-        const metaType = currentMeta.type || explicitType;
-        const metaImdbId = currentMeta.imdbId || currentMeta.imdb || currentMeta.imdb_id || explicitImdbId;
+        // 🌟 Enrich metadata via TMDB/TVMaze
+        const metaTmdbId = currentMeta.tmdbId || currentMeta.tmdb || currentMeta.tmdb_id || explicitTmdbId || (cachedItem ? cachedItem.tmdbId : null);
+        const metaType = currentMeta.type || explicitType || (cachedItem ? cachedItem.type : null);
+        const metaImdbId = currentMeta.imdbId || currentMeta.imdb || currentMeta.imdb_id || explicitImdbId || (cachedItem ? cachedItem.imdbId : null);
         enrichMetadata(parsed.title, metaTmdbId, metaType, metaImdbId);
 
     } catch (err) {
-        console.error("Details fetch error:", err);
-        document.getElementById("detailTitle").textContent = "Failed to load Details";
-        document.getElementById("linksContainer").innerHTML = `<p>Stream retrieval failed.</p><pre style="color:red; font-size:12px; margin-top:10px; white-space:pre-wrap">${err.stack || err.message}</pre>`;
+        console.error("Details fetch error, fallback to direct stream:", err);
+        const fallbackTitle = initialTitle || extractTitleFromUrl(link) || "Media Details";
+        const parsed = parseMediaInfo(fallbackTitle);
+        if (titleEl) titleEl.textContent = parsed.title;
+        
+        const setSafeText = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        };
+
+        setSafeText("infoMetaTitle", parsed.title);
+        setSafeText("infoMetaLanguage", parsed.meta.find(m => m.type === 'audio')?.text || "Dual");
+        setSafeText("infoMetaGenre", "Sci-Fi, Mystery, Drama");
+
+        const fallbackStream = [{
+            title: parsed.title || "Play Stream Link",
+            link: link
+        }];
+        renderEpisodeList(fallbackStream, provider, link);
+        enrichMetadata(parsed.title, explicitTmdbId, explicitType, explicitImdbId);
     }
 }
 
@@ -925,22 +1211,56 @@ async function enrichMetadata(title, explicitTmdbId = null, mediaType = null, ex
                 
                 if (item.vote_average) {
                     const ratingEl = document.getElementById("detailRating");
-                    ratingEl.innerHTML = `<i data-lucide="star" style="width:14px;height:14px;margin-right:4px;"></i> ${item.vote_average.toFixed(1)}`;
-                    ratingEl.style.display = "inline-flex";
-                    lucide.createIcons();
+                    const ratingVal = document.getElementById("detailRatingVal");
+                    if (ratingVal) ratingVal.textContent = item.vote_average.toFixed(1);
+                    if (ratingEl) ratingEl.style.display = "inline-flex";
                 }
                 
                 const year = item.release_date ? item.release_date.split('-')[0] : (item.first_air_date ? item.first_air_date.split('-')[0] : "");
                 if (year) {
                     const yearEl = document.getElementById("detailYear");
-                    yearEl.textContent = year;
-                    yearEl.style.display = "inline-block";
+                    if (yearEl) {
+                        yearEl.textContent = year;
+                        yearEl.style.display = "inline-block";
+                    }
+                }
+
+                if (item.number_of_seasons) {
+                    const seasonPill = document.getElementById("detailSeasonsCount");
+                    if (seasonPill) {
+                        seasonPill.textContent = `${item.number_of_seasons} Season${item.number_of_seasons > 1 ? 's' : ''}`;
+                        seasonPill.style.display = "inline-block";
+                    }
+                }
+
+                const genresContainer = document.getElementById("detailGenres");
+                if (genresContainer && item.genre_ids) {
+                    genresContainer.innerHTML = "";
+                    const genreNames = item.genres ? item.genres.map(g => g.name) : ["Sci-Fi", "Mystery", "Drama"];
+                    genreNames.slice(0, 3).forEach(g => {
+                        const pill = document.createElement("span");
+                        pill.className = "genre-pill";
+                        pill.textContent = g;
+                        genresContainer.appendChild(pill);
+                    });
+                    const imgG = document.getElementById("infoMetaGenre");
+                    if (imgG) imgG.textContent = genreNames.join(", ");
+                }
+
+                if (item.origin_country && item.origin_country[0]) {
+                    const imgC = document.getElementById("infoMetaCountry");
+                    if (imgC) imgC.textContent = item.origin_country[0] === 'US' ? 'United States' : item.origin_country[0];
                 }
 
                 if (item.backdrop_path) {
-                    const backdropEl = document.getElementById("detailBackdrop");
-                    if (!backdropEl.style.backgroundImage || backdropEl.style.backgroundImage === 'none') {
-                        backdropEl.style.backgroundImage = `url(https://image.tmdb.org/t/p/w1280${item.backdrop_path})`;
+                    const backdropEl = document.getElementById("detailBackdrop") || document.getElementById("backdropImg");
+                    if (backdropEl) {
+                        const isMobileImg = (backdropEl.tagName === 'IMG');
+                        if (isMobileImg) {
+                            backdropEl.src = `https://image.tmdb.org/t/p/w1280${item.backdrop_path}`;
+                        } else if (!backdropEl.style.backgroundImage || backdropEl.style.backgroundImage === 'none') {
+                            backdropEl.style.backgroundImage = `url(https://image.tmdb.org/t/p/w1280${item.backdrop_path})`;
+                        }
                     }
                 }
                 enriched = true;
@@ -968,21 +1288,52 @@ async function enrichMetadata(title, explicitTmdbId = null, mediaType = null, ex
                 
                 if (show.rating?.average) {
                     const ratingEl = document.getElementById("detailRating");
-                    ratingEl.innerHTML = `<i data-lucide="star" style="width:14px;height:14px;margin-right:4px;"></i> ${show.rating.average}`;
-                    ratingEl.style.display = "inline-flex";
-                    lucide.createIcons();
+                    const ratingVal = document.getElementById("detailRatingVal");
+                    if (ratingVal) ratingVal.textContent = show.rating.average;
+                    if (ratingEl) ratingEl.style.display = "inline-flex";
                 }
                 
                 const year = show.premiered ? show.premiered.split('-')[0] : "";
                 if (year) {
                     const yearEl = document.getElementById("detailYear");
-                    yearEl.textContent = year;
-                    yearEl.style.display = "inline-block";
+                    if (yearEl) {
+                        yearEl.textContent = year;
+                        yearEl.style.display = "inline-block";
+                    }
+                }
+
+                if (show.genres && show.genres.length > 0) {
+                    const genresContainer = document.getElementById("detailGenres");
+                    if (genresContainer) {
+                        genresContainer.innerHTML = "";
+                        show.genres.slice(0, 3).forEach(g => {
+                            const pill = document.createElement("span");
+                            pill.className = "genre-pill";
+                            pill.textContent = g;
+                            genresContainer.appendChild(pill);
+                        });
+                    }
+                    const imgG = document.getElementById("infoMetaGenre");
+                    if (imgG) imgG.textContent = show.genres.join(", ");
+                }
+
+                if (show.network?.country?.name) {
+                    const imgC = document.getElementById("infoMetaCountry");
+                    if (imgC) imgC.textContent = show.network.country.name;
+                }
+                if (show.network?.name) {
+                    const platformTag = document.getElementById("detailPlatform");
+                    const platformText = document.getElementById("detailPlatformText");
+                    if (platformTag && platformText) {
+                        platformText.textContent = `${show.network.name} Original`;
+                        platformTag.style.display = "inline-flex";
+                    }
                 }
             }
         } catch (e) { console.error("TVMaze enrich failed", e); }
     }
     
+    if (window.lucide) window.lucide.createIcons();
     checkSynopsisLength();
 }
 
@@ -1118,10 +1469,7 @@ function renderGallery(meta) {
     });
 }
 
-function refreshDetails() {
-    if (!currentMeta || !currentMeta.__link) return;
-    showDetails(currentMeta.__link, currentMeta.__provider);
-}
+
 
 // ============================
 // 🔗 LINKS & EPISODES
@@ -1141,265 +1489,250 @@ function switchDetailTab(tabId) {
     if (targetBtn) targetBtn.classList.add('active');
 }
 
+function toggleSeasonDropdown(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById("seasonDropdownMenu");
+    if (menu) {
+        menu.classList.toggle("show");
+    }
+}
+
+document.addEventListener('click', (e) => {
+    const wrapper = document.getElementById("seasonDropdownWrapper");
+    const menu = document.getElementById("seasonDropdownMenu");
+    if (menu && wrapper && !wrapper.contains(e.target)) {
+        menu.classList.remove("show");
+    }
+});
+
 function renderLinks(meta) {
     const container = document.getElementById("linksContainer");
-    const seasonSelector = document.getElementById("seasonSelector");
-    container.innerHTML = "";
-    if (seasonSelector) seasonSelector.innerHTML = "";
+    const seasonCardBox = document.getElementById("seasonCardBox");
+    const currentSeasonTitle = document.getElementById("currentSeasonTitle");
+    const dropdownMenu = document.getElementById("seasonDropdownMenu");
+    const dropdownLabel = document.getElementById("seasonDropdownLabel");
+    const seasonSelectorMobile = document.getElementById("seasonSelectorMobile");
     
-    switchDetailTab('episodes');
-
-    if (!meta.linkList || !meta.linkList.length) {
-         if (meta.episodes || meta.seasons) {
-             container.innerHTML = "<p>Data structure has episodes but it's not handled by the default provider output format natively yet.</p>";
-         } else {
-             container.innerHTML = "<p style='color: var(--text-dim)'>No playable streams found.</p>";
-         }
-         
-         const searchBtn = document.createElement("button");
-         searchBtn.className = "stream-btn";
-         searchBtn.style.marginTop = "10px";
-         searchBtn.innerHTML = `<i data-lucide="search"></i> Search This Provider`;
-         searchBtn.onclick = () => {
-             fetchData(parseMediaInfo(meta.title).title, true);
-         };
-         container.appendChild(searchBtn);
-         lucide.createIcons();
+    container.innerHTML = "";
+    if (dropdownMenu) dropdownMenu.innerHTML = "";
+    if (seasonSelectorMobile) seasonSelectorMobile.innerHTML = "";
+    
+    if (!meta || !meta.linkList || !meta.linkList.length) {
+         if (seasonCardBox) seasonCardBox.style.display = "none";
+         if (currentSeasonTitle) currentSeasonTitle.textContent = meta.title || "Streams";
+         container.innerHTML = "<p style='color: var(--text-dim); padding: 20px 0;'>No playable streams found for this content.</p>";
          return;
     }
 
     let seasonGroups = meta.linkList.filter(l => {
         if (!l) return false;
-        const t = l.title || "Play";
-        return !t.toLowerCase().includes("download") && 
-        (l.episodesLink || /(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(t) || (l.directLinks && l.directLinks.length > 0));
+        const t = l.title || "";
+        return l.episodesLink || /(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(t) || (l.directLinks && l.directLinks.length > 0);
     });
     
     let movieGroups = meta.linkList.filter(l => {
         if (!l) return false;
-        const t = l.title || "Play";
-        return !t.toLowerCase().includes("download") && 
-        !l.episodesLink && 
+        const t = l.title || "";
+        return !l.episodesLink && 
         !/(Season|Episodes|S\d+|^S\d|Series|Ep\s*\d+|Episode)/i.test(t) && 
         (!l.directLinks || l.directLinks.length === 0);
     });
 
     if (seasonGroups.length > 0) {
-        if (seasonSelector) {
-            seasonSelector.style.display = "block";
-            seasonSelector.innerHTML = "";
+        if (seasonCardBox) seasonCardBox.style.display = "block";
+        
+        const selectSeason = (index) => {
+            const group = seasonGroups[index];
+            if (!group) return;
             
-            // 1. Create custom colorful dropdown container (for mobile)
-            const dropdown = document.createElement("div");
-            dropdown.className = "colorful-dropdown mobile-only-dropdown";
+            window.currentSeasonRawTitle = group.title || "";
+            const cleanTitleText = parseMediaInfo(group.title || `Season ${index + 1}`).title;
+            if (dropdownLabel) {
+                dropdownLabel.textContent = cleanTitleText;
+            }
+
+            // Update Specs Bar dynamically for the selected season/group
+            const parsedGroup = parseMediaInfo(group.title || "");
+            const specLang = parsedGroup.meta.find(m => m.type === 'audio')?.text || "Dual";
+            const specQual = parsedGroup.meta.find(m => m.type === 'quality')?.text || "720p";
+            const specSize = parsedGroup.meta.find(m => m.type === 'size')?.text || "300MB";
             
-            const trigger = document.createElement("button");
-            trigger.className = "colorful-dropdown-trigger";
-            trigger.type = "button";
-            trigger.setAttribute("aria-haspopup", "listbox");
-            trigger.setAttribute("aria-expanded", "false");
-            
-            const valueSpan = document.createElement("div");
-            valueSpan.className = "colorful-dropdown-value";
-            valueSpan.style.width = "100%";
-            valueSpan.innerHTML = createStreamBadgeHtml(seasonGroups[0].title, "layers");
-            
-            // Centering helper: overwrite default align-items for trigger badge layout
-            const centerBadgeLayout = (container) => {
-                const innerContainer = container.querySelector('div');
-                if (innerContainer) {
-                    innerContainer.style.alignItems = 'center';
-                    innerContainer.style.textAlign = 'center';
-                    innerContainer.style.justifyContent = 'center';
-                    const firstRow = innerContainer.querySelector('div');
-                    if (firstRow) {
-                        firstRow.style.justifyContent = 'center';
-                    }
-                    const badgesDiv = innerContainer.querySelector('div:nth-child(2)');
-                    if (badgesDiv) {
-                        badgesDiv.style.justifyContent = 'center';
-                        badgesDiv.style.paddingLeft = '0';
-                    }
-                }
+            let codec = "x264";
+            const rawTitleLower = (group.title || "").toLowerCase();
+            if (rawTitleLower.includes("x265") || rawTitleLower.includes("hevc")) {
+                codec = "HEVC x265";
+            } else if (rawTitleLower.includes("x264")) {
+                codec = "x264";
+            }
+            if (rawTitleLower.includes("10bit")) {
+                codec += " 10Bit";
+            }
+
+            const setSafeText = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val;
             };
-            centerBadgeLayout(valueSpan);
-            
-            const chevron = document.createElement("i");
-            chevron.setAttribute("data-lucide", "chevron-down");
-            chevron.className = "dropdown-chevron";
-            chevron.style.width = "18px";
-            chevron.style.height = "18px";
-            
-            trigger.appendChild(valueSpan);
-            trigger.appendChild(chevron);
-            
-            const menu = document.createElement("div");
-            menu.className = "colorful-dropdown-menu";
-            
-            const closeDropdown = () => {
-                trigger.setAttribute("aria-expanded", "false");
-                menu.classList.remove("show");
-            };
-            
-            trigger.onclick = (e) => {
-                e.stopPropagation();
-                const isExpanded = trigger.getAttribute("aria-expanded") === "true";
-                document.querySelectorAll('.custom-dropdown, .colorful-dropdown').forEach(other => {
-                    if (other !== dropdown) {
-                        const otherTrigger = other.querySelector('.custom-dropdown-trigger, .colorful-dropdown-trigger');
-                        const otherMenu = other.querySelector('.custom-dropdown-menu, .colorful-dropdown-menu');
-                        if (otherTrigger) otherTrigger.setAttribute('aria-expanded', 'false');
-                        if (otherMenu) otherMenu.classList.remove('show');
-                    }
-                });
-                trigger.setAttribute("aria-expanded", !isExpanded ? "true" : "false");
-                menu.classList.toggle("show", !isExpanded);
-            };
-            
-            // 2. Create cards container (for desktop)
-            const cardsContainer = document.createElement("div");
-            cardsContainer.className = "season-cards-container desktop-only-cards";
-            
-            const selectSeason = (index) => {
-                const group = seasonGroups[index];
-                
-                // Update dropdown state
-                menu.querySelectorAll(".colorful-dropdown-item").forEach((el, i) => {
+
+            setSafeText("specLanguage", specLang);
+            setSafeText("specQuality", specQual);
+            setSafeText("specSize", specSize);
+            setSafeText("specCodec", codec);
+
+            // Mobile season selector display updates
+            const mobLabel = document.getElementById("seasonSelectLabel");
+            if (mobLabel) {
+                mobLabel.textContent = cleanTitleText;
+            }
+            const mobMenu = document.getElementById("mobileSeasonDropMenu");
+            if (mobMenu) {
+                mobMenu.style.display = "none";
+            }
+            const mobChevron = document.getElementById("seasonChevron");
+            if (mobChevron) {
+                mobChevron.style.transform = "rotate(0deg)";
+            }
+
+            if (dropdownMenu) {
+                dropdownMenu.querySelectorAll(".season-dropdown-item").forEach((el, i) => {
                     el.classList.toggle("selected", i === index);
                 });
-                valueSpan.innerHTML = createStreamBadgeHtml(group.title, "layers");
-                centerBadgeLayout(valueSpan);
-                
-                // Update cards state
-                cardsContainer.querySelectorAll(".season-tab").forEach((el, i) => {
+                dropdownMenu.classList.remove("show");
+            }
+
+            if (seasonSelectorMobile) {
+                seasonSelectorMobile.querySelectorAll(".mobile-season-card").forEach((el, i) => {
                     el.classList.toggle("active", i === index);
                 });
-                
-                if (window.lucide) window.lucide.createIcons();
-                
-                if (group.directLinks && group.directLinks.length > 0) {
-                    renderEpisodeList(group.directLinks, currentProvider);
-                } else {
-                    loadEpisodes(group.episodesLink || group.link, currentProvider);
-                }
-            };
+            }
             
-            // Populate dropdown & card lists
+            if (currentSeasonTitle) {
+                currentSeasonTitle.textContent = cleanTitleText;
+            }
+            
+            const groupTargetUrl = group.episodesLink || group.link || group.url;
+
+            if (group.directLinks && group.directLinks.length > 0) {
+                renderEpisodeList(group.directLinks, currentProvider, groupTargetUrl);
+            } else if (groupTargetUrl) {
+                loadEpisodes(groupTargetUrl, currentProvider);
+            } else {
+                renderEpisodeList([group], currentProvider, "");
+            }
+        };
+
+        if (dropdownMenu) {
+            dropdownMenu.innerHTML = "";
             seasonGroups.forEach((group, index) => {
-                // Dropdown item
                 const item = document.createElement("div");
-                item.className = "colorful-dropdown-item" + (index === 0 ? " selected" : "");
-                item.innerHTML = createStreamBadgeHtml(group.title, "layers");
-                centerBadgeLayout(item);
+                item.className = "season-dropdown-item" + (index === 0 ? " selected" : "");
+                const epCountStr = group.directLinks ? `${group.directLinks.length} Episodes` : "Available";
+                item.innerHTML = `
+                    <span>${group.title || `Season ${index + 1}`}</span>
+                    <span style="font-size: 11px; opacity: 0.7;">${epCountStr}</span>
+                `;
                 item.onclick = (e) => {
                     e.stopPropagation();
-                    closeDropdown();
                     selectSeason(index);
                 };
-                menu.appendChild(item);
-                
-                // Card item
-                const card = document.createElement("button");
-                card.className = "season-tab" + (index === 0 ? " active" : "");
-                card.innerHTML = createStreamBadgeHtml(group.title, "layers");
-                card.onclick = () => {
-                    selectSeason(index);
-                };
-                cardsContainer.appendChild(card);
+                dropdownMenu.appendChild(item);
             });
-            
-            dropdown.appendChild(trigger);
-            dropdown.appendChild(menu);
-            
-            seasonSelector.appendChild(dropdown);
-            seasonSelector.appendChild(cardsContainer);
-            
-            // Register close dropdown on clicking outside
-            document.addEventListener('click', (e) => {
-                if (!dropdown.contains(e.target)) {
-                    closeDropdown();
-                }
+        }
+
+        if (seasonSelectorMobile) {
+            seasonSelectorMobile.innerHTML = "";
+            seasonGroups.forEach((group, index) => {
+                const card = document.createElement("div");
+                card.className = "mobile-season-card" + (index === 0 ? " active" : "");
+                const epCountStr = group.directLinks ? `${group.directLinks.length} Episodes` : "Available";
+                card.innerHTML = `
+                    <span>${group.title || `Season ${index + 1}`}</span>
+                    <div class="season-badge-group">
+                        <span class="season-ep-badge">${epCountStr}</span>
+                        <i data-lucide="chevron-right" style="width:16px;height:16px;"></i>
+                    </div>
+                `;
+                card.onclick = () => selectSeason(index);
+                seasonSelectorMobile.appendChild(card);
             });
-            
             if (window.lucide) window.lucide.createIcons();
         }
-        
-        // Render first season automatically
-        if (seasonGroups[0].directLinks && seasonGroups[0].directLinks.length > 0) {
-            renderEpisodeList(seasonGroups[0].directLinks, currentProvider);
-        } else {
-            loadEpisodes(seasonGroups[0].episodesLink || seasonGroups[0].link, currentProvider);
+
+        window.currentSeasonRawTitle = seasonGroups[0].title || "Season 1";
+        const initialCleanText = parseMediaInfo(seasonGroups[0].title || "Season 1").title;
+        if (dropdownLabel) {
+            dropdownLabel.textContent = initialCleanText;
         }
+        if (currentSeasonTitle) {
+            currentSeasonTitle.textContent = initialCleanText;
+        }
+
+        // Render first season automatically
+        selectSeason(0);
     } else {
-        if (seasonSelector) seasonSelector.style.display = "none";
+        if (seasonCardBox) seasonCardBox.style.display = "none";
+        
+        const firstMovieGroup = meta.linkList[0];
+        if (firstMovieGroup) {
+            window.currentSeasonRawTitle = firstMovieGroup.title || "";
+            const parsedGroup = parseMediaInfo(firstMovieGroup.title || "");
+            const specLang = parsedGroup.meta.find(m => m.type === 'audio')?.text || "Dual";
+            const specQual = parsedGroup.meta.find(m => m.type === 'quality')?.text || "720p";
+            const specSize = parsedGroup.meta.find(m => m.type === 'size')?.text || "300MB";
+            
+            let codec = "x264";
+            const rawTitleLower = (firstMovieGroup.title || "").toLowerCase();
+            if (rawTitleLower.includes("x265") || rawTitleLower.includes("hevc")) {
+                codec = "HEVC x265";
+            } else if (rawTitleLower.includes("x264")) {
+                codec = "x264";
+            }
+            if (rawTitleLower.includes("10bit")) {
+                codec += " 10Bit";
+            }
+
+            const setSafeText = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val;
+            };
+
+            setSafeText("specLanguage", specLang);
+            setSafeText("specQuality", specQual);
+            setSafeText("specSize", specSize);
+            setSafeText("specCodec", codec);
+        } else {
+            window.currentSeasonRawTitle = meta.title || "Streams";
+        }
+
+        if (currentSeasonTitle) {
+            currentSeasonTitle.textContent = meta.title || "Streams";
+        }
         
         if (movieGroups.length > 0) {
-            const dropdownContainer = document.createElement("div");
-            dropdownContainer.className = "stream-dropdown-container";
-            dropdownContainer.style.width = "100%";
-            dropdownContainer.style.marginBottom = "16px";
-            
-            const select = document.createElement("select");
-            select.className = "movie-select";
-            select.id = "movieStreamSelect";
-            
-            movieGroups.forEach((group, index) => {
-                const opt = document.createElement("option");
-                opt.value = index;
-                opt.textContent = getStreamLabel(group);
-                select.appendChild(opt);
-            });
-            
-            const playBtn1 = document.createElement("button");
-            playBtn1.className = "stream-action-btn";
-            playBtn1.innerHTML = `<i data-lucide="play-circle"></i> Play`;
-            playBtn1.onclick = () => {
-                const selectedIndex = parseInt(select.value);
-                const group = movieGroups[selectedIndex];
-                const link = group.directLinks?.[0]?.link || group.link;
-                if (link) {
-                    currentPlayerType = 1;
-                    playStream(link, currentProvider);
-                } else {
-                    alert("No direct link found.");
-                }
-            };
-            
-            const playBtn2 = document.createElement("button");
-            playBtn2.className = "stream-action-btn secondary";
-            playBtn2.innerHTML = `<i data-lucide="play"></i> Play Native`;
-            playBtn2.title = "Play with Player 2 (Native)";
-            playBtn2.onclick = () => {
-                const selectedIndex = parseInt(select.value);
-                const group = movieGroups[selectedIndex];
-                const link = group.directLinks?.[0]?.link || group.link;
-                if (link) {
-                    currentPlayerType = 2;
-                    playStream(link, currentProvider);
-                } else {
-                    alert("No direct link found.");
-                }
-            };
-            
-            dropdownContainer.appendChild(select);
-            dropdownContainer.appendChild(playBtn1);
-            dropdownContainer.appendChild(playBtn2);
-            
-            container.appendChild(dropdownContainer);
+            const streamList = movieGroups.map((g, idx) => ({
+                title: g.title || `Stream Link ${idx + 1}`,
+                link: g.directLinks?.[0]?.link || g.link || g.url
+            }));
+            renderEpisodeList(streamList, currentProvider);
+        } else if (meta.linkList && meta.linkList.length > 0) {
+            const streamList = meta.linkList.map((g, idx) => ({
+                title: g.title || `Stream Link ${idx + 1}`,
+                link: g.directLinks?.[0]?.link || g.link || g.url
+            }));
+            renderEpisodeList(streamList, currentProvider);
         } else {
-            container.innerHTML = "<p style='color: var(--text-dim)'>No playable streams found.</p>";
+            container.innerHTML = "<p style='color: var(--text-dim); padding: 20px 0;'>No playable streams found.</p>";
         }
     }
 }
 
 function renderDownloads(meta) {
+    const wrapper = document.getElementById("downloadsSectionWrapper");
     const container = document.getElementById("downloadContainer");
-    const titleObj = document.getElementById("downloadSectionTitle");
     
     if (container) container.innerHTML = "";
     
     if (!meta || !meta.linkList) {
-        if (titleObj) titleObj.style.display = 'none';
+        if (wrapper) wrapper.style.display = 'none';
         return;
     }
     
@@ -1410,77 +1743,61 @@ function renderDownloads(meta) {
     });
     
     if (downloadGroups.length === 0) {
-        if (titleObj) titleObj.style.display = 'none';
+        if (wrapper) wrapper.style.display = 'none';
         return;
     }
     
-    if (titleObj) titleObj.style.display = 'block';
+    if (wrapper) wrapper.style.display = 'block';
     
-    const isMobile = window.innerWidth <= 1024;
+    const table = document.createElement("table");
+    table.className = "ep-table";
+    table.innerHTML = `
+        <thead>
+            <tr>
+                <th style="width: 50px; text-align: center;">#</th>
+                <th>Download Title</th>
+                <th>Quality</th>
+                <th style="text-align: right;">Action</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    `;
     
-    if (isMobile) {
-        downloadGroups.forEach(group => {
-            const row = document.createElement("div");
-            row.className = "ep-row";
+    const tbody = table.querySelector("tbody");
 
-            const btn1 = document.createElement("button");
-            btn1.className = "ep-btn";
-            btn1.innerHTML = createStreamBadgeHtml(group.title || "Download Link", "download");
-            btn1.onclick = () => {
-                resolveDownload(group.link, currentProvider, group.title);
-            };
+    downloadGroups.forEach((group, idx) => {
+        const parsed = parseMediaInfo(group.title || "Download Link");
+        const qualTag = parsed.meta.find(m => m.type === 'quality')?.text || "WEB-DL";
+        const groupTargetLink = group.link || group.url || "";
 
-            const dlBtn = document.createElement("button");
-            dlBtn.className = "ep-btn-dl";
-            dlBtn.innerHTML = `<i data-lucide="download"></i>`;
-            dlBtn.title = "Get Download Links";
-            dlBtn.onclick = () => {
-                resolveDownload(group.link, currentProvider, group.title);
-            };
+        const tr = document.createElement("tr");
+        tr.className = "ep-row-card";
+        
+        tr.innerHTML = `
+            <td class="ep-num-cell">${idx + 1}</td>
+            <td class="ep-title-cell">
+                <span>${parsed.title || group.title || "Download Link"}</span>
+            </td>
+            <td><span class="ep-quality-tag">${qualTag}</span></td>
+            <td class="ep-actions-cell">
+                <button class="ep-action-btn-dl" title="Get Download Links" onclick="resolveDownload('${groupTargetLink}', '${currentProvider}', '${group.title || ''}')">
+                    <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                </button>
+            </td>
+        `;
 
-            row.appendChild(btn1);
-            row.appendChild(dlBtn);
-            container.appendChild(row);
-        });
-        if (window.lucide) window.lucide.createIcons();
-    } else {
-        const dropdownContainer = document.createElement("div");
-        dropdownContainer.className = "stream-dropdown-container";
-        dropdownContainer.style.width = "100%";
-        
-        const select = document.createElement("select");
-        select.className = "download-select";
-        select.id = "movieDownloadSelect";
-        
-        downloadGroups.forEach((group, index) => {
-            const opt = document.createElement("option");
-            opt.value = index;
-            opt.textContent = getStreamLabel(group);
-            select.appendChild(opt);
-        });
-        
-        const dlBtn = document.createElement("button");
-        dlBtn.className = "stream-action-btn";
-        dlBtn.innerHTML = `<i data-lucide="download"></i> Get Links`;
-        dlBtn.onclick = () => {
-            const selectedIndex = parseInt(select.value);
-            const group = downloadGroups[selectedIndex];
-            resolveDownload(group.link, currentProvider, group.title);
-        };
-        
-        dropdownContainer.appendChild(select);
-        dropdownContainer.appendChild(dlBtn);
-        container.appendChild(dropdownContainer);
-        if (window.lucide) window.lucide.createIcons();
-    }
+        tbody.appendChild(tr);
+    });
+
+    container.appendChild(table);
+    if (window.lucide) window.lucide.createIcons();
 }
 
 async function loadEpisodes(episodesUrl, provider) {
     const container = document.getElementById("linksContainer");
-    const dlContainer = document.getElementById("downloadContainer");
-    
-    container.innerHTML = `<div class="loader" style="min-height: 100px;"><div class="spinner"></div></div>`;
-    dlContainer.innerHTML = "";
+    if (container) {
+        container.innerHTML = `<div class="loader" style="min-height: 100px;"><div class="spinner"></div></div>`;
+    }
 
     try {
         const resp = await fetch(`${getApiUrl()}/fetch`, {
@@ -1493,68 +1810,166 @@ async function loadEpisodes(episodesUrl, provider) {
             })
         });
 
-        const episodes = await resp.json();
-        renderEpisodeList(episodes, provider, episodesUrl);
+        const data = await resp.json();
+        let episodes = [];
+        if (Array.isArray(data)) {
+            episodes = data;
+        } else if (data && Array.isArray(data.episodes)) {
+            episodes = data.episodes;
+        }
+
+        if (episodes && episodes.length > 0) {
+            renderEpisodeList(episodes, provider, episodesUrl);
+        } else {
+            const fallbackStream = [{
+                title: currentMeta?.title || "Play Direct Stream",
+                link: episodesUrl
+            }];
+            renderEpisodeList(fallbackStream, provider, episodesUrl);
+        }
 
     } catch (err) {
-        console.error("Episode load error:", err);
-        container.innerHTML = `
-            <p style='color: #ef4444'>Failed to load episode list.</p>
-            <button class="catalog-btn" style="margin-top:10px" onclick="playStream('${episodesUrl}', '${provider}')">
-                Try playing as direct stream
-            </button>
-        `;
+        console.error("Episode load error, rendering fallback direct stream:", err);
+        const fallbackStream = [{
+            title: currentMeta?.title || "Play Direct Stream",
+            link: episodesUrl
+        }];
+        renderEpisodeList(fallbackStream, provider, episodesUrl);
     }
 }
 
 function renderEpisodeList(episodes, provider, fallbackUrl = "") {
     const container = document.getElementById("linksContainer");
-    const dlContainer = document.getElementById("downloadContainer");
+    if (!container) return;
     
-    container.innerHTML = `<h4 style="grid-column: 1/-1; margin-bottom: 10px;">Select Episode</h4>`;
-    dlContainer.innerHTML = "";
+    const safeEpisodes = Array.isArray(episodes) ? episodes : [];
+    const epBadge = document.getElementById("currentEpisodeBadge");
+    const epCountBadge = document.getElementById("episodesCountBadge");
+    // Mobile card layout is rendered exclusively on mobile.html; Desktop Web UI is rendered on index.html / details.html
+    const isMobileView = document.body.classList.contains('mobile-body') || document.getElementById("seasonSelectorMobile") !== null;
+
+    const countText = `${safeEpisodes.length} Episodes`;
+    if (epBadge) epBadge.textContent = countText;
+    if (epCountBadge) epCountBadge.textContent = countText;
     
-    if (!episodes || !episodes.length) {
-        container.innerHTML += "<p style='color: var(--text-dim)'>No episodes found.</p>";
+    container.innerHTML = "";
+    
+    if (!safeEpisodes.length) {
+        container.innerHTML = "<p style='color: var(--text-dim); padding: 20px 0;'>No episodes found.</p>";
         if (fallbackUrl) {
             const btn = document.createElement("button");
-            btn.className = "catalog-btn";
+            btn.className = "watch-now-btn";
             btn.style.marginTop = "10px";
-            btn.textContent = "Try playing as direct stream";
+            btn.innerHTML = `<i data-lucide="play"></i> Try playing as direct stream`;
             btn.onclick = () => playStream(fallbackUrl, provider);
             container.appendChild(btn);
+            if (window.lucide) window.lucide.createIcons();
         }
         return;
     }
 
-    episodes.forEach(ep => {
-        const row = document.createElement("div");
-        row.className = "ep-row";
+    // Extract dynamic fallbacks from parent title (season/group name)
+    const parentTitleText = window.currentSeasonRawTitle || "";
+    let fallbackSize = "300MB";
+    let fallbackQual = "720p";
+    if (parentTitleText) {
+        const sizeMatch = parentTitleText.match(/\[(\d+(?:\.\d+)?\s*(?:MB|GB|mb|gb)(?:\/[eE])?)\]/i) || parentTitleText.match(/(\d+(?:\.\d+)?\s*(?:MB|GB|mb|gb))/i);
+        if (sizeMatch) fallbackSize = sizeMatch[1] || sizeMatch[0];
+        const qualMatch = parentTitleText.match(/(\d{3,4}p|4k|2k)/i);
+        if (qualMatch) fallbackQual = qualMatch[1];
+    }
 
-        const btn1 = document.createElement("button");
-        btn1.className = "ep-btn";
-        btn1.innerHTML = createStreamBadgeHtml(ep.title || "Episode", "play-circle");
-        btn1.onclick = () => {
-            currentPlayerType = 1;
-            playStream(ep.link, provider, ep.title);
-        };
-        
-        
+    if (isMobileView) {
+        const epList = document.createElement("div");
+        epList.className = "mobile-episodes-list";
 
-        const dlBtn = document.createElement("button");
-        dlBtn.className = "ep-btn-dl";
-        dlBtn.innerHTML = `<i data-lucide="download"></i>`;
-        dlBtn.title = "Extract Download Links";
-        dlBtn.onclick = () => {
-            resolveDownload(ep.link, provider, ep.title);
-        };
+        safeEpisodes.forEach((ep, idx) => {
+            const epNum = ep.episode || (idx + 1);
+            const parsedEp = parseMediaInfo(ep.title || `Episode ${epNum}`);
+            const sizeTag = parsedEp.meta.find(m => m.type === 'size')?.text || fallbackSize;
+            const qualTag = parsedEp.meta.find(m => m.type === 'quality')?.text || fallbackQual;
+            const epTargetLink = ep.link || ep.url || ep.episodesLink || fallbackUrl || "";
 
-        row.appendChild(btn1);
-        row.appendChild(dlBtn);
-        container.appendChild(row);
-    });
+            const card = document.createElement("div");
+            card.className = "mobile-ep-card";
+            card.innerHTML = `
+                <span class="mobile-ep-num">${epNum}.</span>
+                <div class="mobile-ep-info">
+                    <div class="mobile-ep-title-row">
+                        <span class="mobile-ep-title">${parsedEp.title || ep.title || `Episode ${epNum}`}</span>
+                        ${idx === 0 ? '<span class="ep-badge-new">New</span>' : ''}
+                    </div>
+                    <div class="mobile-ep-specs">
+                        <span class="ep-quality-tag" style="background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); color:#60a5fa; margin-right:4px;">${sizeTag}</span>
+                        <span class="ep-quality-tag">${qualTag}</span>
+                    </div>
+                </div>
+                <div class="mobile-ep-actions">
+                    <button class="ep-action-btn-play" title="Watch Now" onclick="playStream('${epTargetLink}', '${provider}', '${ep.title || ''}')">
+                        <i data-lucide="play" style="width: 16px; height: 16px; fill: currentColor;"></i>
+                    </button>
+                    <button class="ep-action-btn-dl" title="Extract Download Links" onclick="resolveDownload('${epTargetLink}', '${provider}', '${ep.title || ''}')">
+                        <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                    </button>
+                </div>
+            `;
+            epList.appendChild(card);
+        });
+
+        container.appendChild(epList);
+        if (window.lucide) window.lucide.createIcons();
+        return;
+    }
+
+    const table = document.createElement("table");
+    table.className = "ep-table";
+    table.innerHTML = `
+        <thead>
+            <tr>
+                <th style="width: 50px; text-align: center;">Episode</th>
+                <th>Title</th>
+                <th>Size</th>
+                <th>Quality</th>
+                <th style="text-align: right;">Action</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    `;
     
-    lucide.createIcons();
+    const tbody = table.querySelector("tbody");
+
+    safeEpisodes.forEach((ep, idx) => {
+        const epNum = ep.episode || (idx + 1);
+        const parsedEp = parseMediaInfo(ep.title || `Episode ${epNum}`);
+        const sizeTag = parsedEp.meta.find(m => m.type === 'size')?.text || fallbackSize;
+        const qualTag = parsedEp.meta.find(m => m.type === 'quality')?.text || fallbackQual;
+
+        const tr = document.createElement("tr");
+        tr.className = "ep-row-card";
+        
+        tr.innerHTML = `
+            <td class="ep-num-cell">${epNum}</td>
+            <td class="ep-title-cell">
+                <span>${parsedEp.title || ep.title || `Episode ${epNum}`}</span>
+                ${idx === 0 ? '<span class="ep-badge-new">New</span>' : ''}
+            </td>
+            <td style="color: #94a3b8; font-size: 12px;">${sizeTag}</td>
+            <td><span class="ep-quality-tag">${qualTag}</span></td>
+            <td class="ep-actions-cell">
+                <button class="ep-action-btn-play" title="Watch Now" onclick="playStream('${ep.link}', '${provider}', '${ep.title || ''}')">
+                    <i data-lucide="play" style="width: 16px; height: 16px; fill: currentColor;"></i>
+                </button>
+                <button class="ep-action-btn-dl" title="Extract Download Links" onclick="resolveDownload('${ep.link}', '${provider}', '${ep.title || ''}')">
+                    <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                </button>
+            </td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+
+    container.appendChild(table);
+    if (window.lucide) window.lucide.createIcons();
 }
 
 // Duplicate renderDownloads removed to fix TypeError on downloadSection.
@@ -1562,25 +1977,18 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
 // ============================
 // 🎥 EXTRACT STREAM
 // ============================
-function extractStreamData(data) {
+function extractStreamUrl(data) {
     if (!data) return null;
 
-    if (Array.isArray(data)) return extractStreamData(data[0]);
+    if (Array.isArray(data)) return extractStreamUrl(data[0]);
 
-    let url = null;
-    if (data.link) url = data.link;
-    else if (data.file) url = data.file;
-    else if (data.url) url = data.url;
-    else if (data.sources?.length) url = data.sources[0].file;
-    else if (data.data) return extractStreamData(data.data);
+    if (data.link) return data.link;
+    if (data.file) return data.file;
+    if (data.url) return data.url;
 
-    if (url) {
-        let headers = data.headers || null;
-        if (!headers && data.sources?.length && data.sources[0].headers) {
-            headers = data.sources[0].headers;
-        }
-        return { url, headers };
-    }
+    if (data.sources?.length) return data.sources[0].file;
+    if (data.data) return extractStreamUrl(data.data);
+
     return null;
 }
 
@@ -1664,7 +2072,7 @@ async function playStream(link, provider, episodeTitle = "") {
     setStatus("Online", "#22c55e");
     
     const parsedMeta = parseMediaInfo(currentMeta?.title || "Video");
-    const displayTitle = episodeTitle ? `${parsedMeta.title} - ${episodeTitle}` : parsedMeta.title;
+    const displayTitle = episodeTitle ? (parsedMeta.title + " - " + episodeTitle) : parsedMeta.title;
     
     showSourceSelectionModal(streams, displayTitle, provider, false);
 }
@@ -1691,140 +2099,569 @@ async function resolveDownload(link, provider, title) {
     showSourceSelectionModal(streams, title || "Extracting Media", provider, true);
 }
 
-function showSourceSelectionModal(streams, title, provider, isDownload) {
-    const overlay = document.createElement("div");
-    overlay.className = "modal-overlay active";
-    overlay.style.display = "flex";
-    
-    const dialog = document.createElement("div");
-    dialog.className = "settings-dialog";
-    dialog.style.maxWidth = "500px";
-    dialog.style.width = "90%";
-    dialog.style.background = "var(--surface-deep)";
-    dialog.style.border = "1px solid var(--glass-border)";
-    dialog.style.borderRadius = "16px";
-    dialog.style.display = "flex";
-    dialog.style.flexDirection = "column";
-    dialog.style.boxShadow = "0 20px 40px rgba(0,0,0,0.8)";
-    dialog.style.position = "relative";
-    
-    const closeBtn = document.createElement("button");
-    closeBtn.className = "close-modal";
-    closeBtn.innerHTML = `<i data-lucide="x"></i>`;
-    closeBtn.style.position = "absolute";
-    closeBtn.style.top = "16px";
-    closeBtn.style.right = "16px";
-    closeBtn.style.background = "transparent";
-    closeBtn.style.border = "none";
-    closeBtn.style.color = "var(--text-muted)";
-    closeBtn.style.cursor = "pointer";
-    closeBtn.onclick = () => {
-        overlay.remove();
-    };
-    
-    const header = document.createElement("div");
-    header.style.padding = "24px";
-    header.style.borderBottom = "1px solid var(--glass-border)";
-    header.innerHTML = `
-        <h2 style="margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; color: var(--text-main);">
-            ${isDownload ? "Download Source" : "Play Source"} <i data-lucide="${isDownload ? "download-cloud" : "play-circle"}" style="color: var(--accent);"></i>
-        </h2>
-        <div style="font-size: 13px; color: var(--text-dim); margin-top: 6px;">Select a quality to ${isDownload ? "download" : "play in MPV"}</div>
-    `;
-    
-    const content = document.createElement("div");
-    content.style.padding = "24px";
-    
-    const meta = document.createElement("div");
-    meta.style.display = "flex";
-    meta.style.alignItems = "center";
-    meta.style.gap = "12px";
-    meta.style.background = "var(--surface-light)";
-    meta.style.padding = "16px";
-    meta.style.borderRadius = "12px";
-    meta.style.marginBottom = "24px";
-    meta.style.border = "1px solid var(--glass-border)";
-    meta.innerHTML = `
-        <i data-lucide="film" style="width: 24px; height: 24px; color: var(--text-dim);"></i>
-        <div>
-            <div style="font-weight: 600; font-size: 15px; margin-bottom: 4px; color: var(--text-main);">${title}</div>
-            <div style="font-size: 12px; color: var(--text-muted);">Provider: ${provider}</div>
-        </div>
-    `;
-    content.appendChild(meta);
-    
-    const list = document.createElement("div");
-    list.style.display = "flex";
-    list.style.flexDirection = "column";
-    list.style.gap = "10px";
-    
-    streams.forEach((s, i) => {
-        const row = document.createElement("div");
-        row.style.display = "flex";
-        row.style.justifyContent = "space-between";
-        row.style.alignItems = "center";
-        row.style.padding = "12px";
-        row.style.border = "1px solid var(--glass-border)";
-        row.style.borderRadius = "12px";
-        row.style.background = "var(--surface-light)";
-        row.style.cursor = "pointer";
-        row.onmouseover = () => row.style.background = "var(--glass-border)";
-        row.onmouseout = () => row.style.background = "var(--surface-light)";
-        
-        const qText = s.quality ? s.quality + "p" : "Unknown Quality";
-        const serverText = s.server ? `Server: ${s.server}` : "";
+// ============================
+// 🎬 PLAYER
+// ============================
+function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
+    let currentStreamIndex = initialIndex;
+    let isTranscoding = false;
+    let currentAudioTrack = null;
+    let loadTimeout = null;
 
-        row.innerHTML = `
-            <div style="display: flex; flex-direction: column; gap: 4px;">
-                <div style="font-size: 14px; font-weight: 600; color: var(--text-main);">${qText}</div>
-                <div style="font-size: 12px; color: var(--text-muted);">${serverText}</div>
-            </div>
-            <button style="background: var(--accent); color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                <i data-lucide="${isDownload ? "download" : "play"}" style="width: 14px; height: 14px;"></i> ${isDownload ? "Download" : "Play"}
-            </button>
-        `;
-        
-        row.onclick = () => {
-            overlay.remove();
-            let streamData = extractStreamData(s);
-            if (!streamData || !streamData.url) return;
-            
-            if (isDownload) {
-                // Initialize Native Download
-                const savedDir = db.get('orbix_download_dir', '') || null;
-                invoke("start_download_dialog", { url: streamData.url, title: title, downloadDir: savedDir, headers: streamData.headers })
-                    .catch(e => {
-                        console.error("Download failed:", e);
-                        alert("Download Error: " + e);
-                    });
+    const isMobilePage = document.body.classList.contains('mobile-body');
+    if (isMobilePage) {
+        // Mobile: show overlay instead of page switch
+        const overlay = document.getElementById('playerOverlay');
+        if (overlay) overlay.style.display = 'flex';
+    } else {
+        switchPage('pagePlayer');
+    }
+
+    function startPlayback(initialTime = 0) {
+        // Clear any previous loading timeouts
+        if (loadTimeout) clearTimeout(loadTimeout);
+
+        if (currentStreamIndex >= streams.length) {
+            alert(`⚠️ All playback attempts failed.\n\nThis source might be blocked by Cloudflare (Backend) or your Browser (Frontend).\n\nPossible fixes:\n1. Try another source if available.\n2. Enable "Premium Audio (Transcode)" to force server-side fetch.\n3. Make sure you are using the latest providers.`);
+            closePlayer();
+            document.getElementById("downloadSection").scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
+
+        const stream = streams[currentStreamIndex];
+        let streamUrl = extractStreamUrl(stream);
+
+        if (!streamUrl) {
+            console.warn("Empty stream URL, skipping...");
+            currentStreamIndex++;
+            startPlayback();
+            return;
+        }
+
+        // If transcoding is active, we ensure the URL routes through our stream proxy
+        let isAlreadyProxied = streamUrl.includes("/stream?");
+        if (isTranscoding) {
+            if (isAlreadyProxied) {
+                // Ensure transcode=true is appended
+                if (!streamUrl.includes("transcode=")) {
+                    streamUrl += `&transcode=true`;
+                }
+                // Ensure audioIndex is appended
+                if (currentAudioTrack !== null && currentAudioTrack !== undefined && !streamUrl.includes("audioIndex=")) {
+                    streamUrl += `&audioIndex=${currentAudioTrack}`;
+                }
             } else {
-                // Launch VLC
-                setStatus("Launching VLC player...", "#8b5cf6");
-                invoke("launch_vlc", { url: streamData.url, title: title, headers: streamData.headers })
-                    .then(() => setStatus("Online", "#22c55e"))
-                    .catch(e => {
-                        console.error("VLC launch failed:", e);
-                        setStatus("Online");
-                        if (String(e).includes("VLC_NOT_FOUND")) {
-                            showVlcNotFoundModal();
-                        } else {
-                            alert("Error launching VLC: " + e);
-                        }
-                    });
+                const baseUrl = getApiUrl();
+                let proxyUrl = `${baseUrl}/stream?url=${encodeURIComponent(streamUrl)}&transcode=true&referer=${encodeURIComponent(streamUrl)}`;
+                if (currentAudioTrack !== null && currentAudioTrack !== undefined) {
+                    proxyUrl += `&audioIndex=${currentAudioTrack}`;
+                }
+                streamUrl = proxyUrl;
             }
-        };
-        
-        list.appendChild(row);
-    });
-    
-    content.appendChild(list);
-    dialog.appendChild(closeBtn);
-    dialog.appendChild(header);
-    dialog.appendChild(content);
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
+        }
 
-    lucide.createIcons();
+        // Title display cleanup
+        const parsedMeta = parseMediaInfo(currentMeta?.title || "Video Player");
+        const cleanTitle = parsedMeta.title;
+        const displayTitle = episodeTitle ? `${cleanTitle} - ${episodeTitle}` : cleanTitle;
+
+        document.getElementById("playerTitleDisplay").innerText = 
+            `[Source ${currentStreamIndex + 1}/${streams.length}] ` + displayTitle;
+
+        const isM3u8 = streamUrl.toLowerCase().includes(".m3u8") && !isTranscoding;
+        const isMp4 = streamUrl.toLowerCase().includes(".mp4") || streamUrl.includes("googleusercontent.com") || isTranscoding;
+
+        // Destroy previous player type instances
+        if (player) {
+            player.destroy(false);
+            player = null;
+        }
+        document.getElementById('artplayer-app').innerHTML = ''; 
+
+        const nativeVideo = document.getElementById("native-player-app");
+        if (nativeVideo) {
+            nativeVideo.pause();
+            nativeVideo.src = "";
+            nativeVideo.removeAttribute("src");
+            nativeVideo.load();
+            if (nativeVideo.hls) {
+                nativeVideo.hls.destroy();
+                delete nativeVideo.hls;
+            }
+        }
+
+        // Update player switcher UI active states
+        const btn1 = document.getElementById("player-btn-1");
+        const btn2 = document.getElementById("player-btn-2");
+        if (btn1 && btn2) {
+            if (currentPlayerType === 1) {
+                btn1.classList.add("active");
+                btn1.style.background = "var(--accent)";
+                btn2.classList.remove("active");
+                btn2.style.background = "rgba(255, 255, 255, 0.1)";
+            } else {
+                btn1.classList.remove("active");
+                btn1.style.background = "rgba(255, 255, 255, 0.1)";
+                btn2.classList.add("active");
+                btn2.style.background = "var(--accent)";
+            }
+        }
+
+        // Set up the timeout for 10 seconds max load
+        loadTimeout = setTimeout(() => {
+            console.warn(`⏳ Source ${currentStreamIndex + 1} load timed out (10 seconds max).`);
+            handlePlaybackError();
+        }, 10000);
+
+        if (currentPlayerType === 1) {
+            // PLAYER 1: ARTPLAYER
+            const artContainer = document.getElementById('artplayer-app') || document.getElementById('artplayerContainer');
+            if (artContainer) artContainer.style.display = 'block';
+            if (nativeVideo) nativeVideo.style.display = 'none';
+
+            console.log(`🎬 INITIALIZING ARTPLAYER (Source ${currentStreamIndex + 1}):`, streamUrl);
+
+            // Handle seeking for transcoded streams
+            if (isTranscoding && initialTime > 0) {
+                if (streamUrl.includes('?')) {
+                    streamUrl += `&start=${initialTime}`;
+                } else {
+                    streamUrl += `?start=${initialTime}`;
+                }
+            }
+
+            player = new Artplayer({
+                container: document.getElementById('artplayer-app') ? '#artplayer-app' : '#artplayerContainer',
+                url: streamUrl,
+                title: displayTitle,
+                type: isM3u8 ? 'm3u8' : (isMp4 ? 'mp4' : 'auto'),
+                autoplay: true,
+                autoSize: false,
+                autoMini: true,
+                playbackRate: true,
+                aspectRatio: true,
+                setting: true,
+                hotkey: true,
+                pip: true,
+                mutex: true,
+                fullscreen: true,
+                fullscreenWeb: true,
+                subtitleOffset: true,
+                miniProgressBar: true,
+                playsInline: true,
+                muted: true, 
+                volume: 0.7,
+                autoOrientation: true,
+                lock: true,
+                gesture: true,
+                theme: '#8b5cf6', 
+                moreVideoAttr: {
+                    referrerPolicy: 'no-referrer',
+                },
+                settings: [
+                    {
+                        html: 'Video Source',
+                        icon: '<i data-lucide="server" style="width:16px;height:16px"></i>',
+                        selector: streams.map((s, i) => ({
+                            html: `${i + 1}. ${s.server}`,
+                            index: i,
+                            default: i === currentStreamIndex,
+                        })),
+                        onSelect: function (item) {
+                            if (item.index === currentStreamIndex) return item.html;
+                            const currentTime = player.currentTime;
+                            console.log(`📡 Switching to Source ${item.index + 1}: ${item.html}`);
+                            currentStreamIndex = item.index;
+                            startPlayback(currentTime);
+                            return item.html;
+                        },
+                    },
+                    {
+                        html: 'Premium Audio (Transcode)',
+                        icon: '<i data-lucide="zap" style="width:16px;height:16px;color:#8b5cf6"></i>',
+                        switch: isTranscoding,
+                        onSwitch: function (item) {
+                            isTranscoding = !item.switch;
+                            console.log("🛠 Transcoding toggled:", isTranscoding);
+                            startPlayback(player.currentTime || 0); // Restart with proxy
+                            return isTranscoding;
+                        },
+                    },
+                    {
+                        html: 'Open in VLC (External)',
+                        icon: '<i data-lucide="monitor-play" style="width:16px;height:16px;color:#ef4444"></i>',
+                        onSelect: function (item) {
+                            fetch(`${getApiUrl()}/vlc`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ url: player.url })
+                            });
+                            alert("Attempting to open stream in VLC Media Player...");
+                            return item.html;
+                        },
+                    }
+                ],
+                customType: {
+                    m3u8: function (video, url, art) {
+                        if (Hls.isSupported()) {
+                            if (art.hls) art.hls.destroy();
+                            const hls = new Hls({
+                                maxBufferLength: 120,
+                                maxMaxBufferLength: 600,
+                                maxBufferSize: 120 * 1000 * 1000,
+                            });
+                            
+                            hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                                // --- HLS Audio Tracks ---
+                                const tracks = hls.audioTracks;
+                                if (tracks && tracks.length > 1) {
+                                    // Default to Hindi if found
+                                    const hindiIndex = tracks.findIndex(t => 
+                                        t.name?.toLowerCase().includes('hindi') || 
+                                        t.lang?.toLowerCase().includes('hi') || 
+                                        t.lang?.toLowerCase().includes('hin')
+                                    );
+                                    if (hindiIndex !== -1 && hls.audioTrack !== hindiIndex) {
+                                        console.log("🧡 Auto-switching HLS to Hindi audio...");
+                                        hls.audioTrack = hindiIndex;
+                                    }
+
+                                    art.setting.add({
+                                        name: 'audio-tracks',
+                                        html: 'Audio Tracks',
+                                        icon: '<i data-lucide="languages" style="width:16px;height:16px"></i>',
+                                        selector: tracks.map((track, index) => ({
+                                            html: track.name || track.lang || `Track ${index + 1}`,
+                                            trackIndex: index,
+                                            default: index === hls.audioTrack,
+                                        })),
+                                        onSelect: function (item) {
+                                            hls.audioTrack = item.trackIndex;
+                                            return item.html;
+                                        },
+                                    });
+                                }
+
+                                // --- HLS Quality Selector ---
+                                const levels = hls.levels;
+                                if (levels && levels.length > 0) {
+                                    const qualityItems = levels.map((level, index) => {
+                                        const label = level.height ? `${level.height}p` : `${Math.round(level.bitrate / 1000)}k`;
+                                        return {
+                                            html: label,
+                                            levelIndex: index,
+                                            default: index === hls.currentLevel
+                                        };
+                                    });
+                                    qualityItems.unshift({
+                                        html: 'Auto',
+                                        levelIndex: -1,
+                                        default: hls.currentLevel === -1
+                                    });
+
+                                    art.setting.add({
+                                        name: 'hls-quality',
+                                        html: 'Quality',
+                                        icon: '<i data-lucide="sliders" style="width:16px;height:16px"></i>',
+                                        selector: qualityItems,
+                                        onSelect: function (item) {
+                                            hls.currentLevel = item.levelIndex;
+                                            return item.html;
+                                        }
+                                    });
+                                }
+
+                                setTimeout(() => {
+                                    if (window.lucide) window.lucide.createIcons();
+                                }, 100);
+                            });
+
+                            hls.on(Hls.Events.ERROR, function (event, data) {
+                                if (data.fatal) {
+                                    switch (data.type) {
+                                        case Hls.ErrorTypes.MEDIA_ERROR:
+                                            hls.recoverMediaError();
+                                            break;
+                                        case Hls.ErrorTypes.NETWORK_ERROR:
+                                            hls.startLoad();
+                                            break;
+                                        default:
+                                            hls.destroy();
+                                            break;
+                                    }
+                                }
+                            });
+
+                            hls.loadSource(url);
+                            hls.attachMedia(video);
+                            art.hls = hls;
+                            art.on('destroy', () => hls.destroy());
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                            video.src = url;
+                        }
+                    }
+                }
+            });
+
+            // Toggle player header visibility in sync with Artplayer controls
+            player.on('control', (state) => {
+                const header = document.querySelector('.player-header');
+                if (header) {
+                    if (state) {
+                        header.style.opacity = '1';
+                        header.style.pointerEvents = 'auto';
+                    } else {
+                        header.style.opacity = '0';
+                        header.style.pointerEvents = 'none';
+                    }
+                }
+            });
+
+            // Clear 10s load timeout when playback successfully starts or metadata is loaded
+            player.on('video:playing', () => {
+                console.log("🎬 Playback started, clearing load timeout.");
+                clearTimeout(loadTimeout);
+            });
+            player.on('video:canplay', () => {
+                clearTimeout(loadTimeout);
+            });
+
+            // Detect Audio Tracks for non-HLS streams via Backend
+            if (!isM3u8 && !isTranscoding) {
+                const audioInfoUrl = `${getApiUrl()}/audio-info?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent(streamUrl)}`;
+                fetch(audioInfoUrl)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.audioTracks && data.audioTracks.length > 1) {
+                            // Default to Hindi if found
+                            const hindiTrack = data.audioTracks.find(t => 
+                                t.title?.toLowerCase().includes('hindi') || 
+                                t.language?.toLowerCase().includes('hi') || 
+                                t.language?.toLowerCase().includes('hin')
+                            );
+
+                            if (hindiTrack && currentAudioTrack === null) {
+                                console.log("🧡 Auto-switching standard stream to Hindi audio via Transcode...");
+                                isTranscoding = true;
+                                currentAudioTrack = hindiTrack.index;
+                                startPlayback(player.currentTime || 0); // Restart with Hindi
+                                return;
+                            }
+
+                            player.setting.add({
+                                name: 'audio-tracks-manual',
+                                html: 'Select Audio Track',
+                                icon: '<i data-lucide="mic" style="width:16px;height:16px"></i>',
+                                selector: data.audioTracks.map(track => ({
+                                    html: `${track.title} (${track.codec})`,
+                                    audioIndex: track.index,
+                                })),
+                                onSelect: function (item) {
+                                    isTranscoding = true; // Must transcode to switch specific tracks on non-HLS
+                                    currentAudioTrack = item.audioIndex;
+                                    startPlayback();
+                                    return item.html;
+                                },
+                            });
+                            lucide.createIcons();
+                        }
+                    }).catch(() => {});
+            }
+
+            // Handle Seeks in Transcoding Mode
+            player.on('video:seeking', (event) => {
+                if (isTranscoding) {
+                    const targetTime = player.currentTime;
+                    console.log(`⏩ Seeking to ${targetTime} in Transcoding mode...`);
+                    startPlayback(targetTime);
+                }
+            });
+
+            // Automated Source Fallback on error
+            player.on('video:error', () => {
+                console.error("❌ Artplayer video error.");
+                handlePlaybackError();
+            });
+
+        } else if (currentPlayerType === 2) {
+            // PLAYER 2: NATIVE HTML5 / HLS.JS PLAYER
+            document.getElementById('artplayer-app').style.display = 'none';
+            if (nativeVideo) {
+                nativeVideo.style.display = 'block';
+                console.log(`🎬 INITIALIZING NATIVE PLAYER (Source ${currentStreamIndex + 1}):`, streamUrl);
+
+                // Set up event listeners for native video to clear load timeout
+                const cleanUpListeners = () => {
+                    nativeVideo.removeEventListener('playing', onPlaying);
+                    nativeVideo.removeEventListener('canplay', onPlaying);
+                    nativeVideo.removeEventListener('error', onError);
+                };
+
+                const onPlaying = () => {
+                    console.log("🎬 Native playback started, clearing load timeout.");
+                    clearTimeout(loadTimeout);
+                    cleanUpListeners();
+                };
+
+                const onError = (e) => {
+                    console.error("❌ Native video element error:", e);
+                    cleanUpListeners();
+                    handlePlaybackError();
+                };
+
+                nativeVideo.addEventListener('playing', onPlaying);
+                nativeVideo.addEventListener('canplay', onPlaying);
+                nativeVideo.addEventListener('error', onError);
+
+                // Load source
+                if (isM3u8) {
+                    if (Hls.isSupported()) {
+                        const hls = new Hls({
+                            maxBufferLength: 120,
+                            maxMaxBufferLength: 600,
+                            maxBufferSize: 120 * 1000 * 1000,
+                        });
+                        hls.loadSource(streamUrl);
+                        hls.attachMedia(nativeVideo);
+                        nativeVideo.hls = hls;
+
+                        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                            if (initialTime > 0) {
+                                nativeVideo.currentTime = initialTime;
+                            }
+                        });
+
+                        hls.on(Hls.Events.ERROR, function (event, data) {
+                            if (data.fatal) {
+                                switch (data.type) {
+                                    case Hls.ErrorTypes.MEDIA_ERROR:
+                                        hls.recoverMediaError();
+                                        break;
+                                    case Hls.ErrorTypes.NETWORK_ERROR:
+                                        hls.startLoad();
+                                        break;
+                                    default:
+                                        hls.destroy();
+                                        onError(new Error("Fatal HLS.js error"));
+                                        break;
+                                }
+                            }
+                        });
+                    } else if (nativeVideo.canPlayType('application/vnd.apple.mpegurl')) {
+                        nativeVideo.src = streamUrl;
+                        if (initialTime > 0) {
+                            nativeVideo.addEventListener('loadedmetadata', function onMeta() {
+                                nativeVideo.currentTime = initialTime;
+                                nativeVideo.removeEventListener('loadedmetadata', onMeta);
+                            });
+                        }
+                    }
+                } else {
+                    nativeVideo.src = streamUrl;
+                    if (initialTime > 0) {
+                        nativeVideo.addEventListener('loadedmetadata', function onMeta() {
+                            nativeVideo.currentTime = initialTime;
+                            nativeVideo.removeEventListener('loadedmetadata', onMeta);
+                        });
+                    }
+                }
+            }
+        }
+
+        // Initialize icons after setting up the player
+        setTimeout(() => lucide.createIcons(), 100);
+    }
+
+    function handlePlaybackError() {
+        clearTimeout(loadTimeout);
+        
+        // Pause and reset both players
+        if (player) {
+            player.destroy(false);
+            player = null;
+        }
+        const nativeVideo = document.getElementById("native-player-app");
+        if (nativeVideo) {
+            nativeVideo.pause();
+            if (nativeVideo.hls) {
+                nativeVideo.hls.destroy();
+                delete nativeVideo.hls;
+            }
+        }
+
+        if (currentStreamIndex < streams.length - 1) {
+             console.warn(`❌ Stream ${currentStreamIndex + 1} failed or timed out. Trying alternative...`);
+             currentStreamIndex++;
+             setStatus(`Trying Source ${currentStreamIndex + 1}...`, "#f59e0b");
+             startPlayback();
+        } else {
+             console.error("❌ All streams failed.");
+             alert("⚠️ All playback attempts failed.\n\nThis source might be fully geoblocked or have broken links on Render.\n\nPlease try another provider or check if you can play it on Localhost.");
+             closePlayer();
+        }
+    }
+
+    // Expose dynamic switcher globally for this instance
+    window.switchPlayerType = function(type) {
+        if (type === currentPlayerType) return;
+        
+        // Save current timestamp
+        let currentTime = 0;
+        if (currentPlayerType === 1 && player) {
+            currentTime = player.currentTime;
+        } else if (currentPlayerType === 2) {
+            const nativeVideo = document.getElementById("native-player-app");
+            if (nativeVideo) currentTime = nativeVideo.currentTime;
+        }
+
+        currentPlayerType = type;
+        console.log(`🔌 Switching player type to Player ${currentPlayerType} at time ${currentTime}`);
+        startPlayback(currentTime);
+    };
+
+    startPlayback();
+}
+
+function closePlayer() {
+    // Clear switchPlayerType global wrapper
+    delete window.switchPlayerType;
+
+    const isMobilePage = document.body.classList.contains('mobile-body');
+
+    if (player) {
+        player.pause();
+        player.destroy(false);
+        player = null;
+        const artEl = document.getElementById('artplayer-app') || document.getElementById('artplayerContainer');
+        if (artEl) artEl.innerHTML = '';
+    }
+
+    const nativeVideo = document.getElementById("native-player-app");
+    if (nativeVideo) {
+        nativeVideo.pause();
+        nativeVideo.src = "";
+        nativeVideo.removeAttribute("src");
+        nativeVideo.load();
+        if (nativeVideo.hls) {
+            nativeVideo.hls.destroy();
+            delete nativeVideo.hls;
+        }
+    }
+
+    if (isMobilePage) {
+        const overlay = document.getElementById('playerOverlay');
+        if (overlay) overlay.style.display = 'none';
+        return;
+    }
+
+    // Make sure player header is reset to fully visible for next launch
+    const header = document.querySelector('.player-header');
+    if (header) {
+        header.style.opacity = '1';
+        header.style.pointerEvents = 'auto';
+    }
+    // Return to details screen
+    switchPage('pageDetails');
 }
 
 // ============================
@@ -1856,37 +2693,54 @@ document.addEventListener('click', (e) => {
 });
 
 // ============================
-// ❤️ WISHLIST
+// ❤️ WISHLIST & DATA STORE
 // ============================
 function checkWishlistState() {
     if (!currentMeta || !currentMeta.__link) return;
     const wishlist = db.get('orbix_wishlist', []);
-    const isSaved = wishlist.some(item => item.link === currentMeta.__link);
+    const targetLink = currentMeta.__link;
+    const isSaved = wishlist.some(item => (item.link === targetLink || item.url === targetLink || item.id === targetLink));
     const btn = document.getElementById("wishlistBtn");
     const text = document.getElementById("wishlistText");
     
+    if (!btn) return;
+
     if (isSaved) {
-        btn.classList.add("saved");
+        btn.classList.add("saved", "active");
         btn.style.background = "";
         btn.style.borderColor = "";
-        text.textContent = "Remove from Wishlist";
+        if (text) text.textContent = "Remove from Wishlist";
     } else {
-        btn.classList.remove("saved");
+        btn.classList.remove("saved", "active");
         btn.style.background = "";
         btn.style.borderColor = "";
-        text.textContent = "Add to Wishlist";
+        if (text) text.textContent = "Add to Wishlist";
     }
 }
+
+window.removeFromWishlist = function(link, e) {
+    if (e) e.stopPropagation();
+    let wishlist = db.get('orbix_wishlist', []);
+    wishlist = wishlist.filter(item => (item.link !== link && item.url !== link && item.id !== link));
+    db.set('orbix_wishlist', wishlist);
+    updateWishlistBadge();
+    checkWishlistState();
+    if (currentFilter === "wishlist") {
+        renderGrid(wishlist);
+        setStatus(wishlist.length ? "Online" : "Wishlist is empty");
+    }
+};
 
 async function toggleWishlist() {
     if (!currentMeta || !currentMeta.__link) return;
     
     let wishlist = db.get('orbix_wishlist', []);
-    const index = wishlist.findIndex(item => item.link === currentMeta.__link);
+    const targetLink = currentMeta.__link;
+    const index = wishlist.findIndex(item => (item.link === targetLink || item.url === targetLink || item.id === targetLink));
     
     if (index > -1) {
         wishlist.splice(index, 1);
-        await db.set('orbix_wishlist', wishlist);
+        db.set('orbix_wishlist', wishlist);
         checkWishlistState();
         updateWishlistBadge();
     } else {
@@ -1895,34 +2749,51 @@ async function toggleWishlist() {
         if (text) text.textContent = "Caching Poster...";
         if (btn) btn.disabled = true;
         
-        // 1. Robust Title Resolution
+        // 1. Robust Title Resolution across all provider schemas with validation
         const detailTitleEl = document.getElementById("detailTitle");
-        const titleText = (detailTitleEl && detailTitleEl.textContent !== "Loading..." && detailTitleEl.textContent !== "Failed to load Details")
+        const titleText = (detailTitleEl && isValidTitle(detailTitleEl.textContent))
             ? detailTitleEl.textContent 
             : "";
-        const rawTitle = currentMeta.title || currentMeta.name || titleText || "Media Item";
-        const parsedTitle = parseMediaInfo(rawTitle).title || rawTitle || "Media Details";
         
-        // 2. Poster & Image Cache Resolution
-        let posterUrl = currentMeta.image || "";
+        const candidateWishlistTitles = [
+            currentMeta?.title,
+            currentMeta?.name,
+            currentMeta?.postTitle,
+            currentMeta?.caption,
+            currentMeta?.heading,
+            currentMeta?.details?.title,
+            currentMeta?.movieName,
+            currentMeta?.showName,
+            titleText,
+            extractTitleFromUrl(targetLink)
+        ];
+        const rawTitle = candidateWishlistTitles.find(t => isValidTitle(t)) || "Media Item";
+        const parsedTitle = parseMediaInfo(rawTitle).title || rawTitle;
+        
+        // 2. Poster & Image Cache Resolution across all provider schemas
+        let posterUrl = currentMeta.image || currentMeta.poster || currentMeta.cover || currentMeta.thumbnail || currentMeta.img || currentMeta.src || "";
         const imgEl = document.getElementById("detailPoster");
         if (imgEl && imgEl.src && !imgEl.src.includes('missing.jpg') && !imgEl.src.includes('placeholder') && !imgEl.src.includes('data:image/svg')) {
             posterUrl = imgEl.src;
         }
         
         const base64Image = await fetchImageAsBase64(posterUrl);
-        const providerDisplayName = currentMeta.__provider && providersMap[currentMeta.__provider] 
-            ? providersMap[currentMeta.__provider].display_name 
-            : currentMeta.__provider;
+        const providerId = currentMeta.__provider || currentProvider || "";
+        const providerDisplayName = providerId && providersMap[providerId] 
+            ? providersMap[providerId].display_name 
+            : providerId;
         
         wishlist.push({
             title: parsedTitle,
             rawTitle: rawTitle,
             image: base64Image || posterUrl || "missing.jpg",
-            coverUrl: posterUrl || currentMeta.image || "",
-            link: currentMeta.__link,
-            __provider: currentMeta.__provider,
-            providerName: providerDisplayName || currentMeta.__provider,
+            coverUrl: posterUrl || "",
+            link: targetLink,
+            url: targetLink,
+            id: targetLink,
+            __provider: providerId,
+            provider: providerId,
+            providerName: providerDisplayName || providerId,
             type: currentMeta.type || "Media",
             tmdbId: currentMeta.tmdbId || currentMeta.tmdb || currentMeta.tmdb_id || null,
             imdbId: currentMeta.imdbId || currentMeta.imdb || currentMeta.imdb_id || null,
@@ -1930,7 +2801,7 @@ async function toggleWishlist() {
             addedAt: Date.now()
         });
         
-        await db.set('orbix_wishlist', wishlist);
+        db.set('orbix_wishlist', wishlist);
         if (btn) btn.disabled = false;
         checkWishlistState();
         updateWishlistBadge();
@@ -2003,7 +2874,7 @@ function showNoticeToast() {
     const lastShown = db.get('orbix_notice_time', 0);
     const now = Date.now();
     // 30 minutes = 30 * 60 * 1000 = 1800000 ms
-    if (lastShown && (now - lastShown) < 1800000) {
+    if (lastShown && (now - parseInt(lastShown)) < 1800000) {
         return; 
     }
     
@@ -2162,40 +3033,61 @@ async function refreshWishlistData() {
     let successCount = 0;
     for (let i = 0; i < wishlist.length; i++) {
         const item = wishlist[i];
-        setStatus(`Refreshing ${i + 1}/${wishlist.length}: ${item.title}...`, "#8b5cf6");
+        
+        const targetProvider = item.__provider || item.provider || currentProvider;
+        const targetLink = item.link || item.url || item.id;
+        
+        if (!targetProvider || !targetLink) continue;
+
+        setStatus(`Refreshing ${i + 1}/${wishlist.length}: ${item.title || item.rawTitle || 'Item'}...`, "#8b5cf6");
         
         try {
             const resp = await fetch(`${getApiUrl()}/fetch`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    provider: item.__provider,
+                    provider: targetProvider,
                     functionName: "getMeta",
-                    params: { link: item.link }
+                    params: { link: targetLink, url: targetLink, id: targetLink }
                 }),
-                signal: AbortSignal.timeout(10000)
+                signal: AbortSignal.timeout(25000)
             });
 
             if (resp.ok) {
                 const freshMeta = await resp.json();
-                if (freshMeta && freshMeta.title) {
-                    item.title = parseMediaInfo(freshMeta.title).title || freshMeta.title;
+                const freshTitle = freshMeta.title || freshMeta.name || freshMeta.postTitle || freshMeta.caption || freshMeta.heading || (freshMeta.details && freshMeta.details.title);
+                if (freshMeta && freshTitle) {
+                    item.rawTitle = freshTitle;
+                    item.title = parseMediaInfo(freshTitle).title || freshTitle;
                     item.type = freshMeta.type || item.type;
+                    if (freshMeta.synopsis || freshMeta.description) {
+                        item.synopsis = freshMeta.description || freshMeta.synopsis;
+                    }
                     
-                    let posterUrl = freshMeta.image || item.image;
-                    if (posterUrl) {
+                    let posterUrl = freshMeta.image || freshMeta.poster || freshMeta.cover || freshMeta.thumbnail || freshMeta.img || freshMeta.src || item.coverUrl || item.image;
+                    if (posterUrl && isValidImage(posterUrl)) {
+                        item.coverUrl = posterUrl;
                         const base64Img = await fetchImageAsBase64(posterUrl);
                         if (base64Img) item.image = base64Img;
                     }
+                    
+                    // Normalize provider metadata
+                    item.__provider = targetProvider;
+                    item.provider = targetProvider;
+                    item.providerName = (providersMap[targetProvider]?.display_name || targetProvider);
+                    item.link = targetLink;
+                    item.url = targetLink;
+                    item.id = targetLink;
+
                     successCount++;
                 }
             }
         } catch (err) {
-            console.error(`Failed to refresh item ${item.title}:`, err);
+            console.error(`Failed to refresh item ${item.title || item.rawTitle}:`, err);
         }
     }
 
-    await db.set('orbix_wishlist', wishlist);
+    db.set('orbix_wishlist', wishlist);
     renderGrid(wishlist);
     
     if (btn) {
@@ -2209,48 +3101,171 @@ async function refreshWishlistData() {
     setStatus(`Wishlist refreshed! (${successCount}/${wishlist.length} updated)`, "#22c55e");
 }
 
-// 🚀 START — async so the JSON DB is ready before anything reads from it
-async function init() {
-    await db.init();
 
-    // Populate variables from persisted settings
-    API_BASE = db.get('vega_api_url', 'http://localhost:3001');
-    currentProvider = db.get('orbix_last_provider', '');
-    tmdbKey = db.get('tmdb_api_key', '');
+// ==========================================
+// 🛠️ TAURI NATIVE IMPLEMENTATIONS
+// ==========================================
 
-    initTheme();
-    updateWishlistBadge();
-    loadProviders();
-    setTimeout(() => showNoticeToast(), 1500);
+function extractStreamData(data) {
+    if (!data) return null;
 
-    // Restore any downloads that were running before the page refreshed
-    restoreActiveDownloads();
+    if (Array.isArray(data)) return extractStreamData(data[0]);
 
-    // Populate dl directory input on load
-    const savedDir = db.get('orbix_download_dir', '');
-    if (savedDir) {
-        const input = document.getElementById('dlDirInput');
-        if (input) input.value = savedDir;
+    let url = null;
+    if (data.link) url = data.link;
+    else if (data.file) url = data.file;
+    else if (data.url) url = data.url;
+    else if (data.sources?.length) url = data.sources[0].file;
+    else if (data.data) return extractStreamData(data.data);
+
+    if (url) {
+        let headers = data.headers || null;
+        if (!headers && data.sources?.length && data.sources[0].headers) {
+            headers = data.sources[0].headers;
+        }
+        return { url, headers };
     }
+    return null;
 }
-window.startOrbixApp = init;
-// Expose functions to window to fix inline onclick handlers in Vite module mode
-window.loadHome = loadHome;
-window.onCategorySelect = onCategorySelect;
-window.loadWishlist = loadWishlist;
-window.search = search;
-window.toggleSearchMobile = toggleSearchMobile;
-window.toggleTheme = toggleTheme;
-window.openSettingsModal = openSettingsModal;
-window.toggleReadMore = toggleReadMore;
-window.backToBrowse = backToBrowse;
-window.toggleWishlist = toggleWishlist;
-// ============================
-// 📥 DOWNLOAD MANAGER
-// ============================
-window.activeDownloads = {}; // id -> { title, downloaded, total, speed, error, status, paused }
 
-/** Restore downloads running in Rust after a JS page refresh */
+function showSourceSelectionModal(streams, title, provider, isDownload) {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay active";
+    overlay.style.display = "flex";
+    
+    const dialog = document.createElement("div");
+    dialog.className = "settings-dialog";
+    dialog.style.maxWidth = "500px";
+    dialog.style.width = "90%";
+    dialog.style.background = "var(--surface-deep)";
+    dialog.style.border = "1px solid var(--glass-border)";
+    dialog.style.borderRadius = "16px";
+    dialog.style.display = "flex";
+    dialog.style.flexDirection = "column";
+    dialog.style.boxShadow = "0 20px 40px rgba(0,0,0,0.8)";
+    dialog.style.position = "relative";
+    
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "close-modal";
+    closeBtn.innerHTML = `<i data-lucide="x"></i>`;
+    closeBtn.style.position = "absolute";
+    closeBtn.style.top = "16px";
+    closeBtn.style.right = "16px";
+    closeBtn.style.background = "transparent";
+    closeBtn.style.border = "none";
+    closeBtn.style.color = "var(--text-muted)";
+    closeBtn.style.cursor = "pointer";
+    closeBtn.onclick = () => {
+        overlay.remove();
+    };
+    
+    const header = document.createElement("div");
+    header.style.padding = "24px";
+    header.style.borderBottom = "1px solid var(--glass-border)";
+    header.innerHTML = `
+        <h2 style="margin: 0; font-size: 20px; display: flex; align-items: center; gap: 10px; color: var(--text-main);">
+            ${isDownload ? "Download Source" : "Play Source"} <i data-lucide="${isDownload ? "download-cloud" : "play-circle"}" style="color: var(--accent);"></i>
+        </h2>
+        <div style="font-size: 13px; color: var(--text-dim); margin-top: 6px;">Select a quality to ${isDownload ? "download" : "play in MPV"}</div>
+    `;
+    
+    const content = document.createElement("div");
+    content.style.padding = "24px";
+    
+    const meta = document.createElement("div");
+    meta.style.display = "flex";
+    meta.style.alignItems = "center";
+    meta.style.gap = "12px";
+    meta.style.background = "var(--surface-light)";
+    meta.style.padding = "16px";
+    meta.style.borderRadius = "12px";
+    meta.style.marginBottom = "24px";
+    meta.style.border = "1px solid var(--glass-border)";
+    meta.innerHTML = `
+        <i data-lucide="film" style="width: 24px; height: 24px; color: var(--text-dim);"></i>
+        <div>
+            <div style="font-weight: 600; font-size: 15px; margin-bottom: 4px; color: var(--text-main);">${title}</div>
+            <div style="font-size: 12px; color: var(--text-muted);">Provider: ${provider}</div>
+        </div>
+    `;
+    content.appendChild(meta);
+    
+    const list = document.createElement("div");
+    list.style.display = "flex";
+    list.style.flexDirection = "column";
+    list.style.gap = "10px";
+    
+    streams.forEach((s, i) => {
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.justifyContent = "space-between";
+        row.style.alignItems = "center";
+        row.style.padding = "12px";
+        row.style.border = "1px solid var(--glass-border)";
+        row.style.borderRadius = "12px";
+        row.style.background = "var(--surface-light)";
+        row.style.cursor = "pointer";
+        row.onmouseover = () => row.style.background = "var(--glass-border)";
+        row.onmouseout = () => row.style.background = "var(--surface-light)";
+        
+        const qText = s.quality ? s.quality + "p" : "Unknown Quality";
+        const serverText = s.server ? `Server: ${s.server}` : "";
+
+        row.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="font-size: 14px; font-weight: 600; color: var(--text-main);">${qText}</div>
+                <div style="font-size: 12px; color: var(--text-muted);">${serverText}</div>
+            </div>
+            <button style="background: var(--accent); color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                <i data-lucide="${isDownload ? "download" : "play"}" style="width: 14px; height: 14px;"></i> ${isDownload ? "Download" : "Play"}
+            </button>
+        `;
+        
+        row.onclick = () => {
+            overlay.remove();
+            let streamData = extractStreamData(s);
+            if (!streamData || !streamData.url) return;
+            
+            if (isDownload) {
+                // Initialize Native Download
+                const savedDir = db.get('orbix_download_dir', '') || null;
+                invoke("start_download_dialog", { url: streamData.url, title: title, downloadDir: savedDir, headers: streamData.headers })
+                    .catch(e => {
+                        console.error("Download failed:", e);
+                        alert("Download Error: " + e);
+                    });
+            } else {
+                // Launch VLC
+                setStatus("Launching VLC player...", "#8b5cf6");
+                invoke("launch_vlc", { url: streamData.url, title: title, headers: streamData.headers })
+                    .then(() => setStatus("Online", "#22c55e"))
+                    .catch(e => {
+                        console.error("VLC launch failed:", e);
+                        setStatus("Online");
+                        if (String(e).includes("VLC_NOT_FOUND")) {
+                            showVlcNotFoundModal();
+                        } else {
+                            alert("Error launching VLC: " + e);
+                        }
+                    });
+            }
+        };
+        
+        list.appendChild(row);
+    });
+    
+    content.appendChild(list);
+    dialog.appendChild(closeBtn);
+    dialog.appendChild(header);
+    dialog.appendChild(content);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    if (window.lucide) lucide.createIcons();
+}
+
+window.activeDownloads = {};
+
 async function restoreActiveDownloads() {
     try {
         const active = await invoke('get_active_downloads');
@@ -2271,13 +3286,11 @@ async function restoreActiveDownloads() {
             renderActiveDownloads();
         }
     } catch (e) {
-        // Not in Tauri context or no active downloads — silently ignore
         console.warn('[Downloads] Could not restore active downloads:', e);
     }
 }
 
 function openDownloadsModal() {
-    // pageDownloads is already in the static HTML — just switch to it
     switchPage('pageDownloads');
     renderActiveDownloads();
 }
@@ -2314,10 +3327,8 @@ function renderActiveDownloads() {
         const isError    = dl.status === 'error';
         const isFinished = dl.status === 'finished';
 
-        // Progress bar & accent colour
         const barColor = isError ? '#ef4444' : isPaused ? '#f59e0b' : 'var(--accent)';
 
-        // Status label
         let statusLabel = '';
         if (isFinished)       statusLabel = '✅ Finished';
         else if (isError)     statusLabel = `❌ Error: ${dl.error || 'unknown'}`;
@@ -2335,7 +3346,6 @@ function renderActiveDownloads() {
         `;
 
         item.innerHTML = `
-            <!-- Title row -->
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
                 <div style="font-weight:600; font-size:14px; line-height:1.4; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${dl.title}</div>
                 <div style="display:flex; gap:6px; flex-shrink:0;">
@@ -2360,7 +3370,6 @@ function renderActiveDownloads() {
                 </div>
             </div>
 
-            <!-- Progress -->
             <div>
                 <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); margin-bottom:6px;">
                     <span>${statusLabel}</span>
@@ -2375,7 +3384,6 @@ function renderActiveDownloads() {
                 </div>
             </div>
 
-            <!-- File path -->
             <div style="font-size:10px; color:var(--text-dim); word-break:break-all; opacity:0.6;">${id}</div>
         `;
 
@@ -2384,7 +3392,6 @@ function renderActiveDownloads() {
 
     if (window.lucide) window.lucide.createIcons();
 
-    // ── Attach events ──────────────────────────────────────────────────────
     container.querySelectorAll('.dl-pause-btn').forEach(btn => {
         btn.onclick = async () => {
             const id     = btn.dataset.id;
@@ -2405,10 +3412,6 @@ function renderActiveDownloads() {
         };
     });
 }
-
-// ============================
-// ⚙️ SETTINGS ACTIONS
-// ============================
 
 async function selectDownloadDirectory() {
     try {
@@ -2439,7 +3442,6 @@ async function clearDownloadDirectory() {
 function openVlcDownloadPage() {
     invoke("open_vlc_download_page").catch(e => {
         console.error("Failed to open VLC download page:", e);
-        // Fallback: try window.open
         window.open("https://www.videolan.org/vlc/download-windows.html", "_blank");
     });
 }
@@ -2463,6 +3465,11 @@ window.installVlcAndClose = function() {
     openVlcDownloadPage();
     window.closeVlcModal();
 };
+
+function setQuickApi(url) {
+    const input = document.getElementById('apiUrlInput');
+    if (input) input.value = url;
+}
 
 // 🎧 TAURI LISTENERS
 try {
@@ -2556,7 +3563,42 @@ try {
     console.warn('Tauri event listeners not initialized', e);
 }
 
+// 🚀 START — async so the JSON DB is ready before anything reads from it
+async function init() {
+    await db.init();
 
+    // Populate variables from persisted settings
+    API_BASE = db.get('vega_api_url', 'http://localhost:3001');
+    currentProvider = db.get('orbix_last_provider', '');
+    tmdbKey = db.get('tmdb_api_key', '');
+
+    initTheme();
+    updateWishlistBadge();
+    loadProviders();
+    setTimeout(() => showNoticeToast(), 1500);
+
+    // Restore any downloads that were running before the page refreshed
+    restoreActiveDownloads();
+
+    // Populate dl directory input on load
+    const savedDir = db.get('orbix_download_dir', '');
+    if (savedDir) {
+        const input = document.getElementById('dlDirInput');
+        if (input) input.value = savedDir;
+    }
+}
+
+window.startOrbixApp = init;
+window.loadHome = loadHome;
+window.onCategorySelect = onCategorySelect;
+window.loadWishlist = loadWishlist;
+window.search = search;
+window.toggleSearchMobile = toggleSearchMobile;
+window.toggleTheme = toggleTheme;
+window.openSettingsModal = openSettingsModal;
+window.toggleReadMore = toggleReadMore;
+window.backToBrowse = backToBrowse;
+window.toggleWishlist = toggleWishlist;
 window.openDownloadsModal = openDownloadsModal;
 window.refreshDetails = refreshDetails;
 window.switchDetailTab = switchDetailTab;
@@ -2569,6 +3611,10 @@ window.refreshWishlistData = refreshWishlistData;
 window.selectDownloadDirectory = selectDownloadDirectory;
 window.clearDownloadDirectory = clearDownloadDirectory;
 window.openVlcDownloadPage = openVlcDownloadPage;
-
-
-
+window.setQuickApi = setQuickApi;
+window.openInfoModal = openInfoModal;
+window.closeInfoModal = closeInfoModal;
+window.switchInfoTab = switchInfoTab;
+window.handleContactSubmit = handleContactSubmit;
+window.shareDetails = shareDetails;
+window.toggleSeasonDropdown = toggleSeasonDropdown;

@@ -1,4 +1,6 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
 
 const hdbHeaders = {
   Cookie: "xla=s4t",
@@ -19,10 +21,9 @@ export const getPosts = async function ({
   providerContext: ProviderContext;
   signal: AbortSignal;
 }): Promise<Post[]> {
-  const { getBaseUrl } = providerContext;
   const baseUrl = await getBaseUrl("hdhub");
   const url = `${baseUrl + filter}/page/${page}/`;
-  return posts({ url, signal, providerContext });
+  return posts({ baseUrl, url, signal, providerContext });
 };
 
 export const getSearchPosts = async function ({
@@ -37,7 +38,6 @@ export const getSearchPosts = async function ({
   providerContext: ProviderContext;
   signal: AbortSignal;
 }): Promise<Post[]> {
-  const { getBaseUrl } = providerContext;
   const baseUrl = await getBaseUrl("hdhub");
   try {
     const today = new Date().toISOString().slice(0, 10);
@@ -61,6 +61,11 @@ export const getSearchPosts = async function ({
       },
       signal,
     });
+    if (!res.ok) {
+      throw new Error(
+        `HTTP ${res.status} ${res.statusText} | URL ${searchUrl}`,
+      );
+    }
     const json: any = await res.json();
     const hits: any[] = Array.isArray(json?.hits) ? json.hits : [];
     const catalog: Post[] = [];
@@ -72,23 +77,23 @@ export const getSearchPosts = async function ({
       const permalink = String(doc.permalink || "");
       const image = String(doc.post_thumbnail || "");
       if (!title || !permalink) continue;
-      const link = permalink.startsWith("http")
-        ? permalink
-        : `${baseUrl}${permalink.startsWith("/") ? "" : "/"}${permalink}`;
+      const postUrl = new URL(permalink, `${baseUrl}/`);
+      const link = `${postUrl.pathname}${postUrl.search}${postUrl.hash}`;
       catalog.push({ title, link, image });
     }
     return catalog;
   } catch (err) {
-    console.error("hdhubGetSearchPosts error ", err);
-    return [];
+    throwProviderError("HDHub4u", "search posts", err);
   }
 };
 
 async function posts({
+  baseUrl,
   url,
   signal,
   providerContext,
 }: {
+  baseUrl: string;
   url: string;
   signal: AbortSignal;
   providerContext: ProviderContext;
@@ -99,6 +104,9 @@ async function posts({
       headers: hdbHeaders,
       signal,
     });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText} | URL ${url}`);
+    }
     const data = await res.text();
     const $ = cheerio.load(data);
     const catalog: Post[] = [];
@@ -110,16 +118,16 @@ async function posts({
         const image = $(element).find("figure").find("img").attr("src");
 
         if (title && link && image) {
+          const postUrl = new URL(link, `${baseUrl}/`);
           catalog.push({
             title: title.replace("Download", "").trim(),
-            link: link,
+            link: `${postUrl.pathname}${postUrl.search}${postUrl.hash}`,
             image: image,
           });
         }
       });
     return catalog;
   } catch (err) {
-    console.error("hdhubGetPosts error ", err);
-    return [];
+    throwProviderError("HDHub4u", "posts", err);
   }
 }

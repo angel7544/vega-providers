@@ -1,4 +1,6 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
 
 export const getPosts = async function ({
   filter,
@@ -13,10 +15,17 @@ export const getPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl, axios, cheerio } = providerContext;
+  const { axios, cheerio } = providerContext;
   const baseUrl = await getBaseUrl("w4u");
   const url = `${baseUrl + filter}/page/${page}/`;
-  return posts({ url, signal, axios, cheerio });
+  return posts({
+    baseUrl,
+    url,
+    signal,
+    axios,
+    cheerio,
+    operation: "posts",
+  });
 };
 
 export const getSearchPosts = async function ({
@@ -32,22 +41,33 @@ export const getSearchPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl, axios, cheerio } = providerContext;
+  const { axios, cheerio } = providerContext;
   const baseUrl = await getBaseUrl("w4u");
   const url = `${baseUrl}/page/${page}/?s=${searchQuery}`;
-  return posts({ url, signal, axios, cheerio });
+  return posts({
+    baseUrl,
+    url,
+    signal,
+    axios,
+    cheerio,
+    operation: "search posts",
+  });
 };
 
 async function posts({
+  baseUrl,
   url,
   signal,
   axios,
   cheerio,
+  operation,
 }: {
+  baseUrl: string;
   url: string;
   signal: AbortSignal;
   axios: ProviderContext["axios"];
   cheerio: ProviderContext["cheerio"];
+  operation: string;
 }): Promise<Post[]> {
   try {
     const res = await axios.get(url, { signal });
@@ -63,15 +83,16 @@ async function posts({
           $(element).find(".post-thumb").find("img").attr("data-src") ||
           $(element).find(".post-thumb").find("img").attr("src");
         if (title && link && image) {
+          const postUrl = new URL(link, `${baseUrl}/`);
           catalog.push({
             title: title.replace("Download", "").trim(),
-            link: link,
+            link: `${postUrl.pathname}${postUrl.search}${postUrl.hash}`,
             image: image,
           });
         }
       });
     return catalog;
   } catch (err) {
-    return [];
+    throwProviderError("World4u", operation, err);
   }
 }

@@ -1,4 +1,5 @@
 import { Stream, ProviderContext, TextTracks } from "../types";
+import { throwProviderError } from "../providerErrors";
 
 export const getStream = async function ({
   link: id,
@@ -10,6 +11,7 @@ export const getStream = async function ({
   try {
     const { axios, openWebView, commonHeaders } = providerContext;
     const baseUrl = "https://animetsu.net";
+    const streamUrl = `https://swiftstream.top/proxy`;
 
     let wafCookies: string | undefined;
     try {
@@ -36,7 +38,7 @@ export const getStream = async function ({
       throw new Error("Invalid link format");
     }
 
-    const servers = ["sage", "meg", "dio", "kite"];
+    const servers = ["sage", "dio"];
     const streamLinks: Stream[] = [];
 
     await Promise.all(
@@ -86,11 +88,11 @@ export const getStream = async function ({
             }
             res.data.sources.forEach((source: any) => {
               const sourceUrl = source.url.startsWith("/")
-                ? `${baseUrl}${source.url}`
+                ? `${streamUrl}${source.url}`
                 : source.url;
               streamLinks.push({
                 server: `${server} (Sub): ${source.quality}`,
-                link: `https://m3u8.8man.workers.dev?url=${encodeURIComponent(sourceUrl)}`,
+                link: sourceUrl,
                 type: "m3u8",
                 quality: source.quality,
                 headers: {
@@ -155,11 +157,11 @@ export const getStream = async function ({
             }
             res.data.sources.forEach((source: any) => {
               const sourceUrl = source.url.startsWith("/")
-                ? `${baseUrl}${source.url}`
+                ? `${streamUrl}${source.url}`
                 : source.url;
               streamLinks.push({
                 server: `${server} (Dub): ${source.quality}`,
-                link: `https://m3u8.8man.workers.dev?url=${encodeURIComponent(sourceUrl)}`,
+                link: sourceUrl,
                 type: "m3u8",
                 quality: source.quality,
                 headers: {
@@ -178,7 +180,6 @@ export const getStream = async function ({
     console.log("Stream links:", streamLinks);
     return streamLinks;
   } catch (err) {
-    console.error("animetsu stream error:", err);
-    return [];
+    throwProviderError("AnimeTsu", "stream", err);
   }
 };

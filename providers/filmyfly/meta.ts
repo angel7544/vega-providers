@@ -1,4 +1,6 @@
 import { Info, Link, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
 
 export const getMeta = async function ({
   link,
@@ -9,7 +11,8 @@ export const getMeta = async function ({
 }): Promise<Info> {
   try {
     const { axios, cheerio, commonHeaders: headers } = providerContext;
-    const url = link;
+    const baseUrl = await getBaseUrl("filmyfly");
+    const url = new URL(link, `${baseUrl}/`).href;
     const res = await axios.get(url, { headers });
     const data = res.data;
     const $ = cheerio.load(data);
@@ -41,16 +44,9 @@ export const getMeta = async function ({
       imdbId,
       type,
       linkList: links,
+      webUrl: url,
     };
   } catch (err) {
-    console.error(err);
-    return {
-      title: "",
-      synopsis: "",
-      image: "",
-      imdbId: "",
-      type: "movie",
-      linkList: [],
-    };
+    throwProviderError("FilmyFly", "metadata", err);
   }
 };

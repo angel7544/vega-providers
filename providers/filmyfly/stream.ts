@@ -1,5 +1,6 @@
 import { Stream, ProviderContext } from "../types";
 import { gdflixExtractor } from "../extractors/gdflix";
+import { throwProviderError } from "../providerErrors";
 
 export const getStream = async function ({
   link,
@@ -28,6 +29,7 @@ export const getStream = async function ({
           axios,
           cheerio,
           headers,
+          providerContext,
         );
         streams.push(...gdLinks);
       }
@@ -50,7 +52,6 @@ export const getStream = async function ({
     await Promise.all(promises);
     return streams;
   } catch (err) {
-    console.error(err);
-    return [];
+    throwProviderError("FilmyFly", "stream", err);
   }
 };

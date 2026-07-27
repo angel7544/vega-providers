@@ -1,4 +1,6 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
 
 const defaultHeaders = {
   Referer: "https://www.google.com",
@@ -62,7 +64,7 @@ async function fetchPosts({
   providerContext: ProviderContext;
 }): Promise<Post[]> {
   try {
-    const baseUrl = await providerContext.getBaseUrl("joya9tv");
+    const baseUrl = await getBaseUrl("joya9tv");
     let url: string;
 
     if (
@@ -86,6 +88,9 @@ async function fetchPosts({
 
     const { cheerio } = providerContext;
     const res = await fetch(url, { headers: defaultHeaders, signal });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText} | URL ${url}`);
+    }
     const data = await res.text();
     const $ = cheerio.load(data || "");
 
@@ -101,7 +106,8 @@ async function fetchPosts({
 
       let link = card.find("div.data h3 a").attr("href") || "";
       if (!link) return;
-      link = resolveUrl(link);
+      const postUrl = new URL(link, `${baseUrl}/`);
+      link = `${postUrl.pathname}${postUrl.search}${postUrl.hash}`;
       if (seen.has(link)) return;
 
       let title = card.find("div.data h3 a").text().trim();
@@ -120,7 +126,8 @@ async function fetchPosts({
 
       let link = card.find("a").attr("href") || "";
       if (!link) return;
-      link = resolveUrl(link);
+      const postUrl = new URL(link, `${baseUrl}/`);
+      link = `${postUrl.pathname}${postUrl.search}${postUrl.hash}`;
       if (seen.has(link)) return;
 
       let title =
@@ -139,10 +146,10 @@ async function fetchPosts({
 
     return catalog.slice(0, 100);
   } catch (err) {
-    console.error(
-      "fetchPosts error:",
-      err instanceof Error ? err.message : String(err)
+    throwProviderError(
+      "Joya9TV",
+      query && query.trim() ? "search posts" : "posts",
+      err,
     );
-    return [];
   }
 }

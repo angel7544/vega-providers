@@ -1,3 +1,5 @@
+import { throwProviderError } from "../providerErrors";
+
 const hubcloudDecode = function (value: string) {
   if (value === undefined) {
     return "";
@@ -50,7 +52,6 @@ export async function hubcloudExtractor(
   headers: Record<string, string>,
 ) {
   try {
-    if (!headers) headers = {};
     headers["Cookie"] =
       "ext_name=ojplmecpdpgccookcobabopnaifgidhf; xla=s4t; cf_clearance=woQrFGXtLfmEMBEiGUsVHrUBMT8s3cmguIzmMjmvpkg-1770053679-1.2.1.1-xBrQdciOJsweUF6F2T_OtH6jmyanN_TduQ0yslc_XqjU6RcHSxI7.YOKv6ry7oYo64868HYoULnVyww536H2eVI3R2e4wKzsky6abjPdfQPxqpUaXjxfJ02o6jl3_Vkwr4uiaU7Wy596Vdst3y78HXvVmKdIohhtPvp.vZ9_L7wvWdce0GRixjh_6JiqWmWMws46hwEt3hboaS1e1e4EoWCvj5b0M_jVwvSxBOAW5emFzvT3QrnRh4nyYmKDERnY";
     console.log("hubcloudExtractor", link);
@@ -74,6 +75,11 @@ export async function hubcloudExtractor(
       signal,
       redirect: "follow",
     });
+    if (!vcloudRes.ok) {
+      throw new Error(
+        `HTTP ${vcloudRes.status} ${vcloudRes.statusText} | URL ${vcloudLink}`,
+      );
+    }
     const vcloudText = await vcloudRes.text();
     const $ = cheerio.load(vcloudText);
     // console.log("vcloudRes", $.text());
@@ -195,7 +201,6 @@ export async function hubcloudExtractor(
     console.log("streamLinks", streamLinks);
     return streamLinks;
   } catch (error: any) {
-    console.log("hubcloudExtractor error: ", error?.message || error);
-    return [];
+    throwProviderError("HubCloud", `extract ${link}`, error);
   }
 }

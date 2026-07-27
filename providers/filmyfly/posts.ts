@@ -1,4 +1,6 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
 
 export const getPosts = async function ({
   filter,
@@ -12,10 +14,9 @@ export const getPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl } = providerContext;
   const baseUrl = await getBaseUrl("filmyfly");
   const url = `${baseUrl + filter}/${page}`;
-  return posts({ url, signal, baseUrl, providerContext });
+  return posts({ url, signal, baseUrl, providerContext, operation: "posts" });
 };
 
 export const getSearchPosts = async function ({
@@ -30,13 +31,18 @@ export const getSearchPosts = async function ({
   providerContext: ProviderContext;
   signal: AbortSignal;
 }): Promise<Post[]> {
-  const { getBaseUrl } = providerContext;
   const baseUrl = await getBaseUrl("filmyfly");
   const url = `${baseUrl}/site-1.html?to-search=${searchQuery}`;
   if (page > 1) {
     return [];
   }
-  return posts({ url, signal, baseUrl, providerContext });
+  return posts({
+    url,
+    signal,
+    baseUrl,
+    providerContext,
+    operation: "search posts",
+  });
 };
 
 async function posts({
@@ -44,15 +50,20 @@ async function posts({
   signal,
   baseUrl,
   providerContext,
+  operation,
 }: {
   url: string;
   signal: AbortSignal;
   baseUrl: string;
   providerContext: ProviderContext;
+  operation: string;
 }): Promise<Post[]> {
   try {
     const { cheerio, commonHeaders: headers } = providerContext;
     const res = await fetch(url, { headers, signal });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} ${res.statusText} | URL ${url}`);
+    }
     const data = await res.text();
     const $ = cheerio.load(data);
     const catalog: Post[] = [];
@@ -62,16 +73,16 @@ async function posts({
       const link = $(element).find("a").attr("href");
       const image = $(element).find("img").attr("src");
       if (title && link && image) {
+        const postUrl = new URL(link, `${baseUrl}/`);
         catalog.push({
           title: title,
-          link: baseUrl + link,
+          link: `${postUrl.pathname}${postUrl.search}${postUrl.hash}`,
           image: image,
         });
       }
     });
     return catalog;
   } catch (err) {
-    console.error("ff error ", err);
-    return [];
+    throwProviderError("FilmyFly", operation, err);
   }
 }

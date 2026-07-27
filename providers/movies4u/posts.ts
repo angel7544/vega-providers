@@ -1,4 +1,6 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
 
 const defaultHeaders = {
   accept:
@@ -71,7 +73,7 @@ async function fetchPosts({
   providerContext: ProviderContext;
 }): Promise<Post[]> {
   try {
-    const baseUrl = await providerContext.getBaseUrl("movies4u");
+    const baseUrl = await getBaseUrl("movies4u");
     let url: string;
 
     // --- Build URL for category filter or search query
@@ -171,7 +173,8 @@ async function fetchPosts({
       console.log("Processing card:", card.text().trim().slice(0, 50)); // Debug log
       let link = card.find("a[href]").first().attr("href") || "";
       if (!link) return;
-      link = resolveUrl(link);
+      const postUrl = new URL(link, url);
+      link = `${postUrl.pathname}${postUrl.search}${postUrl.hash}`;
       if (seen.has(link)) return;
 
       let title =
@@ -202,10 +205,10 @@ async function fetchPosts({
 
     return catalog.slice(0, 100);
   } catch (err) {
-    console.error(
-      "HDMovie2 fetchPosts error:",
-      err instanceof Error ? err.message : String(err),
+    throwProviderError(
+      "Movies4u",
+      query && query.trim() ? "search posts" : "posts",
+      err,
     );
-    return [];
   }
 }

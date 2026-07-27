@@ -1,0 +1,52 @@
+import { Info, Link, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
+
+export const getMeta = async function ({
+  link,
+  providerContext,
+}: {
+  link: string;
+  providerContext: ProviderContext;
+}): Promise<Info> {
+  try {
+    const { axios, cheerio, commonHeaders: headers } = providerContext;
+    const baseUrl = await getBaseUrl("filmyfly");
+    const url = new URL(link, `${baseUrl}/`).href;
+    const res = await axios.get(url, { headers });
+    const data = res.data;
+    const $ = cheerio.load(data);
+    const type = url.includes("tvshows") ? "series" : "movie";
+    const imdbId = "";
+    const title = $('.fname:contains("Name")').find(".colora").text().trim();
+    const image = $(".ss").find("img").attr("src") || "";
+    const synopsis = $('.fname:contains("Description")')
+      .find(".colorg")
+      .text()
+      .trim();
+    const tags =
+      $('.fname:contains("Genre")').find(".colorb").text().split(",") || [];
+    const rating = "";
+    const links: Link[] = [];
+    const downloadLink = $(".dlbtn").find("a").attr("href");
+    if (downloadLink) {
+      links.push({
+        title: title,
+        episodesLink: downloadLink,
+      });
+    }
+    return {
+      title,
+      tags,
+      rating,
+      synopsis,
+      image,
+      imdbId,
+      type,
+      linkList: links,
+      webUrl: url,
+    };
+  } catch (err) {
+    throwProviderError("FilmyFly", "metadata", err);
+  }
+};

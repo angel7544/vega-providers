@@ -1,4 +1,6 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
 
 const headers = {
   Accept:
@@ -31,11 +33,10 @@ export const getPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl } = providerContext;
   const baseUrl = await getBaseUrl("Topmovies");
   const url = `${baseUrl + filter}/page/${page}/`;
 
-  return posts(url, signal, providerContext);
+  return posts(baseUrl, url, signal, providerContext, "posts");
 };
 
 export const getSearchPosts = async function ({
@@ -50,16 +51,17 @@ export const getSearchPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl } = providerContext;
   const baseUrl = await getBaseUrl("Topmovies");
   const url = `${baseUrl}/search/${searchQuery}/page/${page}/`;
-  return posts(url, signal, providerContext);
+  return posts(baseUrl, url, signal, providerContext, "search posts");
 };
 
 async function posts(
+  baseUrl: string,
   url: string,
   signal: AbortSignal,
   providerContext: ProviderContext,
+  operation: string,
 ): Promise<Post[]> {
   try {
     const { axios, cheerio } = providerContext;
@@ -79,7 +81,10 @@ async function posts(
         if (title && link) {
           catalog.push({
             title: title.replace("Download", "").trim(),
-            link: link,
+            link: (() => {
+              const postUrl = new URL(link, `${baseUrl}/`);
+              return `${postUrl.pathname}${postUrl.search}${postUrl.hash}`;
+            })(),
             image: image,
           });
         }
@@ -87,7 +92,6 @@ async function posts(
     // console.log(catalog);
     return catalog;
   } catch (err) {
-    console.error("mod error ", err);
-    return [];
+    throwProviderError("TopMovies", operation, err);
   }
 }

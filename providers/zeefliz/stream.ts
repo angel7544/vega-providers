@@ -1,5 +1,6 @@
 import { ProviderContext, Stream } from "../types";
 import { hubcloudExtractor } from "../extractors/hubcloud";
+import { throwProviderError } from "../providerErrors";
 
 const headers = {
   Accept:
@@ -40,7 +41,7 @@ export async function getStream({
       // vlink
       const dotlinkRes = await axios(`${link}`, { headers });
       const dotlinkText = dotlinkRes.data;
-      console.log("dotlinkText", dotlinkText);
+      // console.log("dotlinkText", dotlinkText);
       const vlink = dotlinkText.match(/<a\s+href="([^"]*cloud\.[^"]*)"/i) || [];
       console.log("vLink", vlink[1]);
       link = vlink[1];
@@ -107,10 +108,6 @@ export async function getStream({
 
     return await hubcloudExtractor(link, signal, axios, cheerio, commonHeaders);
   } catch (error: any) {
-    console.log("getStream error: ", error);
-    if (error.message.includes("Aborted")) {
-    } else {
-    }
-    return [];
+    throwProviderError("ZeeFliz", "stream", error);
   }
 }

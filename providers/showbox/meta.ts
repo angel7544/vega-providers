@@ -1,4 +1,6 @@
 import { Info, Link, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
 
 export const getMeta = async function ({
   link,
@@ -8,9 +10,9 @@ export const getMeta = async function ({
   providerContext: ProviderContext;
 }): Promise<Info> {
   try {
-    const { axios, cheerio, getBaseUrl } = providerContext;
+    const { axios, cheerio } = providerContext;
     const baseUrlShowbox = await getBaseUrl("showbox");
-    const url = baseUrlShowbox + link;
+    const url = new URL(link, `${baseUrlShowbox}/`).href;
     const res = await axios.get(url);
     const data = res.data;
     const $ = cheerio.load(data);
@@ -58,17 +60,9 @@ export const getMeta = async function ({
       imdbId,
       type,
       linkList: links,
+      webUrl: url,
     };
   } catch (err) {
-    console.error("Error fetching metadata:", err);
-    return {
-      title: "",
-      rating: "",
-      synopsis: "",
-      image: "",
-      imdbId: "",
-      type: "",
-      linkList: [],
-    };
+    throwProviderError("ShowBox", "metadata", err);
   }
 };

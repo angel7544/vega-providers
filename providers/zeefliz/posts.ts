@@ -1,4 +1,6 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
 
 const defaultHeaders = {
   Referer: "https://www.google.com",
@@ -62,7 +64,7 @@ async function fetchPosts({
   providerContext: ProviderContext;
 }): Promise<Post[]> {
   try {
-    const baseUrl = await providerContext.getBaseUrl("zeefliz");
+    const baseUrl = await getBaseUrl("zeefliz");
     let url: string;
 
     if (query && query.trim()) {
@@ -96,7 +98,8 @@ async function fetchPosts({
 
       let link = card.find("a[href]").first().attr("href") || "";
       if (!link) return;
-      link = resolveUrl(link);
+      const postUrl = new URL(link, `${baseUrl}/`);
+      link = `${postUrl.pathname}${postUrl.search}${postUrl.hash}`;
       if (seen.has(link)) return;
 
       // Title
@@ -126,10 +129,10 @@ async function fetchPosts({
 
     return catalog.slice(0, 100);
   } catch (err) {
-    console.error(
-      "fetchPosts error:",
-      err instanceof Error ? err.message : String(err),
+    throwProviderError(
+      "ZeeFliz",
+      query && query.trim() ? "search posts" : "posts",
+      err,
     );
-    return [];
   }
 }

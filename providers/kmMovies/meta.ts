@@ -1,10 +1,154 @@
 import { Info, Link, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
 
 const kmmHeaders = {
-  Referer: "https://google.com",
   "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36 Edg/149.0.0.0",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  Pragma: "no-cache",
+  "Cache-Control": "no-cache",
 };
+
+async function getWithWAF(
+  url: string,
+  axios: any,
+  openWebView: any,
+  headers: Record<string, string>,
+): Promise<any> {
+  const baseUrl = url.split("/").slice(0, 3).join("/");
+  try {
+    return await axios.get(url, { headers: { ...headers, Referer: baseUrl } });
+  } catch (error: any) {
+    if (error.response?.status === 403 && openWebView) {
+      console.log(`WAF detected (403) for ${url}, using solver...`);
+      const wafResult = await openWebView(baseUrl, {
+        title: "Solve the captcha below and click done",
+        description: "Required to bypass anti-bot protection.",
+        headers: { ...headers, Referer: baseUrl },
+        waitForCookie: "cf_clearance",
+      });
+      return await axios.get(url, {
+        headers: { ...headers, Referer: baseUrl, Cookie: wafResult.cookies },
+      });
+    }
+    throw error;
+  }
+}
+
+function resolvePostUrl(link: string, baseUrl: string): string {
+  const currentBaseUrl = new URL(baseUrl);
+  const postUrl = new URL(link, `${baseUrl}/`);
+
+  if (postUrl.hostname.includes("kmmovies")) {
+    return new URL(`${postUrl.pathname}${postUrl.search}`, currentBaseUrl).href;
+  }
+
+  return postUrl.href;
+}
+
+function getQuality(title: string): string {
+  const match = title.match(/\b(480|720|1080|2160)p\b/i);
+  return match ? `${match[1]}p` : "AUTO";
+}
+
+function getVersionTitle(anchor: any, $: any): string {
+  if ($(anchor).hasClass("webdl")) return "WebDL Version";
+  if ($(anchor).hasClass("encoded")) return "Encoded Version";
+  return "";
+}
+
+function extractImdbId($: any, html: string): string {
+  const imdbUrl = $("a[href*='imdb.com/title/tt']").first().attr("href") || "";
+  return imdbUrl.match(/tt\d+/i)?.[0] || html.match(/tt\d{7,}/i)?.[0] || "";
+}
+
+function extractLinkList($: any, pageUrl: string): Link[] {
+  const links: Link[] = [];
+  const seen = new Set<string>();
+
+  $(".type-content[data-type]").each((_: number, container: any) => {
+    const group = $(container).attr("data-type") || "";
+    if (group.startsWith("zip-")) return;
+
+    const isEpisodeGroup = group.startsWith("episodes-");
+    const groupTitle = group.startsWith("combined-")
+      ? "Combined"
+      : "Episode Wise";
+
+    $(container)
+      .find("a.dl-btn[href]")
+      .each((__: number, anchor: any) => {
+        const href = $(anchor).attr("href")?.trim();
+        const label = $(anchor).text().replace(/\s+/g, " ").trim();
+        if (!href || !label) return;
+
+        const versionTitle = getVersionTitle(anchor, $);
+        const title = [versionTitle, groupTitle, label]
+          .filter(Boolean)
+          .join(" - ");
+        const resolvedUrl = new URL(href, pageUrl).href;
+        const key = `${versionTitle}:${group}:${resolvedUrl}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+
+        const link: Link = {
+          title,
+          quality: getQuality(label),
+        };
+
+        if (isEpisodeGroup) {
+          link.episodesLink = resolvedUrl;
+        } else {
+          link.directLinks = [
+            {
+              title,
+              link: resolvedUrl,
+              type: "series",
+            },
+          ];
+        }
+
+        links.push(link);
+      });
+  });
+
+  if (links.length > 0) return links;
+
+  $("a.dl-btn[href]").each((_: number, anchor: any) => {
+    const group = $(anchor)
+      .closest(".type-content[data-type]")
+      .attr("data-type");
+    if (group?.startsWith("zip-")) return;
+
+    const href = $(anchor).attr("href")?.trim();
+    const label = $(anchor).text().replace(/\s+/g, " ").trim();
+    if (!href || !label) return;
+
+    const versionTitle = getVersionTitle(anchor, $);
+    const title = versionTitle
+      ? `${versionTitle} - ${label}`
+      : `Download ${label}`;
+    const resolvedUrl = new URL(href, pageUrl).href;
+    const key = `${versionTitle}:${resolvedUrl}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    links.push({
+      title,
+      quality: getQuality(label),
+      directLinks: [
+        {
+          title,
+          link: resolvedUrl,
+          type: "movie",
+        },
+      ],
+    });
+  });
+
+  return links;
+}
 
 export const getMeta = async function ({
   link,
@@ -14,156 +158,87 @@ export const getMeta = async function ({
   providerContext: ProviderContext;
 }): Promise<Info> {
   try {
-    const { axios, cheerio } = providerContext;
+    const { axios, cheerio, openWebView } = providerContext;
+    const baseUrl = await getBaseUrl("kmmovies");
+    const pageUrl = resolvePostUrl(link, baseUrl);
+    const res = await getWithWAF(pageUrl, axios, openWebView, kmmHeaders);
+    const html = String(res.data || "");
+    const $ = cheerio.load(html);
+    const overview = $("#movie-overview");
 
-    if (!link.startsWith("http")) {
-      const baseUrl = await providerContext.getBaseUrl("kmmovies");
-      link = `${baseUrl}${link.startsWith("/") ? "" : "/"}${link}`;
-    }
-
-    const res = await axios.get(link, { headers: kmmHeaders });
-    const $ = cheerio.load(res.data);
-
-    // --- Title
     const title =
-      $("h1, h2, .animated-text").first().text().trim() ||
+      overview.find(".hero-title").first().text().trim() ||
+      $("h1").first().text().trim() ||
       $("meta[property='og:title']").attr("content")?.trim() ||
       $("title").text().trim() ||
       "Unknown";
-
-    // --- Poster Image
-    let image =
-      $("div.wp-slider-container img").first().attr("src") ||
+    const backdropStyle = overview.find(".hero-backdrop").first().attr("style");
+    const backdropPath = backdropStyle?.match(
+      /background-image:\s*url\(["']?([^"')]+)["']?\)/i,
+    )?.[1];
+    const imagePath =
+      backdropPath ||
+      overview.find("img.hero-poster").first().attr("src") ||
+      overview.find("img.hero-poster").first().attr("data-src") ||
       $("meta[property='og:image']").attr("content") ||
       $("meta[name='twitter:image']").attr("content") ||
       "";
-    if (!image || !image.startsWith("http")) {
-      image = new URL(image || "/placeholder.png", link).href;
-    }
-
-    // --- Synopsis
-    let synopsis = "";
-    $("p").each((_, el) => {
-      const text = $(el).text().trim();
-      if (
-        text &&
-        text.length > 40 &&
-        !text.toLowerCase().includes("download") &&
-        !text.toLowerCase().includes("quality")
-      ) {
-        synopsis = text;
-        return false;
-      }
-    });
-    if (!synopsis) {
-      synopsis =
-        $("meta[property='og:description']").attr("content") ||
-        $("meta[name='description']").attr("content") ||
-        "";
-    }
-
-    // --- Tags / Genre
-    const tags: string[] = [];
-    if (res.data.toLowerCase().includes("action")) tags.push("Action");
-    if (res.data.toLowerCase().includes("drama")) tags.push("Drama");
-    if (res.data.toLowerCase().includes("romance")) tags.push("Romance");
-    if (res.data.toLowerCase().includes("thriller")) tags.push("Thriller");
-
-    // --- Cast
-    const cast: string[] = [];
-    $("p").each((_, el) => {
-      const text = $(el).text().trim();
-      if (/starring|cast/i.test(text)) {
-        text.split(",").forEach((name) => cast.push(name.trim()));
-      }
-    });
-
-    // --- Rating
-    let rating =
-      $("p")
+    const image = imagePath ? new URL(imagePath, pageUrl).href : "";
+    const synopsis =
+      overview
+        .find(".hero-description")
+        .first()
         .text()
-        .match(/IMDb Rating[:\s]*([0-9.]+)/i)?.[1] || "";
-    if (rating && !rating.includes("/")) rating = rating + "/10";
-
-    // --- IMDb ID
-    const imdbLink = $("p a[href*='imdb.com']").attr("href") || "";
-    const imdbId =
-      imdbLink && imdbLink.includes("/tt")
-        ? "tt" + imdbLink.split("/tt")[1].split("/")[0]
-        : "";
-
-    // --- Download Links
-    const linkList: Link[] = [];
-    const isSeries = $(".download-options-grid").length > 0; // Series tab structure
-
-    if (isSeries) {
-      // --- Series: loop through each download-card
-      $(".download-card").each((_, card) => {
-        const card$ = $(card);
-        const quality = card$.find(".download-quality-text").text().trim();
-        const size = card$.find(".download-size-info").text().trim() || "";
-        const href = card$.find("a.tabs-download-button").attr("href") || "";
-        if (href) {
-          const titleText = `Download ${quality} ${size}`.trim();
-          linkList.push({
-            title: titleText,
-            quality: quality || "AUTO",
-            directLinks: [
-              {
-                link: href,
-                title: titleText,
-                type: "series",
-              },
-            ],
-          });
-        }
-      });
-    } else {
-      // --- Movie: same as before
-      $("a.modern-download-button").each((_, a) => {
-        const parent = $(a).closest(".modern-option-card");
-        const quality = parent.find(".modern-badge").text().trim() || "AUTO";
-        const href = $(a).attr("href") || "";
-        const titleText = `Download ${quality}`;
-        if (href) {
-          linkList.push({
-            title: titleText,
-            quality,
-            directLinks: [
-              {
-                link: href,
-                title: titleText,
-                type: "movie",
-              },
-            ],
-          });
-        }
-      });
-    }
+        .replace(/\s+/g, " ")
+        .trim() ||
+      $("meta[property='og:description']").attr("content")?.trim() ||
+      $("meta[name='description']").attr("content")?.trim() ||
+      "";
+    const ratingValue = overview
+      .find(".meta-pill.rating-star")
+      .first()
+      .text()
+      .match(/[0-9]+(?:\.[0-9]+)?/)?.[0];
+    const rating = ratingValue ? `${ratingValue}/10` : "";
+    const imdbId = extractImdbId($, html);
+    const tags = [
+      ...new Set(
+        $("a[href*='/genre/']")
+          .map((_, element) => {
+            const href = $(element).attr("href") || "";
+            const path = new URL(href, pageUrl).pathname;
+            return path !== "/genre/"
+              ? $(element).text().replace(/\s+/g, " ").trim()
+              : "";
+          })
+          .get()
+          .filter(Boolean),
+      ),
+    ];
+    const cast = $("a[href*='/actor/']")
+      .map((_, element) => $(element).text().replace(/\s+/g, " ").trim())
+      .get()
+      .filter(Boolean);
+    const linkList = extractLinkList($, pageUrl);
+    const type =
+      $(".type-content[data-type^='episodes-']").length > 0 ||
+      /\bS\d{1,2}\b/i.test(title)
+        ? "series"
+        : "movie";
 
     return {
       title,
       synopsis,
       image,
       imdbId,
-      type: isSeries ? "series" : "movie",
+      type,
       tags,
       cast,
       rating,
       linkList,
+      webUrl: pageUrl,
     };
   } catch (err) {
-    console.error("KMMOVIES getMeta error:", err);
-    return {
-      title: "",
-      synopsis: "",
-      image: "https://via.placeholder.com/300x450",
-      imdbId: "",
-      type: "movie",
-      tags: [],
-      cast: [],
-      rating: "",
-      linkList: [],
-    };
+    throwProviderError("KMMovies", "metadata", err);
   }
 };
