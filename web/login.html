@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In | OrbixPlay</title>
+    <link rel="icon" type="image/x-icon" href="icon.ico">
+    <link rel="shortcut icon" type="image/png" href="icon.png">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Custom CSS -->
+    <style>
+        :root {
+            --bg-dark: #09090b;
+            --surface-dark: rgba(15, 15, 20, 0.6);
+            --border-glass: rgba(147, 51, 234, 0.15);
+            --accent: #a855f7;
+            --accent-hover: #c084fc;
+            --text-main: #f4f4f5;
+            --text-muted: #a1a1aa;
+            --radius-lg: 16px;
+            --radius-md: 10px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            background: radial-gradient(circle at 50% 0%, #1e152a 0%, var(--bg-dark) 80%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            overflow-x: hidden;
+        }
+
+        /* Ambient glow spots */
+        .ambient-glow {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(0,0,0,0) 70%);
+            top: 10%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .login-wrapper {
+            width: 100%;
+            max-width: 440px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .logo-section img {
+            width: 42px;
+            height: 42px;
+            border-radius: var(--radius-md);
+            box-shadow: 0 4px 20px rgba(147, 51, 234, 0.3);
+        }
+
+        .logo-text {
+            font-size: 26px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #fff 0%, #d8b4fe 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Glassmorphic Cards */
+        .glass-card {
+            background: var(--surface-dark);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--radius-lg);
+            padding: 36px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            transition: border-color 0.3s ease;
+        }
+
+        /* Error/Warning Toast Banner */
+        .alert-banner {
+            display: none;
+            align-items: flex-start;
+            gap: 12px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: var(--radius-md);
+            padding: 14px 18px;
+            margin-bottom: 8px;
+            font-size: 13.5px;
+            color: #fca5a5;
+            line-height: 1.5;
+            animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .alert-banner i {
+            flex-shrink: 0;
+            color: #ef4444;
+            margin-top: 2px;
+        }
+
+        /* Key Configuration Panel */
+        .config-panel {
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .config-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .config-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-field {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            color: var(--text-main);
+            font-size: 14px;
+            transition: all 0.2s ease;
+            outline: none;
+            width: 100%;
+        }
+
+        .input-field:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 10px rgba(147, 51, 234, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .primary-btn {
+            background: linear-gradient(135deg, var(--accent) 0%, #7e22ce 100%);
+            border: none;
+            border-radius: var(--radius-md);
+            padding: 12px 24px;
+            color: white;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(147, 51, 234, 0.3);
+        }
+
+        .primary-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(147, 51, 234, 0.4);
+            background: linear-gradient(135deg, var(--accent-hover) 0%, #9333ea 100%);
+        }
+
+        .primary-btn:active {
+            transform: translateY(1px);
+        }
+
+        /* Loading Spinner */
+        .spinner-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 20px 0;
+        }
+
+        .spinner {
+            width: 38px;
+            height: 38px;
+            border: 3px solid rgba(147, 51, 234, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--accent);
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner-text {
+            font-size: 13.5px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* Clerk container styling override support */
+        #clerk-auth-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Hide standard clerk header logo if needed for co-branding */
+        .cl-cardHeaderLogoImage {
+            display: none !important;
+        }
+        
+        .footer-link {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        
+        .footer-link a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .footer-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient-glow"></div>
+
+    <div class="login-wrapper">
+        <!-- Logo -->
+        <div class="logo-section">
+            <img src="icon.png" alt="OrbixPlay Logo">
+            <span class="logo-text">OrbixPlay</span>
+        </div>
+
+        <!-- Alert Notification -->
+        <div id="errorBanner" class="alert-banner">
+            <i data-lucide="shield-alert"></i>
+            <span id="errorMsg">An error occurred. Please try again.</span>
+        </div>
+
+        <!-- Main Card -->
+        <div class="glass-card">
+            
+            <!-- Setup/Key Config UI -->
+            <div id="configPanel" class="config-panel">
+                <h3 class="config-title">Connect Clerk Auth</h3>
+                <p class="config-desc">Authentication keys are currently not configured. Enter your Clerk Publishable Key below to establish a secure connection.</p>
+                
+                <div class="input-group" style="margin-top: 10px;">
+                    <label for="clerkKeyInput">Clerk Publishable Key</label>
+                    <input type="text" id="clerkKeyInput" class="input-field" placeholder="pk_test_...">
+                </div>
+
+                <button class="primary-btn" onclick="saveKeyConfig()">
+                    <span>Connect Application</span>
+                    <i data-lucide="arrow-right" style="width: 16px; height: 16px;"></i>
+                </button>
+                
+                <p class="config-desc" style="font-size: 11px; text-align: center; margin-top: 8px;">
+                    Keys are stored securely inside your local browser storage.
+                </p>
+            </div>
+
+            <!-- Loader -->
+            <div id="authLoader" class="spinner-wrapper">
+                <div class="spinner"></div>
+                <div class="spinner-text">Preparing secure gateway...</div>
+            </div>
+
+            <!-- Clerk Mount Node -->
+            <div id="clerk-auth-container" style="display: none;"></div>
+
+        </div>
+
+        <!-- Footer link back to config -->
+        <div id="resetConfigLink" class="footer-link" style="display: none;">
+            Need to change credentials? <a href="#" onclick="resetConfig(event)">Reset configuration</a>
+        </div>
+    </div>
+
+    <!-- Script to handle UI logic -->
+    <script>
+        // Check for URL parameters to display custom error banners
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            const banner = document.getElementById('errorBanner');
+            const errorMsg = document.getElementById('errorMsg');
+
+            if (error === 'domain') {
+                errorMsg.innerHTML = "<strong>Access Denied!</strong> Only Gmail email addresses (ending with <code>@gmail.com</code>) are allowed to access this application.";
+                banner.style.display = 'flex';
+            } else if (error === 'key_missing') {
+                errorMsg.innerHTML = "<strong>Configuration Needed.</strong> Clerk publishable key is not set. Please insert your key to proceed.";
+                banner.style.display = 'flex';
+            }
+            
+            // Render icons
+            lucide.createIcons();
+        });
+
+        // Toggle visibility of the setup UI
+        window.showKeyConfigUI = function() {
+            document.getElementById('authLoader').style.display = 'none';
+            document.getElementById('clerk-auth-container').style.display = 'none';
+            document.getElementById('configPanel').style.display = 'flex';
+        };
+
+        // Save key configuration inputted by the user
+        function saveKeyConfig() {
+            const keyInput = document.getElementById('clerkKeyInput').value.trim();
+            if (!keyInput.startsWith('pk_')) {
+                alert("Please enter a valid Clerk Publishable Key (should start with 'pk_test_' or 'pk_live_')");
+                return;
+            }
+
+            localStorage.setItem('clerk_publishable_key', keyInput);
+            
+            // Reload the page to trigger auth initialization
+            window.location.search = ""; // remove error query params
+        }
+
+        // Show generic errors in the UI
+        window.showErrorToast = function(message) {
+            const banner = document.getElementById('errorBanner');
+            const errorMsg = document.getElementById('errorMsg');
+            errorMsg.innerText = message;
+            banner.style.display = 'flex';
+            document.getElementById('authLoader').style.display = 'none';
+            
+            // If we have a key saved, show the reset button
+            if (localStorage.getItem('clerk_publishable_key')) {
+                document.getElementById('resetConfigLink').style.display = 'block';
+            }
+        };
+
+        // Mount Clerk widget
+        window.mountClerkSignIn = function() {
+            document.getElementById('authLoader').style.display = 'none';
+            document.getElementById('configPanel').style.display = 'none';
+            const container = document.getElementById('clerk-auth-container');
+            container.style.display = 'flex';
+            
+            // Show config reset link in case they typed the wrong key
+            document.getElementById('resetConfigLink').style.display = 'block';
+
+            Clerk.mountSignIn(container, {
+                appearance: {
+                    variables: {
+                        colorPrimary: '#9333ea',
+                        colorBackground: '#18181b',
+                        colorText: '#f4f4f5',
+                        colorInputBackground: '#27272a',
+                        colorInputText: '#f4f4f5',
+                        colorTextSecondary: '#a1a1aa',
+                        colorTextOnPrimaryBackground: '#ffffff'
+                    },
+                    elements: {
+                        card: {
+                            background: 'transparent',
+                            boxShadow: 'none',
+                            padding: '0'
+                        },
+                        headerTitle: {
+                            color: '#ffffff'
+                        },
+                        headerSubtitle: {
+                            color: '#a1a1aa'
+                        },
+                        socialButtonsIconButton: {
+                            background: '#27272a',
+                            borderColor: 'rgba(255,255,255,0.08)'
+                        },
+                        dividerLine: {
+                            background: 'rgba(255,255,255,0.08)'
+                        },
+                        dividerText: {
+                            color: '#a1a1aa'
+                        },
+                        formFieldLabel: {
+                            color: '#a1a1aa'
+                        },
+                        formFieldInput: {
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderRadius: '8px'
+                        },
+                        footerActionText: {
+                            color: '#a1a1aa'
+                        },
+                        footerActionLink: {
+                            color: '#a855f7'
+                        }
+                    }
+                }
+            });
+        };
+
+        // Wipe the key configuration and reload
+        function resetConfig(e) {
+            e.preventDefault();
+            if (confirm("Are you sure you want to clear the Clerk keys?")) {
+                localStorage.removeItem('clerk_publishable_key');
+                window.location.reload();
+            }
+        }
+    </script>
+
+    <!-- Load Clerk handler -->
+    <script src="auth.js"></script>
+</body>
+</html>

@@ -32,6 +32,10 @@
       "dest": "/api/index.js"
     },
     {
+      "src": "/api/config",
+      "dest": "/api/index.js"
+    },
+    {
       "src": "/vlc",
       "dest": "/api/index.js"
     },

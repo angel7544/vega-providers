@@ -34,6 +34,13 @@ app.get("/health", (req, res) => {
   res.json({ status: "healthy", timestamp: new Date().toISOString() });
 });
 
+/* ---------------- CONFIG / ENVIRONMENT VARIABLES ---------------- */
+app.get("/api/config", (req, res) => {
+  res.json({
+    clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY || ""
+  });
+});
+
 /* ---------------- PROVIDERS ---------------- */
 app.get("/providers", (req, res) => {
   if (!fs.existsSync(distDir)) return res.json([]);
