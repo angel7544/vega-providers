@@ -38,6 +38,9 @@
             --radius-lg: 24px;
             --radius-md: 12px;
             --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            --bg-clerk-card: rgba(255, 255, 255, 0.02);
+            --border-clerk-card: rgba(255, 255, 255, 0.06);
+            --shadow-clerk-card: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
         }
 
         [data-theme="light"] {
@@ -50,6 +53,9 @@
             --text-main: #0f172a;
             --text-muted: #64748b;
             --glass-shadow: 0 15px 35px rgba(0, 0, 0, 0.06), 0 5px 15px rgba(0, 0, 0, 0.02);
+            --bg-clerk-card: rgba(255, 255, 255, 0.65);
+            --border-clerk-card: rgba(0, 0, 0, 0.06);
+            --shadow-clerk-card: 0 8px 32px 0 rgba(99, 102, 241, 0.04);
         }
 
         * {
@@ -630,16 +636,27 @@
             font-weight: 500;
         }
 
-        /* Clerk Overrides - Completely strip card container backgrounds & shadows */
+        /* Clerk Card Container Design */
         #clerk-auth-container {
             width: 100%;
+            max-width: 440px;
+            margin: 0 auto;
             display: flex;
             justify-content: center;
+            background: var(--bg-clerk-card);
+            border: 1px solid var(--border-clerk-card);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-clerk-card);
+            padding: 32px 24px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            transition: all 0.3s ease;
+            box-sizing: border-box;
         }
 
         .cl-rootBox {
             width: 100% !important;
-            max-width: 380px !important;
+            max-width: 100% !important;
             margin: 0 auto !important;
         }
 
