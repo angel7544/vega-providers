@@ -1905,14 +1905,20 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
                     </div>
                 </div>
                 <div class="mobile-ep-actions">
-                    <button class="ep-action-btn-play" title="Watch Now" onclick="playStream('${epTargetLink}', '${provider}', '${ep.title || ''}')">
+                    <button class="ep-action-btn-play" title="Watch Now">
                         <i data-lucide="play" style="width: 16px; height: 16px; fill: currentColor;"></i>
                     </button>
-                    <button class="ep-action-btn-dl" title="Extract Download Links" onclick="resolveDownload('${epTargetLink}', '${provider}', '${ep.title || ''}')">
+                    <button class="ep-action-btn-dl" title="Extract Download Links">
                         <i data-lucide="download" style="width: 16px; height: 16px;"></i>
                     </button>
                 </div>
             `;
+
+            const playBtn = card.querySelector(".ep-action-btn-play");
+            const dlBtn = card.querySelector(".ep-action-btn-dl");
+            playBtn.onclick = () => playStream(epTargetLink, provider, ep.title || '');
+            dlBtn.onclick = () => resolveDownload(epTargetLink, provider, ep.title || '');
+
             epList.appendChild(card);
         });
 
@@ -1943,6 +1949,7 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
         const parsedEp = parseMediaInfo(ep.title || `Episode ${epNum}`);
         const sizeTag = parsedEp.meta.find(m => m.type === 'size')?.text || fallbackSize;
         const qualTag = parsedEp.meta.find(m => m.type === 'quality')?.text || fallbackQual;
+        const epTargetLink = ep.link || ep.url || ep.episodesLink || fallbackUrl || "";
 
         const tr = document.createElement("tr");
         tr.className = "ep-row-card";
@@ -1956,14 +1963,19 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
             <td style="color: #94a3b8; font-size: 12px;">${sizeTag}</td>
             <td><span class="ep-quality-tag">${qualTag}</span></td>
             <td class="ep-actions-cell">
-                <button class="ep-action-btn-play" title="Watch Now" onclick="playStream('${ep.link}', '${provider}', '${ep.title || ''}')">
+                <button class="ep-action-btn-play" title="Watch Now">
                     <i data-lucide="play" style="width: 16px; height: 16px; fill: currentColor;"></i>
                 </button>
-                <button class="ep-action-btn-dl" title="Extract Download Links" onclick="resolveDownload('${ep.link}', '${provider}', '${ep.title || ''}')">
+                <button class="ep-action-btn-dl" title="Extract Download Links">
                     <i data-lucide="download" style="width: 16px; height: 16px;"></i>
                 </button>
             </td>
         `;
+
+        const playBtn = tr.querySelector(".ep-action-btn-play");
+        const dlBtn = tr.querySelector(".ep-action-btn-dl");
+        playBtn.onclick = () => playStream(epTargetLink, provider, ep.title || '');
+        dlBtn.onclick = () => resolveDownload(epTargetLink, provider, ep.title || '');
 
         tbody.appendChild(tr);
     });
@@ -2124,7 +2136,8 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
         if (currentStreamIndex >= streams.length) {
             alert(`⚠️ All playback attempts failed.\n\nThis source might be blocked by Cloudflare (Backend) or your Browser (Frontend).\n\nPossible fixes:\n1. Try another source if available.\n2. Enable "Premium Audio (Transcode)" to force server-side fetch.\n3. Make sure you are using the latest providers.`);
             closePlayer();
-            document.getElementById("downloadSection").scrollIntoView({ behavior: 'smooth' });
+            const dlSection = document.getElementById("downloadSectionTitle") || document.getElementById("downloadsSectionWrapper");
+            if (dlSection) dlSection.scrollIntoView({ behavior: 'smooth' });
             return;
         }
 
