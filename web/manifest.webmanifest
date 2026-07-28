@@ -2,7 +2,7 @@
   "name": "OrbixPlay",
   "short_name": "OrbixPlay",
   "description": "OrbixPlay | Personal Entertainment Search & Streaming Engine",
-  "start_url": "./index.html",
+  "start_url": "./login.html",
   "display": "standalone",
   "background_color": "#070709",
   "theme_color": "#9333ea",

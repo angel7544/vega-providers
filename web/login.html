@@ -1,52 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign In | OrbixPlay</title>
     <link rel="icon" type="image/x-icon" href="icon.ico">
     <link rel="shortcut icon" type="image/png" href="icon.png">
-    
+
     <!-- Script to set early theme and avoid flashing -->
     <script>
         const savedTheme = localStorage.getItem('orbix_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
     </script>
-    
+
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@400;500;700&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Plus+Jakarta+Sans:wght@400;500;700&display=swap"
+        rel="stylesheet">
+
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <!-- Custom CSS -->
     <style>
         :root {
-            --bg-dark: #09090b;
-            --surface-dark: rgba(15, 15, 20, 0.65);
-            --border-glass: rgba(147, 51, 234, 0.15);
+            --bg-page: #030014;
+            --bg-card-left: #0c0d12;
+            --bg-card-right: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            --border-card: rgba(255, 255, 255, 0.08);
             --accent: #a855f7;
             --accent-hover: #c084fc;
             --text-main: #f4f4f5;
             --text-muted: #a1a1aa;
-            --radius-lg: 16px;
-            --radius-md: 10px;
-            --bg-overlay: radial-gradient(circle, rgba(0, 0, 0, 0.45) 0%, rgba(9, 9, 11, 0.95) 100%);
-            --glass-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
+            --radius-lg: 24px;
+            --radius-md: 12px;
+            --glass-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
         }
 
         [data-theme="light"] {
-            --bg-dark: #f8fafc;
-            --surface-dark: #ffffff;
-            --border-glass: rgba(0, 0, 0, 0.04);
+            --bg-page: #f0f9ff;
+            --bg-card-left: #ffffff;
+            --bg-card-right: linear-gradient(135deg, #6366f1 0%, #4338ca 100%);
+            --border-card: rgba(0, 0, 0, 0.06);
             --accent: #6366f1;
             --accent-hover: #4f46e5;
             --text-main: #0f172a;
             --text-muted: #64748b;
-            --bg-overlay: transparent;
-            --glass-shadow: 0 15px 35px rgba(0, 0, 0, 0.05), 0 5px 15px rgba(0, 0, 0, 0.02);
+            --glass-shadow: 0 15px 35px rgba(0, 0, 0, 0.06), 0 5px 15px rgba(0, 0, 0, 0.02);
         }
 
         * {
@@ -57,17 +60,17 @@
         }
 
         body {
-            background-color: var(--bg-dark);
+            background-color: var(--bg-page);
             color: var(--text-main);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 80px 24px 24px 24px;
             overflow-x: hidden;
             position: relative;
             transition: background-color 0.3s ease, color 0.3s ease;
+            padding: 24px;
         }
 
         /* OTT Background elements */
@@ -79,6 +82,7 @@
             height: 100vh;
             z-index: -2;
             overflow: hidden;
+            background-color: var(--bg-page);
         }
 
         .ott-bg-image {
@@ -92,7 +96,7 @@
         }
 
         [data-theme="light"] .ott-bg-image {
-            filter: grayscale(1) opacity(0.08) scale(1.05);
+            filter: grayscale(1) opacity(0.06) scale(1.05);
         }
 
         .ott-bg-overlay {
@@ -101,58 +105,28 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: var(--bg-overlay);
+            background: radial-gradient(circle, rgba(0, 0, 0, 0.45) 0%, rgba(9, 9, 11, 0.95) 100%);
             transition: background 0.3s ease;
         }
 
-        /* Top Header Bar */
-        .login-header {
+        [data-theme="light"] .ott-bg-overlay {
+            background: transparent;
+        }
+
+        /* Top controls for theme toggle */
+        .page-controls {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 24px 48px;
+            top: 24px;
+            right: 24px;
             z-index: 10;
         }
 
-        @media (max-width: 600px) {
-            .login-header {
-                padding: 16px 24px;
-            }
-        }
-
-        .header-logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            cursor: pointer;
-        }
-
-        .header-logo img {
-            width: 36px;
-            height: 36px;
-            border-radius: var(--radius-md);
-            box-shadow: 0 4px 15px rgba(147, 51, 234, 0.25);
-        }
-
-        .header-logo .logo-text {
-            font-size: 24px;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            background: linear-gradient(135deg, var(--text-main) 0%, var(--accent) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
         .theme-toggle-btn {
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             color: var(--text-main);
-            width: 40px;
-            height: 40px;
+            width: 42px;
+            height: 42px;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -160,25 +134,26 @@
             cursor: pointer;
             transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
             outline: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         [data-theme="light"] .theme-toggle-btn {
-            background: rgba(0, 0, 0, 0.04);
+            background: rgba(255, 255, 255, 0.8);
             border-color: rgba(0, 0, 0, 0.08);
             color: var(--text-main);
         }
 
         .theme-toggle-btn:hover {
             transform: scale(1.08) rotate(15deg);
-            background: rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.12);
             border-color: var(--accent);
-            box-shadow: 0 0 12px rgba(147, 51, 234, 0.25);
+            box-shadow: 0 0 15px rgba(147, 51, 234, 0.3);
         }
 
         [data-theme="light"] .theme-toggle-btn:hover {
-            background: rgba(0, 0, 0, 0.08);
+            background: #ffffff;
             border-color: var(--accent);
-            box-shadow: 0 0 12px rgba(124, 58, 237, 0.2);
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
         }
 
         .theme-toggle-btn i {
@@ -186,90 +161,105 @@
             height: 18px;
         }
 
-        .login-wrapper {
+        /* Layout Split Panel Container */
+        .login-container {
             width: 100%;
-            max-width: 440px;
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-            position: relative;
+            max-width: 900px;
+            margin: auto;
             z-index: 2;
+            position: relative;
+            animation: cardFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
-        @keyframes fadeIn {
+        @keyframes cardFadeIn {
             from {
                 opacity: 0;
-                transform: translateY(20px);
+                transform: translateY(12px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
             }
         }
 
-        /* Glassmorphic / Solid White Cards */
-        .glass-card {
-            background: var(--surface-dark);
-            backdrop-filter: blur(25px);
-            -webkit-backdrop-filter: blur(25px);
-            border: 1px solid var(--border-glass);
+        .login-split-card {
+            display: grid;
+            grid-template-columns: 1fr 1.15fr;
+            background: var(--bg-card-left);
+            border: 1px solid var(--border-card);
             border-radius: var(--radius-lg);
-            padding: 36px;
             box-shadow: var(--glass-shadow);
+            overflow: hidden;
+            min-height: 580px;
             transition: all 0.3s ease;
         }
 
-        [data-theme="light"] .glass-card {
-            background: #ffffff !important;
-            backdrop-filter: none !important;
-            -webkit-backdrop-filter: none !important;
-            border: 1px solid rgba(0, 0, 0, 0.04) !important;
+        /* Left login form panel */
+        .login-left-panel {
+            padding: 40px 48px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: stretch;
+            position: relative;
+            background: var(--bg-card-left);
+            transition: background 0.3s ease;
         }
 
-        /* Error/Warning Toast Banner */
-        .alert-banner {
-            display: none;
-            align-items: flex-start;
+        .panel-logo {
+            display: flex;
+            align-items: center;
             gap: 12px;
-            background: rgba(239, 68, 68, 0.15);
-            border: 1px solid rgba(239, 68, 68, 0.25);
-            border-radius: var(--radius-md);
-            padding: 14px 18px;
-            margin-bottom: 8px;
-            font-size: 13.5px;
-            color: #ef4444;
-            line-height: 1.5;
-            animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            cursor: pointer;
+            align-self: flex-start;
+            margin-bottom: 24px;
         }
 
-        [data-theme="light"] .alert-banner {
-            background: rgba(239, 68, 68, 0.08);
-            color: #dc2626;
+        .panel-logo img {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(147, 51, 234, 0.25);
         }
 
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-10px); }
-            to { opacity: 1; transform: translateY(0); }
+        [data-theme="light"] .panel-logo img {
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
         }
 
-        .alert-banner i {
-            flex-shrink: 0;
-            color: #ef4444;
-            margin-top: 2px;
+        .panel-logo .logo-text {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, var(--text-main) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
-        /* Key Configuration Panel */
+        /* Center auth container inside left panel */
+        .panel-auth-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            width: 100%;
+            margin: 20px 0;
+        }
+
+        /* Setup/Key Config UI */
         .config-panel {
             display: none;
             flex-direction: column;
-            gap: 20px;
+            gap: 16px;
+            max-width: 380px;
+            margin: 0 auto;
+            width: 100%;
         }
 
         .config-title {
             font-size: 18px;
             font-weight: 700;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
 
         .config-desc {
@@ -285,7 +275,7 @@
         }
 
         .input-group label {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             color: var(--text-muted);
             text-transform: uppercase;
@@ -293,8 +283,8 @@
         }
 
         .input-field {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: var(--radius-md);
             padding: 12px 16px;
             color: var(--text-main);
@@ -302,10 +292,11 @@
             transition: all 0.2s ease;
             outline: none;
             width: 100%;
+            height: 48px;
         }
 
         [data-theme="light"] .input-field {
-            background: #ffffff;
+            background: #f8fafc;
             border-color: #e2e8f0;
         }
 
@@ -317,7 +308,7 @@
         .input-field:focus {
             border-color: var(--accent);
             box-shadow: 0 0 10px rgba(147, 51, 234, 0.2);
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.06);
         }
 
         [data-theme="light"] .input-field:focus {
@@ -340,6 +331,7 @@
             justify-content: center;
             gap: 8px;
             box-shadow: 0 4px 15px rgba(147, 51, 234, 0.3);
+            height: 48px;
         }
 
         [data-theme="light"] .primary-btn {
@@ -350,7 +342,7 @@
         .primary-btn:hover {
             transform: translateY(-1px);
             box-shadow: 0 6px 20px rgba(147, 51, 234, 0.4);
-            background: linear-gradient(135deg, var(--accent-hover) 0%, #9333ea 100%);
+            filter: brightness(1.08);
         }
 
         [data-theme="light"] .primary-btn:hover {
@@ -362,7 +354,244 @@
             transform: translateY(1px);
         }
 
-        /* Loading Spinner */
+        /* Error/Warning Toast Banner */
+        .alert-banner {
+            display: none;
+            align-items: flex-start;
+            gap: 12px;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: var(--radius-md);
+            padding: 14px 18px;
+            margin-bottom: 16px;
+            font-size: 13.5px;
+            color: #f87171;
+            line-height: 1.5;
+            animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            max-width: 380px;
+            margin-left: auto;
+            margin-right: auto;
+            width: 100%;
+        }
+
+        [data-theme="light"] .alert-banner {
+            background: rgba(239, 68, 68, 0.06);
+            color: #dc2626;
+            border-color: rgba(239, 68, 68, 0.15);
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .alert-banner i {
+            flex-shrink: 0;
+            color: #ef4444;
+            margin-top: 2px;
+        }
+
+        /* Panel Footer */
+        .panel-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 20px;
+        }
+
+        [data-theme="light"] .panel-footer {
+            border-top-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--accent);
+        }
+
+        .footer-links span {
+            opacity: 0.3;
+        }
+
+        /* Right panel brand illustration */
+        .login-right-panel {
+            background-image: url('gemini_bg.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            padding: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            transition: background 0.3s ease;
+        }
+
+        .illustration-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        .cinema-svg {
+            width: 100%;
+            max-width: 360px;
+            height: auto;
+        }
+
+        /* Cinema SVG Animation Classes */
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-12px);
+            }
+        }
+
+        @keyframes float-slow {
+
+            0%,
+            100% {
+                transform: translateY(0px) rotate(0deg);
+            }
+
+            50% {
+                transform: translateY(-8px) rotate(3deg);
+            }
+        }
+
+        @keyframes float-delayed {
+
+            0%,
+            100% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        @keyframes rotate-slow {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .float-animation {
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .float-animation-slow {
+            animation: float-slow 8s ease-in-out infinite;
+        }
+
+        .float-animation-delayed {
+            animation: float-delayed 7s ease-in-out infinite;
+            animation-delay: 2s;
+        }
+
+        .rotate-animation {
+            animation: rotate-slow 25s linear infinite;
+            transform-origin: 90px 90px;
+        }
+
+        /* Popcorn particles animations */
+        @keyframes particle-drift-1 {
+
+            0%,
+            100% {
+                transform: translate(0, 0);
+            }
+
+            50% {
+                transform: translate(-5px, -8px);
+            }
+        }
+
+        @keyframes particle-drift-2 {
+
+            0%,
+            100% {
+                transform: translate(0, 0);
+            }
+
+            50% {
+                transform: translate(6px, -12px);
+            }
+        }
+
+        @keyframes particle-drift-3 {
+
+            0%,
+            100% {
+                transform: translate(0, 0);
+            }
+
+            50% {
+                transform: translate(-8px, -5px);
+            }
+        }
+
+        .popcorn-piece-1 {
+            animation: particle-drift-1 5s ease-in-out infinite;
+        }
+
+        .popcorn-piece-2 {
+            animation: particle-drift-2 6s ease-in-out infinite;
+            animation-delay: 1s;
+        }
+
+        .popcorn-piece-3 {
+            animation: particle-drift-3 7s ease-in-out infinite;
+            animation-delay: 1.5s;
+        }
+
+        .popcorn-piece-4 {
+            animation: particle-drift-1 5.5s ease-in-out infinite;
+            animation-delay: 0.5s;
+        }
+
+        .popcorn-piece-5 {
+            animation: particle-drift-2 6.5s ease-in-out infinite;
+            animation-delay: 2s;
+        }
+
+        /* Loader styling */
         .spinner-wrapper {
             display: flex;
             flex-direction: column;
@@ -370,19 +599,29 @@
             justify-content: center;
             gap: 16px;
             padding: 20px 0;
+            width: 100%;
+            min-height: 380px;
+            /* Match Clerk widget height to prevent layout jump! */
         }
 
         .spinner {
-            width: 38px;
-            height: 38px;
+            width: 36px;
+            height: 36px;
             border: 3px solid rgba(147, 51, 234, 0.1);
             border-radius: 50%;
             border-top-color: var(--accent);
             animation: spin 0.8s linear infinite;
         }
 
+        [data-theme="light"] .spinner {
+            border-color: rgba(99, 102, 241, 0.1);
+            border-top-color: var(--accent);
+        }
+
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         .spinner-text {
@@ -391,11 +630,39 @@
             font-weight: 500;
         }
 
-        /* Clerk container styling override support */
+        /* Clerk Overrides - Completely strip card container backgrounds & shadows */
         #clerk-auth-container {
             width: 100%;
             display: flex;
             justify-content: center;
+        }
+
+        .cl-rootBox {
+            width: 100% !important;
+            max-width: 380px !important;
+            margin: 0 auto !important;
+        }
+
+        .cl-card,
+        .cl-cardBox,
+        .cl-signIn-root,
+        .cl-signUp-root,
+        .cl-signIn-start,
+        .cl-signUp-start,
+        .cl-cardHeader,
+        .cl-cardContent,
+        .cl-cardFooter,
+        .cl-main,
+        .cl-pageScrollable,
+        .cl-footer,
+        .cl-footerAction,
+        .cl-navbar {
+            background: transparent !important;
+            background-color: transparent !important;
+            box-shadow: none !important;
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
 
         /* Hide standard clerk header logo */
@@ -403,84 +670,52 @@
             display: none !important;
         }
 
-        /* ============================
-           Clerk Custom CSS Overrides
-           ============================ */
-        .cl-rootBox {
-            width: 100% !important;
-        }
-        
-        .cl-card {
-            background: transparent !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            width: 100% !important;
-        }
-        
-        .cl-main,
-        .cl-footer,
-        .cl-footer *,
-        .cl-cardFooter,
-        .cl-cardFooter *,
-        .cl-pageScrollable {
-            background: transparent !important;
-            background-color: transparent !important;
-            box-shadow: none !important;
-        }
-        
-        .cl-main {
-            padding: 0 8px !important; /* Constrain elements to align nicely inside card padding */
-        }
-        
-        .cl-footer, 
-        .cl-cardFooter {
-            padding: 0 8px !important;
-        }
-
         .cl-headerTitle {
             color: var(--text-main) !important;
             font-family: 'Outfit', sans-serif !important;
+            text-align: left !important;
+            font-weight: 700 !important;
+            font-size: 24px !important;
+            letter-spacing: -0.5px !important;
         }
-        
-        .cl-headerSubtitle, 
-        .cl-dividerText, 
-        .cl-formFieldLabel, 
-        .cl-footerActionText, 
+
+        .cl-headerSubtitle,
+        .cl-dividerText,
+        .cl-formFieldLabel,
+        .cl-footerActionText,
         .cl-identityPreviewText {
             color: var(--text-muted) !important;
             font-family: 'Plus Jakarta Sans', sans-serif !important;
         }
-        
-        .cl-footerActionLink, 
+
+        .cl-header {
+            margin-bottom: 24px !important;
+            align-items: flex-start !important;
+            text-align: left !important;
+        }
+
+        .cl-footerActionLink,
         .cl-identityPreviewEditButton {
             color: var(--accent) !important;
+            font-weight: 600 !important;
+            transition: color 0.2s ease !important;
         }
-        
-        .cl-socialButtonsIconButton {
-            background: rgba(255, 255, 255, 0.05) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            transition: all 0.2s ease !important;
+
+        .cl-footerActionLink:hover,
+        .cl-identityPreviewEditButton:hover {
+            color: var(--accent-hover) !important;
         }
-        
-        [data-theme="light"] .cl-socialButtonsIconButton {
-            background: #ffffff !important;
-            border: 1px solid #e2e8f0 !important;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
-        }
-        
-        .cl-socialButtonsIconButtonValue {
-            color: var(--text-main) !important;
-        }
-        
+
         .cl-dividerLine {
             background: rgba(255, 255, 255, 0.08) !important;
         }
-        
+
         [data-theme="light"] .cl-dividerLine {
-            background: #e2e8f0 !important;
+            background: #cbd5e1 !important;
+            opacity: 0.5;
         }
-        
-        /* Clerk Input Container & Input Border Fixes */
+
+        /* Clerk Input styling */
         .cl-formFieldInput {
             background: transparent !important;
             border: none !important;
@@ -488,43 +723,443 @@
             box-shadow: none !important;
             outline: none !important;
             width: 100% !important;
-            padding: 10px 12px !important;
+            padding: 10px 14px !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            font-size: 14px !important;
         }
-        
+
+        .cl-formFieldInput::placeholder {
+            color: var(--text-muted) !important;
+            opacity: 0.5 !important;
+        }
+
         .cl-formFieldInputContainer {
-            background: rgba(255, 255, 255, 0.05) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            border-radius: 8px !important;
-            transition: all 0.2s ease !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: var(--radius-md) !important;
+            transition: all 0.25s ease !important;
             width: 100% !important;
             display: flex;
             align-items: center;
+            height: 48px !important;
         }
-        
+
         [data-theme="light"] .cl-formFieldInputContainer {
-            background: #ffffff !important;
+            background: #f8fafc !important;
             border: 1px solid #e2e8f0 !important;
         }
-        
+
         .cl-formFieldInputContainer:focus-within {
             border-color: var(--accent) !important;
             box-shadow: 0 0 0 1px var(--accent) !important;
+            background: rgba(255, 255, 255, 0.06) !important;
         }
-        
+
+        [data-theme="light"] .cl-formFieldInputContainer:focus-within {
+            background: #ffffff !important;
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 0 1px var(--accent) !important;
+        }
+
         .cl-formButtonPrimary {
             background: linear-gradient(135deg, var(--accent) 0%, #7e22ce 100%) !important;
-            box-shadow: 0 4px 15px rgba(147, 51, 234, 0.3) !important;
+            box-shadow: 0 4px 15px rgba(147, 51, 234, 0.25) !important;
             color: #ffffff !important;
-            transition: all 0.2s ease !important;
+            transition: all 0.25s ease !important;
             width: 100% !important;
+            height: 48px !important;
+            border-radius: var(--radius-md) !important;
+            font-weight: 700 !important;
+            font-size: 14px !important;
+            text-transform: none !important;
+            margin-top: 8px !important;
         }
-        
+
+        .cl-formButtonPrimary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(147, 51, 234, 0.35) !important;
+            filter: brightness(1.08);
+        }
+
+        .cl-formButtonPrimary:active {
+            transform: translateY(1px);
+        }
+
         [data-theme="light"] .cl-formButtonPrimary {
-            background: #6366f1 !important;
+            background: linear-gradient(135deg, var(--accent) 0%, #4f46e5 100%) !important;
             box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2) !important;
+        }
+
+        [data-theme="light"] .cl-formButtonPrimary:hover {
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.3) !important;
+        }
+
+        /* Social buttons formatting */
+        .cl-socialButtons {
+            gap: 12px !important;
+            margin-bottom: 8px !important;
+        }
+
+        .cl-socialButtonsIconButton {
+            background: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: var(--radius-md) !important;
+            transition: all 0.2s ease !important;
+            height: 46px !important;
+        }
+
+        .cl-socialButtonsIconButton:hover {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            transform: translateY(-1px);
+        }
+
+        [data-theme="light"] .cl-socialButtonsIconButton {
+            background: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+
+        [data-theme="light"] .cl-socialButtonsIconButton:hover {
+            background: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+        }
+
+        .cl-socialButtonsIconButtonValue {
+            color: var(--text-main) !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            font-weight: 500 !important;
+        }
+
+        /* Responsive Breakpoints */
+        @media (max-width: 850px) {
+            .login-split-card {
+                grid-template-columns: 1fr;
+                max-width: 440px;
+                margin: auto;
+            }
+
+            .login-right-panel {
+                display: none;
+            }
+
+            .login-left-panel {
+                padding: 36px 28px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 16px;
+            }
+
+            .page-controls {
+                top: 16px;
+                right: 16px;
+            }
+
+            .login-left-panel {
+                padding: 30px 20px;
+            }
+        }
+
+        /* Info Modal Styles */
+        .info-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .info-modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .info-modal {
+            background: var(--bg-card-left);
+            border: 1px solid var(--border-card);
+            border-radius: var(--radius-lg);
+            width: 100%;
+            max-width: 600px;
+            box-shadow: var(--glass-shadow);
+            transform: translateY(20px);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-height: 85vh;
+        }
+
+        .info-modal-overlay.active .info-modal {
+            transform: translateY(0);
+        }
+
+        .info-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        [data-theme="light"] .info-modal-header {
+            border-bottom-color: rgba(0, 0, 0, 0.05);
+        }
+
+        .info-modal-tabs {
+            display: flex;
+            gap: 8px;
+        }
+
+        .modal-tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .modal-tab-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        [data-theme="light"] .modal-tab-btn:hover {
+            background: rgba(0, 0, 0, 0.03);
+        }
+
+        .modal-tab-btn.active {
+            color: #ffffff;
+            background: var(--accent);
+            box-shadow: 0 4px 12px rgba(147, 51, 234, 0.25);
+        }
+
+        [data-theme="light"] .modal-tab-btn.active {
+            color: #ffffff;
+            background: var(--accent);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+        }
+
+        .modal-close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        [data-theme="light"] .modal-close-btn:hover {
+            background: rgba(0, 0, 0, 0.04);
+        }
+
+        .info-modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            color: var(--text-main);
+            font-size: 14.5px;
+            line-height: 1.6;
+        }
+
+        .modal-content-panel {
+            display: none;
+        }
+
+        .modal-content-panel.active {
+            display: block;
+            animation: fadeInTab 0.3s ease forwards;
+        }
+
+        @keyframes fadeInTab {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-content-panel h3 {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, var(--text-main) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .modal-content-panel p {
+            margin-bottom: 12px;
+            color: var(--text-muted);
+        }
+
+        .modal-content-panel strong {
+            color: var(--text-main);
+        }
+
+        .modal-content-panel ul {
+            margin-bottom: 16px;
+            padding-left: 20px;
+            color: var(--text-muted);
+        }
+
+        .modal-content-panel li {
+            margin-bottom: 6px;
+        }
+
+        .modal-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-md);
+            padding: 6px 14px;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-right: 8px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        [data-theme="light"] .modal-badge {
+            background: #f1f5f9;
+            border-color: #e2e8f0;
+        }
+
+        /* Decorative Background Elements & Orbs for Right Panel */
+        .login-right-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+            background-size: 24px 24px;
+            pointer-events: none;
+            opacity: 0.8;
+            z-index: 0;
+        }
+
+        [data-theme="light"] .login-right-panel::before {
+            background-image:
+                radial-gradient(rgba(99, 102, 241, 0.08) 1.5px, transparent 1.5px);
+        }
+
+        .right-panel-orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(40px);
+            opacity: 0.5;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .orb-1 {
+            top: 15%;
+            right: 15%;
+            width: 140px;
+            height: 140px;
+            background: rgba(168, 85, 247, 0.28);
+            /* Purple */
+            animation: orb-float-1 20s infinite alternate ease-in-out;
+        }
+
+        .orb-2 {
+            bottom: 15%;
+            left: 10%;
+            width: 180px;
+            height: 180px;
+            background: rgba(56, 189, 248, 0.22);
+            /* Cyan */
+            animation: orb-float-2 25s infinite alternate ease-in-out;
+        }
+
+        .orb-3 {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 220px;
+            height: 220px;
+            background: rgba(99, 102, 241, 0.12);
+            /* Indigo */
+            filter: blur(60px);
+        }
+
+        [data-theme="light"] .orb-1 {
+            background: rgba(147, 51, 234, 0.1);
+        }
+
+        [data-theme="light"] .orb-2 {
+            background: rgba(56, 189, 248, 0.08);
+        }
+
+        [data-theme="light"] .orb-3 {
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        @keyframes orb-float-1 {
+            0% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            50% {
+                transform: translate(30px, -20px) scale(1.1);
+            }
+
+            100% {
+                transform: translate(-20px, 40px) scale(0.9);
+            }
+        }
+
+        @keyframes orb-float-2 {
+            0% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            50% {
+                transform: translate(-40px, 30px) scale(0.9);
+            }
+
+            100% {
+                transform: translate(30px, -20px) scale(1.1);
+            }
         }
     </style>
 </head>
+
 <body>
 
     <!-- Dynamic OTT Background -->
@@ -533,56 +1168,230 @@
         <div class="ott-bg-overlay"></div>
     </div>
 
-    <!-- Header bar -->
-    <header class="login-header">
-        <div class="header-logo" onclick="window.location.reload()">
-            <img src="icon.png" alt="OrbixPlay Logo">
-            <span class="logo-text">OrbixPlay</span>
-        </div>
+    <!-- Theme toggle and info buttons (Top Right of Page) -->
+    <div class="page-controls" style="display: flex; gap: 8px;">
+        <button onclick="showInfoModal('about')" class="theme-toggle-btn" title="About & Legal Info">
+            <i data-lucide="info"></i>
+        </button>
         <button id="themeToggleBtn" onclick="toggleTheme()" class="theme-toggle-btn" title="Toggle Theme">
             <i id="themeBtnIcon" data-lucide="sun"></i>
         </button>
-    </header>
+    </div>
 
-    <div class="login-wrapper">
-        <!-- Alert Notification -->
-        <div id="errorBanner" class="alert-banner">
-            <i data-lucide="shield-alert"></i>
-            <span id="errorMsg">An error occurred. Please try again.</span>
-        </div>
-
-        <!-- Main Card -->
-        <div class="glass-card">
-            
-            <!-- Setup/Key Config UI -->
-            <div id="configPanel" class="config-panel">
-                <h3 class="config-title">Connect Clerk Auth</h3>
-                <p class="config-desc">Authentication keys are currently not configured. Enter your Clerk Publishable Key below to establish a secure connection.</p>
-                
-                <div class="input-group" style="margin-top: 10px;">
-                    <label for="clerkKeyInput">Clerk Publishable Key</label>
-                    <input type="text" id="clerkKeyInput" class="input-field" placeholder="pk_test_...">
+    <!-- Main Container -->
+    <div class="login-container">
+        <div class="login-split-card">
+            <!-- Left Side: Login Form -->
+            <div class="login-left-panel">
+                <!-- Header Logo -->
+                <div class="panel-logo" onclick="window.location.reload()">
+                    <img src="icon.png" alt="OrbixPlay Logo">
+                    <span class="logo-text">OrbixPlay</span>
                 </div>
 
-                <button class="primary-btn" onclick="saveKeyConfig()">
-                    <span>Connect Application</span>
-                    <i data-lucide="arrow-right" style="width: 16px; height: 16px;"></i>
-                </button>
-                
-                <p class="config-desc" style="font-size: 11px; text-align: center; margin-top: 8px;">
-                    Keys are stored securely inside your local browser storage.
-                </p>
+                <!-- Form Content Wrapper -->
+                <div class="panel-auth-content">
+                    <!-- Alert Notification -->
+                    <div id="errorBanner" class="alert-banner">
+                        <i data-lucide="shield-alert"></i>
+                        <span id="errorMsg">An error occurred. Please try again.</span>
+                    </div>
+
+                    <!-- Setup/Key Config UI -->
+                    <div id="configPanel" class="config-panel">
+                        <h3 class="config-title">Connect Clerk Auth</h3>
+                        <p class="config-desc">Authentication keys are currently not configured. Enter your Clerk
+                            Publishable Key below to establish a secure connection.</p>
+
+                        <div class="input-group" style="margin-top: 10px;">
+                            <label for="clerkKeyInput">Clerk Publishable Key</label>
+                            <input type="text" id="clerkKeyInput" class="input-field" placeholder="pk_test_...">
+                        </div>
+
+                        <button class="primary-btn" onclick="saveKeyConfig()">
+                            <span>Connect Application</span>
+                            <i data-lucide="arrow-right" style="width: 16px; height: 16px;"></i>
+                        </button>
+
+                        <p class="config-desc" style="font-size: 11px; text-align: center; margin-top: 8px;">
+                            Keys are stored securely inside your local browser storage.
+                        </p>
+                    </div>
+
+                    <!-- Loader -->
+                    <div id="authLoader" class="spinner-wrapper">
+                        <div class="spinner"></div>
+                        <div class="spinner-text">Preparing secure gateway...</div>
+                    </div>
+
+                    <!-- Clerk Mount Node -->
+                    <div id="clerk-auth-container" style="display: none;"></div>
+                </div>
+
+                <!-- Footer copyright/links -->
+                <div class="panel-footer" style="display: flex; flex-direction: column; gap: 8px; align-items: center; text-align: center; width: 100%;">
+                    <div class="copyright-text" style="text-align: center;">&copy; 2026 OrbixPlay All rights reserved.</div>
+                    <div class="footer-links" style="display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <a href="#" onclick="showInfoModal('about'); return false;">About</a>
+                        <span>&bull;</span>
+                        <a href="#" onclick="showInfoModal('disclaimer'); return false;">Disclaimer</a>
+                        <span>&bull;</span>
+                        <a href="#" onclick="showInfoModal('dmca'); return false;">DMCA</a>
+                    </div>
+                    <div class="gmail-only-notice" style="color: #ef4444; font-weight: 700; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 4px; border: 1px dashed rgba(239, 68, 68, 0.25); padding: 4px 10px; border-radius: 4px; background: rgba(239, 68, 68, 0.04); width: fit-content; margin-top: 4px;">
+                        <i data-lucide="shield-alert" style="width: 12px; height: 12px;"></i>
+                        <span>Only Gmail Logins Supported</span>
+                    </div>
+                </div>
             </div>
 
-            <!-- Loader -->
-            <div id="authLoader" class="spinner-wrapper">
-                <div class="spinner"></div>
-                <div class="spinner-text">Preparing secure gateway...</div>
+            <!-- Right Side: Brand Illustration -->
+            <div class="login-right-panel">
+                <div class="right-panel-orb orb-1"></div>
+                <div class="right-panel-orb orb-2"></div>
+                <div class="right-panel-orb orb-3"></div>
+                <div class="illustration-wrapper">
+                    <!-- SVG Illustration mimicking cinema graphic -->
+                    <svg class="cinema-svg" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Ambient glow inside SVG -->
+                        <circle cx="200" cy="200" r="180" fill="url(#svg-glow)" opacity="0.12" />
+
+                        <!-- Background organic shapes/blobs -->
+                        <path d="M80,120 Q120,60 200,90 T320,120 Q360,200 320,280 T180,320 Q100,320 80,240 Z"
+                            fill="url(#blob-grad-1)" opacity="0.18" />
+                        <path d="M120,180 Q180,140 250,170 T300,250 Q280,320 200,310 T100,270 Z"
+                            fill="url(#blob-grad-2)" opacity="0.15" />
+
+                        <!-- 1. Film Reel (in the back, beautifully balanced) -->
+                        <g transform="translate(160, 160)">
+                            <g class="float-animation-slow">
+                                <!-- Reel Shadow -->
+                                <circle cx="90" cy="90" r="80" fill="rgba(0,0,0,0.18)" />
+                                <!-- Main Reel Body -->
+                                <circle cx="90" cy="90" r="78" fill="#1e293b" stroke="#475569" stroke-width="5" />
+                                <circle cx="90" cy="90" r="72" fill="#0f172a" />
+
+                                <!-- Inner Ring -->
+                                <circle cx="90" cy="90" r="30" fill="none" stroke="#334155" stroke-width="4" />
+                                <circle cx="90" cy="90" r="10" fill="#1e293b" />
+
+                                <!-- Reel Holes -->
+                                <circle cx="90" cy="42" r="14" fill="#1e293b" opacity="0.95" />
+                                <circle cx="90" cy="138" r="14" fill="#1e293b" opacity="0.95" />
+                                <circle cx="42" cy="90" r="14" fill="#1e293b" opacity="0.95" />
+                                <circle cx="138" cy="90" r="14" fill="#1e293b" opacity="0.95" />
+                                <circle cx="56" cy="56" r="14" fill="#1e293b" opacity="0.95" />
+                                <circle cx="124" cy="124" r="14" fill="#1e293b" opacity="0.95" />
+                                <circle cx="56" cy="124" r="14" fill="#1e293b" opacity="0.95" />
+                                <circle cx="124" cy="56" r="14" fill="#1e293b" opacity="0.95" />
+
+                                <!-- Rotating layer inside reel holes -->
+                                <g class="rotate-animation">
+                                    <line x1="90" y1="10" x2="90" y2="170" stroke="#334155" stroke-width="1.5"
+                                        opacity="0.4" />
+                                    <line x1="10" y1="90" x2="170" y2="90" stroke="#334155" stroke-width="1.5"
+                                        opacity="0.4" />
+                                </g>
+                            </g>
+                        </g>
+
+                        <!-- 2. Popcorn Container (overlapping bottom left of film reel) -->
+                        <g transform="translate(110, 210)">
+                            <g class="float-animation">
+                                <!-- Container Shadow -->
+                                <path d="M10,120 L30,20 L90,20 L110,120 Z" fill="rgba(0,0,0,0.22)"
+                                    transform="translate(4, 5)" />
+
+                                <!-- Popcorn Bucket Base -->
+                                <path d="M10,120 L30,20 L90,20 L110,120 Z" fill="#ffffff" />
+
+                                <!-- Brand Stripes -->
+                                <path d="M30,20 L40,20 L25,120 L15,120 Z" fill="#a855f7" />
+                                <path d="M50,20 L60,20 L52,120 L42,120 Z" fill="#a855f7" />
+                                <path d="M70,20 L80,20 L80,120 L70,120 Z" fill="#a855f7" />
+                                <path d="M90,20 L100,20 L105,120 L95,120 Z" fill="#a855f7" />
+
+                                <!-- Top Rim -->
+                                <ellipse cx="60" cy="20" rx="40" ry="8" fill="#f1f5f9" />
+                                <ellipse cx="60" cy="20" rx="35" ry="5" fill="#e2e8f0" />
+
+                                <!-- Fluffy Popcorn inside bucket -->
+                                <circle cx="38" cy="15" r="11" fill="#fde047" />
+                                <circle cx="54" cy="9" r="13" fill="#fef08a" />
+                                <circle cx="72" cy="11" r="11" fill="#fde047" />
+                                <circle cx="82" cy="15" r="10" fill="#fef08a" />
+                                <circle cx="46" cy="4" r="12" fill="#facc15" />
+                                <circle cx="62" cy="3" r="13" fill="#fde047" />
+                                <circle cx="74" cy="6" r="10" fill="#facc15" />
+
+                                <!-- Popcorn Kernel Details -->
+                                <circle cx="58" cy="-2" r="8" fill="#ffffff" />
+                                <circle cx="48" cy="8" r="7" fill="#ffffff" />
+                                <circle cx="68" cy="8" r="8" fill="#ffffff" />
+
+                                <!-- Flying popcorn pieces -->
+                                <circle cx="-18" cy="-22" r="7" fill="#fde047" class="popcorn-piece-1" />
+                                <circle cx="-12" cy="-38" r="6" fill="#fef08a" class="popcorn-piece-2" />
+                                <circle cx="16" cy="-48" r="7" fill="#facc15" class="popcorn-piece-3" />
+                                <circle cx="112" cy="-24" r="6" fill="#fef08a" class="popcorn-piece-4" />
+                                <circle cx="128" cy="-12" r="5" fill="#fde047" class="popcorn-piece-5" />
+                            </g>
+                        </g>
+
+                        <!-- 3. Soda Drink Cup (sitting right side) -->
+                        <g transform="translate(230, 200)">
+                            <g class="float-animation-delayed">
+                                <!-- Cup Shadow -->
+                                <path d="M20,130 L10,30 L70,30 L60,130 Z" fill="rgba(0,0,0,0.22)"
+                                    transform="translate(4, 5)" />
+
+                                <!-- Cup Body (Styled with sky-400 brand color) -->
+                                <path d="M20,130 L10,30 L70,30 L60,130 Z" fill="#38bdf8" />
+                                <path d="M20,130 L45,130 L35,30 L10,30 Z" fill="#0284c7" opacity="0.35" />
+
+                                <!-- Play Button on Cup -->
+                                <circle cx="40" cy="80" r="16" fill="#ffffff" />
+                                <polygon points="36,72 48,80 36,88" fill="#38bdf8" />
+
+                                <!-- Lid -->
+                                <path d="M6,30 L74,30 L70,22 L10,22 Z" fill="#f1f5f9" />
+                                <rect x="36" y="16" width="8" height="6" rx="2" fill="#cbd5e1" />
+
+                                <!-- Straw with red stripe -->
+                                <path d="M40,16 L45,-15 L65,-20" fill="none" stroke="#f8fafc" stroke-width="8"
+                                    stroke-linecap="round" stroke-linejoin="round" />
+                                <path d="M40,16 L45,-15 L65,-20" fill="none" stroke="#ef4444" stroke-width="2.5"
+                                    stroke-linecap="round" stroke-linejoin="round" />
+                            </g>
+                        </g>
+
+                        <!-- 4. Floating Play Button Icon (top right) -->
+                        <g transform="translate(280, 100)">
+                            <g class="float-animation">
+                                <circle cx="32" cy="32" r="28" fill="#ffffff" opacity="0.18" />
+                                <circle cx="32" cy="32" r="23" fill="#ffffff" />
+                                <polygon points="26,21 44,32 26,43" fill="#a855f7" />
+                            </g>
+                        </g>
+
+                        <!-- Definitions -->
+                        <defs>
+                            <radialGradient id="svg-glow" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                                <stop offset="0%" stop-color="#ffffff" />
+                                <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+                            </radialGradient>
+                            <linearGradient id="blob-grad-1" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#a855f7" stop-opacity="0.5" />
+                                <stop offset="100%" stop-color="#6366f1" stop-opacity="0.1" />
+                            </linearGradient>
+                            <linearGradient id="blob-grad-2" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.45" />
+                                <stop offset="100%" stop-color="#c084fc" stop-opacity="0.1" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
             </div>
-
-            <!-- Clerk Mount Node -->
-            <div id="clerk-auth-container" style="display: none;"></div>
-
         </div>
     </div>
 
@@ -602,7 +1411,7 @@
                 errorMsg.innerHTML = "<strong>Configuration Needed.</strong> Clerk publishable key is not set. Please insert your key to proceed.";
                 banner.style.display = 'flex';
             }
-            
+
             // Sync initial theme icons
             updateThemeUI(document.documentElement.getAttribute('data-theme') || 'light');
         });
@@ -632,7 +1441,7 @@
         }
 
         // Toggle visibility of the setup UI
-        window.showKeyConfigUI = function() {
+        window.showKeyConfigUI = function () {
             document.getElementById('authLoader').style.display = 'none';
             document.getElementById('clerk-auth-container').style.display = 'none';
             document.getElementById('configPanel').style.display = 'flex';
@@ -647,13 +1456,13 @@
             }
 
             localStorage.setItem('clerk_publishable_key', keyInput);
-            
+
             // Reload the page to trigger auth initialization
             window.location.search = ""; // remove error query params
         }
 
         // Show generic errors in the UI
-        window.showErrorToast = function(message) {
+        window.showErrorToast = function (message) {
             const banner = document.getElementById('errorBanner');
             const errorMsg = document.getElementById('errorMsg');
             errorMsg.innerText = message;
@@ -662,7 +1471,7 @@
         };
 
         // Mount Clerk widget
-        window.mountClerkSignIn = function() {
+        window.mountClerkSignIn = function () {
             document.getElementById('authLoader').style.display = 'none';
             document.getElementById('configPanel').style.display = 'none';
             const container = document.getElementById('clerk-auth-container');
@@ -683,15 +1492,126 @@
                         card: {
                             background: 'transparent',
                             boxShadow: 'none',
+                            border: 'none',
                             padding: '0'
                         }
                     }
                 }
             });
         };
+
+        // Info Modal control functions
+        window.showInfoModal = function (tab = 'about') {
+            const overlay = document.getElementById('infoModalOverlay');
+            overlay.classList.add('active');
+            window.switchModalTab(tab);
+        };
+
+        window.hideInfoModal = function () {
+            const overlay = document.getElementById('infoModalOverlay');
+            overlay.classList.remove('active');
+        };
+
+        window.closeInfoModal = function (event) {
+            window.hideInfoModal();
+        };
+
+        window.switchModalTab = function (tab) {
+            document.querySelectorAll('.modal-tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.modal-content-panel').forEach(panel => panel.classList.remove('active'));
+
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            document.getElementById(`content-${tab}`).classList.add('active');
+        };
     </script>
+
+    <!-- Info Modal Overlay -->
+    <div id="infoModalOverlay" class="info-modal-overlay" onclick="closeInfoModal(event)">
+        <div class="info-modal" onclick="event.stopPropagation()">
+            <!-- Modal Header -->
+            <div class="info-modal-header">
+                <div class="info-modal-tabs">
+                    <button id="tab-about" class="modal-tab-btn active" onclick="switchModalTab('about')">
+                        <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+                        <span>About</span>
+                    </button>
+                    <button id="tab-disclaimer" class="modal-tab-btn" onclick="switchModalTab('disclaimer')">
+                        <i data-lucide="shield-alert" style="width: 16px; height: 16px;"></i>
+                        <span>Disclaimer</span>
+                    </button>
+                    <button id="tab-dmca" class="modal-tab-btn" onclick="switchModalTab('dmca')">
+                        <i data-lucide="scale" style="width: 16px; height: 16px;"></i>
+                        <span>DMCA</span>
+                    </button>
+                </div>
+                <button class="modal-close-btn" onclick="hideInfoModal()" title="Close Info">
+                    <i data-lucide="x" style="width: 20px; height: 20px;"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="info-modal-body">
+                <!-- About Content -->
+                <div id="content-about" class="modal-content-panel active">
+                    <h3>About OrbixPlay</h3>
+                    <p><strong>OrbixPlay</strong> is the premier platform for Bollywood and Hollywood HD Movies.</p>
+                    <p>We provide direct download links without any irritating ads or pop-ups, ensuring a seamless
+                        experience. On OrbixPlay, you can find various file-sharing site links for each movie in
+                        multiple quality formats like Bluray, HDRip, BRRip, WEB-DL, 1080p, 720p, 4K, and more.</p>
+                    <p>Download dual/multi-audio high-quality movies and TV/web series directly without any popup ads.
+                        We offer a wide range of content, including English movies, Hollywood dual audio movies,
+                        Bollywood movies, TV/web series, TV shows, anime, and many more.</p>
+                    <div style="margin-top: 16px;">
+                        <strong>Our Official Network:</strong>
+                        <div class="badge-list" style="margin-top: 8px;">
+                            <span class="modal-badge">OrbixPlay</span>
+                            <span class="modal-badge">OrbixPlayOTT</span>
+                            <span class="modal-badge">OrbixPlayAndroid</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Disclaimer Content -->
+                <div id="content-disclaimer" class="modal-content-panel">
+                    <h3>Legal Disclaimer</h3>
+                    <p>We do not store any copyright-protected content on our websites/servers. All the posts are made
+                        only for educational purposes and any linked content is stored only in third-party websites.
+                        Since freedom of speech is allowed in this fashion, we do not attend in any kind of copyright
+                        infringing.</p>
+                    <p>This is a promotional website only, all the downloadable content provided on this site (All
+                        materials) is for testing/promotion purposes only. All files placed here are for introducing
+                        purpose.</p>
+                    <p>We highly <strong>ENCOURAGE</strong> users to <strong>BUY</strong> the CDs or DVDs of the movie
+                        or the music they like. Please, buy original contents from author or developer site!</p>
+                    <p>If you do not agree to all the terms, please disconnect from this site now itself.</p>
+                </div>
+
+                <!-- DMCA Content -->
+                <div id="content-dmca" class="modal-content-panel">
+                    <h3>DMCA Policy & Takedown</h3>
+                    <p>We take copyright infringement seriously. If you are a copyright owner or an agent thereof and
+                        believe that any content hosted on third-party sites linked from our platform infringes your
+                        copyrights, you may submit a notification pursuant to the Digital Millennium Copyright Act
+                        (DMCA).</p>
+                    <p>Please provide the following information in writing:</p>
+                    <ul>
+                        <li>A physical or electronic signature of a person authorized to act on behalf of the owner of
+                            an exclusive right that is allegedly infringed.</li>
+                        <li>Identification of the copyrighted work claimed to have been infringed.</li>
+                        <li>Identification of the material that is claimed to be infringing and that is to be removed,
+                            along with links to the posts containing the material.</li>
+                        <li>Information reasonably sufficient to permit us to contact you, such as an address, telephone
+                            number, and email address.</li>
+                    </ul>
+                    <p>Please note that DMCA notices should be sent to the contact address provided on the website, or
+                        you can contact the administrators directly via email.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Load Clerk handler -->
     <script src="auth.js"></script>
 </body>
+
 </html>

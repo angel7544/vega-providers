@@ -8,8 +8,15 @@ const CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsuZW50LmJyMzF0ZWNoLmluJA"; // Put y
 // Cache for the retrieved key
 let cachedClerkKey = null;
 
+// List of pages that can be viewed without authentication
+const PUBLIC_PAGES = ['login.html', 'disclaimer.html', 'dmca.html', 'about.html'];
+
+function isCurrentPagePublic() {
+    return PUBLIC_PAGES.some(page => window.location.pathname.endsWith(page));
+}
+
 // Dynamically hide the page html early to prevent flashing unauthenticated content
-if (!window.location.pathname.endsWith('login.html')) {
+if (!isCurrentPagePublic()) {
     document.documentElement.style.visibility = 'hidden';
 }
 
@@ -76,9 +83,9 @@ async function initAuth() {
     
     // 1. If key is missing, handle configuration
     if (!key) {
-        if (!isLoginPage) {
+        if (!isCurrentPagePublic()) {
             redirectToLogin('key_missing');
-        } else {
+        } else if (isLoginPage) {
             // Render configuration UI on login page
             if (typeof window.showKeyConfigUI === 'function') {
                 window.showKeyConfigUI();
@@ -124,10 +131,10 @@ async function initAuth() {
             document.documentElement.style.visibility = 'visible';
             setupUserButton();
         } else {
-            // User is signed out: Redirect unless on login page
-            if (!isLoginPage) {
+            // User is signed out: Redirect unless it is a public page
+            if (!isCurrentPagePublic()) {
                 redirectToLogin();
-            } else {
+            } else if (isLoginPage) {
                 // If on login page and signed out, mount the sign-in widget
                 if (typeof window.mountClerkSignIn === 'function') {
                     window.mountClerkSignIn();
