@@ -10,8 +10,9 @@
 
     <!-- Script to set early theme and avoid flashing -->
     <script>
-        const savedTheme = localStorage.getItem('orbix_theme') || 'light';
-        document.documentElement.setAttribute('data-theme', savedTheme);
+        // Hardcoded to dark mode only
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('orbix_theme', 'dark');
     </script>
 
     <!-- Fonts -->
@@ -834,6 +835,36 @@
             height: 40px !important;
         }
 
+        /* Style social block button and text (Google Button) */
+        .cl-socialButtonsBlockButton {
+            background: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: var(--radius-md) !important;
+            transition: all 0.2s ease !important;
+            height: 40px !important;
+            color: var(--text-main) !important;
+        }
+
+        .cl-socialButtonsBlockButtonText {
+            color: var(--text-main) !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            font-weight: 600 !important;
+            font-size: 13.5px !important;
+        }
+
+        .cl-socialButtonsBlockButton:hover {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            transform: translateY(-1px);
+        }
+
+        /* Explicit high contrast for form labels and divider text */
+        .cl-formFieldLabel,
+        .cl-dividerText {
+            color: rgba(255, 255, 255, 0.7) !important;
+            font-weight: 500 !important;
+        }
+
         .cl-socialButtonsIconButton:hover {
             background: rgba(255, 255, 255, 0.08) !important;
             border-color: rgba(255, 255, 255, 0.15) !important;
@@ -1194,13 +1225,10 @@
         <div class="ott-bg-overlay"></div>
     </div>
 
-    <!-- Theme toggle and info buttons (Top Right of Page) -->
-    <div class="page-controls" style="display: flex; gap: 8px;">
+    <!-- Info button (Top Right of Page) -->
+    <div class="page-controls">
         <button onclick="showInfoModal('about')" class="theme-toggle-btn" title="About & Legal Info">
             <i data-lucide="info"></i>
-        </button>
-        <button id="themeToggleBtn" onclick="toggleTheme()" class="theme-toggle-btn" title="Toggle Theme">
-            <i id="themeBtnIcon" data-lucide="sun"></i>
         </button>
     </div>
 
@@ -1432,32 +1460,10 @@
             }
 
             // Sync initial theme icons
-            updateThemeUI(document.documentElement.getAttribute('data-theme') || 'light');
-        });
-
-        // Toggle Theme
-        function toggleTheme() {
-            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-theme', newTheme);
-            localStorage.setItem('orbix_theme', newTheme);
-            updateThemeUI(newTheme);
-        }
-
-        // Update Theme UI controls (Lucide icons)
-        function updateThemeUI(theme) {
-            const btnIcon = document.getElementById('themeBtnIcon');
-            if (btnIcon) {
-                if (theme === 'light') {
-                    btnIcon.setAttribute('data-lucide', 'sun');
-                } else {
-                    btnIcon.setAttribute('data-lucide', 'moon');
-                }
-            }
             if (window.lucide) {
                 window.lucide.createIcons();
             }
-        }
+        });
 
         // Toggle visibility of the setup UI
         window.showKeyConfigUI = function () {
