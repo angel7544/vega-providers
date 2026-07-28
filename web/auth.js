@@ -13,14 +13,19 @@ if (!window.location.pathname.endsWith('login.html')) {
     document.documentElement.style.visibility = 'hidden';
 }
 
+// Helper to validate Clerk Publishable Keys
+function isValidPublishableKey(key) {
+    return key && typeof key === 'string' && (key.trim().startsWith('pk_test_') || key.trim().startsWith('pk_live_'));
+}
+
 // Get key from developer constant, backend Vercel configuration, or localStorage fallback
 async function getPublishableKey() {
-    if (cachedClerkKey) {
+    if (cachedClerkKey && isValidPublishableKey(cachedClerkKey)) {
         return cachedClerkKey;
     }
 
-    // 1. Check if hardcoded developer key is set
-    if (CLERK_PUBLISHABLE_KEY && CLERK_PUBLISHABLE_KEY.trim() !== "" && CLERK_PUBLISHABLE_KEY !== "YOUR_CLERK_PUBLISHABLE_KEY") {
+    // 1. Check if hardcoded developer key is set and valid
+    if (isValidPublishableKey(CLERK_PUBLISHABLE_KEY)) {
         cachedClerkKey = CLERK_PUBLISHABLE_KEY.trim();
         return cachedClerkKey;
     }
@@ -30,7 +35,7 @@ async function getPublishableKey() {
         const response = await fetch('/api/config');
         if (response.ok) {
             const data = await response.json();
-            if (data.clerkPublishableKey && data.clerkPublishableKey.trim() !== "") {
+            if (isValidPublishableKey(data.clerkPublishableKey)) {
                 cachedClerkKey = data.clerkPublishableKey.trim();
                 return cachedClerkKey;
             }
@@ -40,7 +45,12 @@ async function getPublishableKey() {
     }
 
     // 3. Fallback to localStorage configuration (e.g. for local testing/manual setup)
-    return localStorage.getItem('clerk_publishable_key') || "";
+    const localKey = localStorage.getItem('clerk_publishable_key');
+    if (isValidPublishableKey(localKey)) {
+        return localKey.trim();
+    }
+
+    return "";
 }
 
 // Redirect helper

@@ -126,6 +126,13 @@ class DevServer {
       res.json({ status: "healthy", timestamp: new Date().toISOString() });
     });
 
+    // Serve Clerk config endpoint (parity with Vercel)
+    this.app.get("/api/config", (req, res) => {
+      res.json({
+        clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY || ""
+      });
+    });
+
     // Execution endpoint
     const getModule = (provider, functionName) => {
       const modulePath = path.join(this.distDir, provider);
