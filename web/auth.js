@@ -3,7 +3,7 @@
 // ==========================================
 
 // CONSTANT FOR THE DEVELOPER TO SET DIRECTLY (Optional fallback):
-const CLERK_PUBLISHABLE_KEY = ""; // Put your pk_test_... or pk_live_... key here if desired
+const CLERK_PUBLISHABLE_KEY = "pk_live_Y2xlcmsuZW50LmJyMzF0ZWNoLmluJA"; // Put your pk_test_... or pk_live_... key here if desired
 
 // Cache for the retrieved key
 let cachedClerkKey = null;
@@ -13,30 +13,31 @@ if (!window.location.pathname.endsWith('login.html')) {
     document.documentElement.style.visibility = 'hidden';
 }
 
-// Helper to validate Clerk Publishable Keys
-function isValidPublishableKey(key) {
-    return key && typeof key === 'string' && (key.trim().startsWith('pk_test_') || key.trim().startsWith('pk_live_'));
+// Helper to strip any accidental surrounding quotes (common in config/env variables)
+function sanitizeKey(key) {
+    if (!key || typeof key !== 'string') return "";
+    return key.trim().replace(/^["']|["']$/g, "");
 }
 
-// Get key from developer constant, backend Vercel configuration, or localStorage fallback
+// Helper to validate Clerk Publishable Keys
+function isValidPublishableKey(key) {
+    const cleanKey = sanitizeKey(key);
+    return cleanKey.startsWith('pk_test_') || cleanKey.startsWith('pk_live_');
+}
+
+// Get key from Vercel backend environment variable, developer constant fallback, or localStorage fallback
 async function getPublishableKey() {
     if (cachedClerkKey && isValidPublishableKey(cachedClerkKey)) {
         return cachedClerkKey;
     }
 
-    // 1. Check if hardcoded developer key is set and valid
-    if (isValidPublishableKey(CLERK_PUBLISHABLE_KEY)) {
-        cachedClerkKey = CLERK_PUBLISHABLE_KEY.trim();
-        return cachedClerkKey;
-    }
-
-    // 2. Try fetching from Vercel backend environment variables
+    // 1. Try fetching from Vercel backend environment variables first (allows overriding in production)
     try {
         const response = await fetch('/api/config');
         if (response.ok) {
             const data = await response.json();
             if (isValidPublishableKey(data.clerkPublishableKey)) {
-                cachedClerkKey = data.clerkPublishableKey.trim();
+                cachedClerkKey = sanitizeKey(data.clerkPublishableKey);
                 return cachedClerkKey;
             }
         }
@@ -44,10 +45,16 @@ async function getPublishableKey() {
         console.warn("Could not fetch Clerk key from Vercel backend:", err);
     }
 
+    // 2. Check if hardcoded developer key is set and valid (local/default fallback)
+    if (isValidPublishableKey(CLERK_PUBLISHABLE_KEY)) {
+        cachedClerkKey = sanitizeKey(CLERK_PUBLISHABLE_KEY);
+        return cachedClerkKey;
+    }
+
     // 3. Fallback to localStorage configuration (e.g. for local testing/manual setup)
     const localKey = localStorage.getItem('clerk_publishable_key');
     if (isValidPublishableKey(localKey)) {
-        return localKey.trim();
+        return sanitizeKey(localKey);
     }
 
     return "";
@@ -64,6 +71,7 @@ function redirectToLogin(errorType = '') {
 // Main initialization function
 async function initAuth() {
     const key = await getPublishableKey();
+    console.log("🔑 Clerk Publishable Key loaded:", key);
     const isLoginPage = window.location.pathname.endsWith('login.html');
     
     // 1. If key is missing, handle configuration
@@ -134,16 +142,38 @@ async function initAuth() {
     }
 }
 
-// Fetch script dynamically
+// Helper to extract the Frontend API URL from a Clerk Publishable Key
+function getFrontendApiDomain(publishableKey) {
+    const base64Part = publishableKey.replace(/^pk_(test|live)_/, '');
+    try {
+        const decoded = atob(base64Part);
+        return decoded.split('$')[0];
+    } catch (e) {
+        console.error("Failed to decode Clerk publishable key base64:", e);
+        return "";
+    }
+}
+
+// Fetch script dynamically from public CDNs (ensures compatibility with both dev and production keys)
 function loadClerkScript(publishableKey) {
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = "https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js";
+        script.src = `https://cdn.jsdelivr.net/npm/@clerk/clerk-js@5/dist/clerk.browser.js`;
         script.async = true;
         script.crossOrigin = "anonymous";
         script.setAttribute('data-clerk-publishable-key', publishableKey);
         script.onload = resolve;
-        script.onerror = () => reject(new Error("Failed to load Clerk JS SDK"));
+        script.onerror = () => {
+            console.warn("Failed to load Clerk from jsdelivr, attempting unpkg fallback...");
+            const fallbackScript = document.createElement('script');
+            fallbackScript.src = `https://unpkg.com/@clerk/clerk-js@5/dist/clerk.browser.js`;
+            fallbackScript.async = true;
+            fallbackScript.crossOrigin = "anonymous";
+            fallbackScript.setAttribute('data-clerk-publishable-key', publishableKey);
+            fallbackScript.onload = resolve;
+            fallbackScript.onerror = () => reject(new Error("Failed to load Clerk JS SDK from CDNs"));
+            document.head.appendChild(fallbackScript);
+        };
         document.head.appendChild(script);
     });
 }
@@ -194,11 +224,12 @@ function setupUserButton() {
                     shimmer: true
                 },
                 variables: {
-                    colorPrimary: '#9333ea', // Deep violet accent
-                    colorBackground: '#18181b', // matching dark mode body
-                    colorText: '#f4f4f5',
-                    colorInputBackground: '#27272a',
-                    colorInputText: '#f4f4f5'
+                    colorPrimary: 'var(--accent)',
+                    colorBackground: 'var(--surface-deep)',
+                    colorText: 'var(--text-main)',
+                    colorInputBackground: 'var(--surface-light)',
+                    colorInputText: 'var(--text-main)',
+                    colorTextSecondary: 'var(--text-muted)'
                 }
             }
         });

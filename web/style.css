@@ -3836,5 +3836,51 @@ h1, h2, h3, .logo-text {
   gap: 8px;
 }
 
+/* ==========================================
+   Clerk User Button Popover Theme Compliance
+   ========================================== */
+.cl-userButtonPopoverCard {
+  background-color: var(--surface-deep) !important;
+  border: 1px solid var(--border-glass, rgba(255,255,255,0.08)) !important;
+  box-shadow: var(--glass-shadow, 0 10px 40px rgba(0,0,0,0.5)) !important;
+}
+
+[data-theme="light"] .cl-userButtonPopoverCard {
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+.cl-userButtonPopoverMain,
+.cl-userButtonPopoverFooter,
+.cl-userButtonPopoverFooter * {
+  background-color: transparent !important;
+}
+
+.cl-userPreviewHeading,
+.cl-userButtonPopoverHeaderTitle,
+.cl-userButtonPopoverActionButtonText,
+.cl-userButtonPopoverFooterTitle,
+.cl-userButtonPopoverFooterActionText {
+  color: var(--text-main) !important;
+}
+
+.cl-userPreviewSecondaryIdentifier,
+.cl-userButtonPopoverHeaderSubtitle,
+.cl-userButtonPopoverActionButtonIcon,
+.cl-userButtonPopoverFooterSubtitle {
+  color: var(--text-muted) !important;
+}
+
+.cl-userButtonPopoverActionButton:hover {
+  background-color: var(--surface-light) !important;
+}
+
+.cl-userButtonPopoverFooter {
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-theme="light"] .cl-userButtonPopoverFooter {
+  border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
 
 

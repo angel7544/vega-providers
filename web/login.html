@@ -7,6 +7,12 @@
     <link rel="icon" type="image/x-icon" href="icon.ico">
     <link rel="shortcut icon" type="image/png" href="icon.png">
     
+    <!-- Script to set early theme and avoid flashing -->
+    <script>
+        const savedTheme = localStorage.getItem('orbix_theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    </script>
+    
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,7 +25,7 @@
     <style>
         :root {
             --bg-dark: #09090b;
-            --surface-dark: rgba(15, 15, 20, 0.6);
+            --surface-dark: rgba(15, 15, 20, 0.65);
             --border-glass: rgba(147, 51, 234, 0.15);
             --accent: #a855f7;
             --accent-hover: #c084fc;
@@ -27,6 +33,20 @@
             --text-muted: #a1a1aa;
             --radius-lg: 16px;
             --radius-md: 10px;
+            --bg-overlay: radial-gradient(circle, rgba(0, 0, 0, 0.45) 0%, rgba(9, 9, 11, 0.95) 100%);
+            --glass-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
+        }
+
+        [data-theme="light"] {
+            --bg-dark: #f8fafc;
+            --surface-dark: #ffffff;
+            --border-glass: rgba(0, 0, 0, 0.04);
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --bg-overlay: transparent;
+            --glass-shadow: 0 15px 35px rgba(0, 0, 0, 0.05), 0 5px 15px rgba(0, 0, 0, 0.02);
         }
 
         * {
@@ -37,27 +57,133 @@
         }
 
         body {
-            background: radial-gradient(circle at 50% 0%, #1e152a 0%, var(--bg-dark) 80%);
+            background-color: var(--bg-dark);
             color: var(--text-main);
             min-height: 100vh;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 24px;
+            padding: 80px 24px 24px 24px;
             overflow-x: hidden;
+            position: relative;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        /* Ambient glow spots */
-        .ambient-glow {
+        /* OTT Background elements */
+        .ott-bg-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -2;
+            overflow: hidden;
+        }
+
+        .ott-bg-image {
+            width: 100%;
+            height: 100%;
+            background-image: url('ott_background.png');
+            background-size: cover;
+            background-position: center;
+            filter: blur(4px) scale(1.05);
+            transition: filter 0.3s ease;
+        }
+
+        [data-theme="light"] .ott-bg-image {
+            filter: grayscale(1) opacity(0.08) scale(1.05);
+        }
+
+        .ott-bg-overlay {
             position: absolute;
-            width: 400px;
-            height: 400px;
-            background: radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(0,0,0,0) 70%);
-            top: 10%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: -1;
-            pointer-events: none;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-overlay);
+            transition: background 0.3s ease;
+        }
+
+        /* Top Header Bar */
+        .login-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 24px 48px;
+            z-index: 10;
+        }
+
+        @media (max-width: 600px) {
+            .login-header {
+                padding: 16px 24px;
+            }
+        }
+
+        .header-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        .header-logo img {
+            width: 36px;
+            height: 36px;
+            border-radius: var(--radius-md);
+            box-shadow: 0 4px 15px rgba(147, 51, 234, 0.25);
+        }
+
+        .header-logo .logo-text {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, var(--text-main) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .theme-toggle-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            outline: none;
+        }
+
+        [data-theme="light"] .theme-toggle-btn {
+            background: rgba(0, 0, 0, 0.04);
+            border-color: rgba(0, 0, 0, 0.08);
+            color: var(--text-main);
+        }
+
+        .theme-toggle-btn:hover {
+            transform: scale(1.08) rotate(15deg);
+            background: rgba(255, 255, 255, 0.15);
+            border-color: var(--accent);
+            box-shadow: 0 0 12px rgba(147, 51, 234, 0.25);
+        }
+
+        [data-theme="light"] .theme-toggle-btn:hover {
+            background: rgba(0, 0, 0, 0.08);
+            border-color: var(--accent);
+            box-shadow: 0 0 12px rgba(124, 58, 237, 0.2);
+        }
+
+        .theme-toggle-btn i {
+            width: 18px;
+            height: 18px;
         }
 
         .login-wrapper {
@@ -67,6 +193,8 @@
             flex-direction: column;
             gap: 24px;
             animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            position: relative;
+            z-index: 2;
         }
 
         @keyframes fadeIn {
@@ -80,40 +208,23 @@
             }
         }
 
-        .logo-section {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 8px;
-        }
-
-        .logo-section img {
-            width: 42px;
-            height: 42px;
-            border-radius: var(--radius-md);
-            box-shadow: 0 4px 20px rgba(147, 51, 234, 0.3);
-        }
-
-        .logo-text {
-            font-size: 26px;
-            font-weight: 800;
-            letter-spacing: -0.5px;
-            background: linear-gradient(135deg, #fff 0%, #d8b4fe 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        /* Glassmorphic Cards */
+        /* Glassmorphic / Solid White Cards */
         .glass-card {
             background: var(--surface-dark);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
             border: 1px solid var(--border-glass);
             border-radius: var(--radius-lg);
             padding: 36px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
-            transition: border-color 0.3s ease;
+            box-shadow: var(--glass-shadow);
+            transition: all 0.3s ease;
+        }
+
+        [data-theme="light"] .glass-card {
+            background: #ffffff !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            border: 1px solid rgba(0, 0, 0, 0.04) !important;
         }
 
         /* Error/Warning Toast Banner */
@@ -121,15 +232,20 @@
             display: none;
             align-items: flex-start;
             gap: 12px;
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.2);
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.25);
             border-radius: var(--radius-md);
             padding: 14px 18px;
             margin-bottom: 8px;
             font-size: 13.5px;
-            color: #fca5a5;
+            color: #ef4444;
             line-height: 1.5;
             animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        [data-theme="light"] .alert-banner {
+            background: rgba(239, 68, 68, 0.08);
+            color: #dc2626;
         }
 
         @keyframes slideDown {
@@ -188,10 +304,25 @@
             width: 100%;
         }
 
+        [data-theme="light"] .input-field {
+            background: #ffffff;
+            border-color: #e2e8f0;
+        }
+
+        .input-field::placeholder {
+            color: var(--text-muted);
+            opacity: 0.6;
+        }
+
         .input-field:focus {
             border-color: var(--accent);
             box-shadow: 0 0 10px rgba(147, 51, 234, 0.2);
             background: rgba(255, 255, 255, 0.08);
+        }
+
+        [data-theme="light"] .input-field:focus {
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.15);
+            background: #ffffff;
         }
 
         .primary-btn {
@@ -211,10 +342,20 @@
             box-shadow: 0 4px 15px rgba(147, 51, 234, 0.3);
         }
 
+        [data-theme="light"] .primary-btn {
+            background: #6366f1;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+        }
+
         .primary-btn:hover {
             transform: translateY(-1px);
             box-shadow: 0 6px 20px rgba(147, 51, 234, 0.4);
             background: linear-gradient(135deg, var(--accent-hover) 0%, #9333ea 100%);
+        }
+
+        [data-theme="light"] .primary-btn:hover {
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+            background: #4f46e5;
         }
 
         .primary-btn:active {
@@ -257,38 +398,153 @@
             justify-content: center;
         }
 
-        /* Hide standard clerk header logo if needed for co-branding */
+        /* Hide standard clerk header logo */
         .cl-cardHeaderLogoImage {
             display: none !important;
         }
-        
-        .footer-link {
-            text-align: center;
-            font-size: 12px;
-            color: var(--text-muted);
+
+        /* ============================
+           Clerk Custom CSS Overrides
+           ============================ */
+        .cl-rootBox {
+            width: 100% !important;
         }
         
-        .footer-link a {
-            color: var(--accent);
-            text-decoration: none;
-            font-weight: 600;
+        .cl-card {
+            background: transparent !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            width: 100% !important;
         }
-        .footer-link a:hover {
-            text-decoration: underline;
+        
+        .cl-main,
+        .cl-footer,
+        .cl-footer *,
+        .cl-cardFooter,
+        .cl-cardFooter *,
+        .cl-pageScrollable {
+            background: transparent !important;
+            background-color: transparent !important;
+            box-shadow: none !important;
+        }
+        
+        .cl-main {
+            padding: 0 8px !important; /* Constrain elements to align nicely inside card padding */
+        }
+        
+        .cl-footer, 
+        .cl-cardFooter {
+            padding: 0 8px !important;
+        }
+
+        .cl-headerTitle {
+            color: var(--text-main) !important;
+            font-family: 'Outfit', sans-serif !important;
+        }
+        
+        .cl-headerSubtitle, 
+        .cl-dividerText, 
+        .cl-formFieldLabel, 
+        .cl-footerActionText, 
+        .cl-identityPreviewText {
+            color: var(--text-muted) !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+        }
+        
+        .cl-footerActionLink, 
+        .cl-identityPreviewEditButton {
+            color: var(--accent) !important;
+        }
+        
+        .cl-socialButtonsIconButton {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            transition: all 0.2s ease !important;
+        }
+        
+        [data-theme="light"] .cl-socialButtonsIconButton {
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+        }
+        
+        .cl-socialButtonsIconButtonValue {
+            color: var(--text-main) !important;
+        }
+        
+        .cl-dividerLine {
+            background: rgba(255, 255, 255, 0.08) !important;
+        }
+        
+        [data-theme="light"] .cl-dividerLine {
+            background: #e2e8f0 !important;
+        }
+        
+        /* Clerk Input Container & Input Border Fixes */
+        .cl-formFieldInput {
+            background: transparent !important;
+            border: none !important;
+            color: var(--text-main) !important;
+            box-shadow: none !important;
+            outline: none !important;
+            width: 100% !important;
+            padding: 10px 12px !important;
+        }
+        
+        .cl-formFieldInputContainer {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 8px !important;
+            transition: all 0.2s ease !important;
+            width: 100% !important;
+            display: flex;
+            align-items: center;
+        }
+        
+        [data-theme="light"] .cl-formFieldInputContainer {
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+        
+        .cl-formFieldInputContainer:focus-within {
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 0 1px var(--accent) !important;
+        }
+        
+        .cl-formButtonPrimary {
+            background: linear-gradient(135deg, var(--accent) 0%, #7e22ce 100%) !important;
+            box-shadow: 0 4px 15px rgba(147, 51, 234, 0.3) !important;
+            color: #ffffff !important;
+            transition: all 0.2s ease !important;
+            width: 100% !important;
+        }
+        
+        [data-theme="light"] .cl-formButtonPrimary {
+            background: #6366f1 !important;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2) !important;
         }
     </style>
 </head>
 <body>
 
-    <div class="ambient-glow"></div>
+    <!-- Dynamic OTT Background -->
+    <div class="ott-bg-container">
+        <div class="ott-bg-image"></div>
+        <div class="ott-bg-overlay"></div>
+    </div>
 
-    <div class="login-wrapper">
-        <!-- Logo -->
-        <div class="logo-section">
+    <!-- Header bar -->
+    <header class="login-header">
+        <div class="header-logo" onclick="window.location.reload()">
             <img src="icon.png" alt="OrbixPlay Logo">
             <span class="logo-text">OrbixPlay</span>
         </div>
+        <button id="themeToggleBtn" onclick="toggleTheme()" class="theme-toggle-btn" title="Toggle Theme">
+            <i id="themeBtnIcon" data-lucide="sun"></i>
+        </button>
+    </header>
 
+    <div class="login-wrapper">
         <!-- Alert Notification -->
         <div id="errorBanner" class="alert-banner">
             <i data-lucide="shield-alert"></i>
@@ -328,11 +584,6 @@
             <div id="clerk-auth-container" style="display: none;"></div>
 
         </div>
-
-        <!-- Footer link back to config -->
-        <div id="resetConfigLink" class="footer-link" style="display: none;">
-            Need to change credentials? <a href="#" onclick="resetConfig(event)">Reset configuration</a>
-        </div>
     </div>
 
     <!-- Script to handle UI logic -->
@@ -352,9 +603,33 @@
                 banner.style.display = 'flex';
             }
             
-            // Render icons
-            lucide.createIcons();
+            // Sync initial theme icons
+            updateThemeUI(document.documentElement.getAttribute('data-theme') || 'light');
         });
+
+        // Toggle Theme
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('orbix_theme', newTheme);
+            updateThemeUI(newTheme);
+        }
+
+        // Update Theme UI controls (Lucide icons)
+        function updateThemeUI(theme) {
+            const btnIcon = document.getElementById('themeBtnIcon');
+            if (btnIcon) {
+                if (theme === 'light') {
+                    btnIcon.setAttribute('data-lucide', 'sun');
+                } else {
+                    btnIcon.setAttribute('data-lucide', 'moon');
+                }
+            }
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
 
         // Toggle visibility of the setup UI
         window.showKeyConfigUI = function() {
@@ -384,11 +659,6 @@
             errorMsg.innerText = message;
             banner.style.display = 'flex';
             document.getElementById('authLoader').style.display = 'none';
-            
-            // If we have a key saved, show the reset button
-            if (localStorage.getItem('clerk_publishable_key')) {
-                document.getElementById('resetConfigLink').style.display = 'block';
-            }
         };
 
         // Mount Clerk widget
@@ -397,19 +667,16 @@
             document.getElementById('configPanel').style.display = 'none';
             const container = document.getElementById('clerk-auth-container');
             container.style.display = 'flex';
-            
-            // Show config reset link in case they typed the wrong key
-            document.getElementById('resetConfigLink').style.display = 'block';
 
             Clerk.mountSignIn(container, {
                 appearance: {
                     variables: {
-                        colorPrimary: '#9333ea',
-                        colorBackground: '#18181b',
-                        colorText: '#f4f4f5',
-                        colorInputBackground: '#27272a',
-                        colorInputText: '#f4f4f5',
-                        colorTextSecondary: '#a1a1aa',
+                        colorPrimary: 'var(--accent)',
+                        colorBackground: 'transparent',
+                        colorText: 'var(--text-main)',
+                        colorInputBackground: 'transparent',
+                        colorInputText: 'var(--text-main)',
+                        colorTextSecondary: 'var(--text-muted)',
                         colorTextOnPrimaryBackground: '#ffffff'
                     },
                     elements: {
@@ -417,49 +684,11 @@
                             background: 'transparent',
                             boxShadow: 'none',
                             padding: '0'
-                        },
-                        headerTitle: {
-                            color: '#ffffff'
-                        },
-                        headerSubtitle: {
-                            color: '#a1a1aa'
-                        },
-                        socialButtonsIconButton: {
-                            background: '#27272a',
-                            borderColor: 'rgba(255,255,255,0.08)'
-                        },
-                        dividerLine: {
-                            background: 'rgba(255,255,255,0.08)'
-                        },
-                        dividerText: {
-                            color: '#a1a1aa'
-                        },
-                        formFieldLabel: {
-                            color: '#a1a1aa'
-                        },
-                        formFieldInput: {
-                            borderColor: 'rgba(255,255,255,0.1)',
-                            borderRadius: '8px'
-                        },
-                        footerActionText: {
-                            color: '#a1a1aa'
-                        },
-                        footerActionLink: {
-                            color: '#a855f7'
                         }
                     }
                 }
             });
         };
-
-        // Wipe the key configuration and reload
-        function resetConfig(e) {
-            e.preventDefault();
-            if (confirm("Are you sure you want to clear the Clerk keys?")) {
-                localStorage.removeItem('clerk_publishable_key');
-                window.location.reload();
-            }
-        }
     </script>
 
     <!-- Load Clerk handler -->
