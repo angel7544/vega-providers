@@ -41,6 +41,30 @@ interface LocalManifestInfo {
 
 
 
+function getRelativeTime(dateString: string): string {
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffSecs < 60) {
+      return 'just now';
+    } else if (diffMins < 60) {
+      return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
+    } else if (diffHours < 24) {
+      return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+    } else {
+      return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+    }
+  } catch (e) {
+    return 'unknown time';
+  }
+}
+
 function App() {
   const [installInfo, setInstallInfo] = useState<InstallationInfo>({ exists: false, path: '' });
   const [isUpdating, setIsUpdating] = useState(false);
@@ -51,6 +75,9 @@ function App() {
   const [localVersion, setLocalVersion] = useState<string>('Ready');
   const [lastCommit, setLastCommit] = useState<string | null>(null);
   const [keepNewerHubcloud, setKeepNewerHubcloud] = useState(false);
+  const [customPath, setCustomPath] = useState<string>('');
+  const [updateDist, setUpdateDist] = useState(true);
+  const [updateProviders, setUpdateProviders] = useState(true);
 
   const addLog = (text: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
     const time = new Date().toLocaleTimeString('en-US', { hour12: false });
@@ -88,9 +115,12 @@ function App() {
       const commitRes = await fetch("https://api.github.com/repos/Zenda-Cross/vega-providers/commits?per_page=1", { cache: "no-cache" });
       const commits = await commitRes.json();
       if (Array.isArray(commits) && commits.length > 0) {
-        const msg = commits[0].commit.message.split('\n')[0];
-        setLastCommit(msg);
-        addLog(`Latest commit: ${msg}`, 'success');
+        const sha = commits[0].sha.slice(0, 7);
+        const dateStr = commits[0].commit.author.date;
+        const relativeTime = getRelativeTime(dateStr);
+        const commitMsg = commits[0].commit.message.split('\n')[0];
+        setLastCommit(`${sha} · ${relativeTime}`);
+        addLog(`Latest commit: ${sha} · ${commitMsg} (${relativeTime})`, 'success');
       } else if (commits.message) {
         addLog(`GitHub API: ${commits.message}`, 'warning');
         setLastCommit("API Rate Limited");
@@ -101,18 +131,25 @@ function App() {
     }
   };
 
-  const checkInstall = async () => {
+  const checkInstall = async (pathToCheck?: string) => {
     try {
-      const info: InstallationInfo = await invoke('detect_installation');
+      const activePath = pathToCheck !== undefined ? pathToCheck : customPath;
+      const info: InstallationInfo = await invoke('detect_installation', { customPath: activePath || null });
       setInstallInfo(info);
+      if ((pathToCheck !== undefined || !customPath) && info.path) {
+        setCustomPath(info.path);
+      }
       if (info.exists) {
         try {
-          const localInfo = await invoke<LocalManifestInfo>('verify_local_manifest');
+          const localInfo = await invoke<LocalManifestInfo>('verify_local_manifest', { baseDir: info.path });
           setLocalVersion(`v${localInfo.version} (${localInfo.providers_count} Providers)`);
           addLog(`Current version: v${localInfo.version}`, 'info');
         } catch (e) {
+          setLocalVersion('Ready');
           addLog(`Current version: Ready`, 'info');
         }
+      } else {
+        setLocalVersion('Ready');
       }
     } catch (err) {
       addLog(`Error detecting installation: ${err}`, 'error');
@@ -120,7 +157,7 @@ function App() {
   };
 
   const checkAllUpdates = async () => {
-    await checkInstall();
+    await checkInstall(customPath || undefined);
     await fetchGithubInfo();
     addLog(`All systems are up to date.`, 'success');
   }
@@ -156,12 +193,18 @@ function App() {
       }
 
       addLog('Starting download from GitHub repository...', 'info');
-      const zipPath: string = await invoke('download_repo_zip');
+      const zipPath: string = await invoke('download_repo_zip', { baseDir: customPath });
       addLog(`Download complete. Saved to temporary location.`, 'success');
       
       setStatus('extracting');
       addLog('Backing up old files and extracting new update...', 'info');
-      const extractionLogs: string[] = await invoke('backup_and_extract_repo_zip', { zipPath, keepNewerHubcloud });
+      const extractionLogs: string[] = await invoke('backup_and_extract_repo_zip', { 
+        baseDir: customPath,
+        zipPath, 
+        keepNewerHubcloud,
+        updateDist,
+        updateProviders
+      });
       
       if (extractionLogs && extractionLogs.length > 0) {
         extractionLogs.forEach(log => {
@@ -174,7 +217,7 @@ function App() {
       }
       
       addLog('Verifying local installation...', 'info');
-      const localInfo = await invoke<LocalManifestInfo>('verify_local_manifest');
+      const localInfo = await invoke<LocalManifestInfo>('verify_local_manifest', { baseDir: customPath });
       addLog(`All systems are up to date.`, 'success');
       setLocalVersion(`v${localInfo.version} (${localInfo.providers_count} Providers)`);
 
@@ -191,7 +234,7 @@ function App() {
 
   const handleOpenFolder = async (type: "install" | "backup") => {
     try {
-      await invoke('open_folder', { folderType: type });
+      await invoke('open_folder', { baseDir: customPath, folderType: type });
     } catch (err) {
       addLog(`Failed to open folder: ${err}`, 'error');
     }
@@ -200,7 +243,7 @@ function App() {
   const handleLaunchApp = async (type: "orbix" | "server") => {
     try {
       addLog(`Launching ${type}...`, 'info');
-      await invoke('launch_app', { appType: type });
+      await invoke('launch_app', { baseDir: customPath, appType: type });
     } catch (err) {
       addLog(`Failed to launch process: ${err}`, 'error');
     }
@@ -222,9 +265,9 @@ function App() {
   const handleRestore = async () => {
     try {
       addLog('Restoring files from backup directory...', 'warning');
-      await invoke('restore_backup');
+      await invoke('restore_backup', { baseDir: customPath });
       addLog('Backup restored successfully!', 'success');
-      checkInstall();
+      checkInstall(customPath);
     } catch (err) {
       addLog(`Failed to restore backup: ${err}`, 'error');
     }
@@ -233,10 +276,23 @@ function App() {
   const handleClearCache = async () => {
     try {
       addLog('Clearing updater cache and temp files...', 'warning');
-      await invoke('clear_cache');
+      await invoke('clear_cache', { baseDir: customPath });
       addLog('Cache cleared successfully!', 'success');
     } catch (err) {
       addLog(`Failed to clear cache: ${err}`, 'error');
+    }
+  };
+
+  const handleBrowseFolder = async () => {
+    try {
+      const selected: string | null = await invoke('select_directory');
+      if (selected) {
+        setCustomPath(selected);
+        await checkInstall(selected);
+        addLog(`Selected custom target directory: ${selected}`, 'info');
+      }
+    } catch (err) {
+      addLog(`Failed to select directory: ${err}`, 'error');
     }
   };
 
@@ -294,22 +350,92 @@ function App() {
               <div className="grid-cell"><span className="cell-label">Last Commit</span><span className="cell-value commit-link">{lastCommit || "Fetching..."}</span></div>
               <div className="grid-cell"><span className="cell-label">Backup Status</span><span className="cell-value text-success">Ready</span></div>
               <div className="grid-cell"><span className="cell-label">Update Channel</span><span className="cell-value"><span className="pill-stable-small">Stable</span></span></div>
-              <div className="grid-cell"><span className="cell-label">Install Location</span><span className="cell-value">{installInfo.path ? "Orbix Suite" : "Not Found"}</span></div>
+              <div className="grid-cell"><span className="cell-label">Install Location</span><span className="cell-value" title={installInfo.path}>{installInfo.path ? (installInfo.path.length > 25 ? "..." + installInfo.path.slice(-22) : installInfo.path) : "Not Found"}</span></div>
               <div className="grid-cell"><span className="cell-label">Last Checked</span><span className="cell-value">Today, {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span></div>
             </div>
 
-            <div style={{ padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)' }}>
-              <input 
-                type="checkbox" 
-                id="keepNewerHubcloud" 
-                checked={keepNewerHubcloud} 
-                onChange={(e) => setKeepNewerHubcloud(e.target.checked)}
-                style={{ cursor: 'pointer' }}
-                disabled={isUpdating}
-              />
-              <label htmlFor="keepNewerHubcloud" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>
-                Keep newer hubcloud.ts from GitHub (Don't preserve local version)
-              </label>
+            {/* TARGET CONFIGURATION */}
+            <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border-color)', borderBottom: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.1)' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <FolderOpen size={14} className="card-icon" /> TARGET PATH & SELECTIVE FOLDERS
+              </div>
+              
+              {/* Path selector row */}
+              <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                <input 
+                  type="text" 
+                  value={customPath} 
+                  onChange={(e) => {
+                    setCustomPath(e.target.value);
+                    checkInstall(e.target.value);
+                  }}
+                  placeholder="Target installation directory..."
+                  style={{
+                    flex: 1,
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '4px',
+                    padding: '0.25rem 0.5rem',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.75rem',
+                    outline: 'none'
+                  }}
+                  disabled={isUpdating}
+                />
+                <button 
+                  className="btn-outline-small" 
+                  onClick={handleBrowseFolder}
+                  disabled={isUpdating}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem' }}
+                >
+                  Browse...
+                </button>
+              </div>
+
+              {/* Checkboxes row */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={updateDist} 
+                    onChange={(e) => setUpdateDist(e.target.checked)}
+                    disabled={isUpdating}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  Update dist folder
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={updateProviders} 
+                    onChange={(e) => setUpdateProviders(e.target.checked)}
+                    disabled={isUpdating}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  Update providers folder
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={keepNewerHubcloud} 
+                    onChange={(e) => setKeepNewerHubcloud(e.target.checked)}
+                    disabled={isUpdating}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  Keep newer hubcloud.ts
+                </label>
+              </div>
+              
+              {!installInfo.exists && (
+                <div style={{ color: 'var(--color-danger)', fontSize: '0.7rem', marginTop: '0.4rem', fontWeight: 500 }}>
+                  ⚠️ Directory path is invalid or does not exist.
+                </div>
+              )}
+              {!updateDist && !updateProviders && (
+                <div style={{ color: 'var(--color-warning)', fontSize: '0.7rem', marginTop: '0.4rem', fontWeight: 500 }}>
+                  ⚠️ Select at least one folder to update (dist or providers).
+                </div>
+              )}
             </div>
 
             {(status === 'downloading' || status === 'extracting') && (
@@ -327,7 +453,7 @@ function App() {
 
           {/* ACTION BUTTONS */}
           <div className="actions-wrapper">
-            <button className="btn-action btn-primary" onClick={handleUpdate} disabled={!installInfo.exists || isUpdating}>
+            <button className="btn-action btn-primary" onClick={handleUpdate} disabled={!installInfo.exists || isUpdating || (!updateDist && !updateProviders)}>
               <Download size={18} /> Check & Download<br/>Update
             </button>
             <button className="btn-action btn-success" onClick={() => handleLaunchApp('orbix')} disabled={!installInfo.exists}>
@@ -348,7 +474,7 @@ function App() {
             <button className="btn-action btn-warning" onClick={handleRestore} disabled={!installInfo.exists}>
               <History size={18} /> Restore<br/>Backup
             </button>
-            <button className="btn-action btn-danger-dark" onClick={handleClearCache}>
+            <button className="btn-action btn-danger-dark" onClick={handleClearCache} disabled={!installInfo.exists}>
               <Trash2 size={18} /> Clear Cache
             </button>
           </div>

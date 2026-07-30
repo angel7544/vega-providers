@@ -6,6 +6,7 @@ use std::process::Command;
 use std::time::Instant;
 use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter};
+use tauri_plugin_dialog::DialogExt;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct InstallationInfo {
@@ -30,8 +31,11 @@ fn get_installation_path() -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-pub fn detect_installation() -> Result<InstallationInfo, String> {
-    let path = get_installation_path()?;
+pub fn detect_installation(custom_path: Option<String>) -> Result<InstallationInfo, String> {
+    let path = match custom_path {
+        Some(p) if !p.is_empty() => PathBuf::from(p),
+        _ => get_installation_path()?,
+    };
     Ok(InstallationInfo {
         exists: path.exists(),
         path: path.to_string_lossy().to_string(),
@@ -39,12 +43,12 @@ pub fn detect_installation() -> Result<InstallationInfo, String> {
 }
 
 #[tauri::command]
-pub async fn download_repo_zip(app_handle: AppHandle) -> Result<String, String> {
-    let base_dir = get_installation_path()?;
-    let temp_dir = base_dir.join("temp");
+pub async fn download_repo_zip(app_handle: AppHandle, base_dir: String) -> Result<String, String> {
+    let base_path = PathBuf::from(&base_dir);
+    let temp_dir = base_path.join("temp");
     
-    if !base_dir.exists() {
-        return Err("Orbix Suite installation path does not exist".to_string());
+    if !base_path.exists() {
+        return Err("Target installation path does not exist".to_string());
     }
 
     fs::create_dir_all(&temp_dir)
@@ -157,14 +161,20 @@ fn rollback(base_dir: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn backup_and_extract_repo_zip(zip_path: String, keep_newer_hubcloud: bool) -> Result<Vec<String>, String> {
+pub fn backup_and_extract_repo_zip(
+    base_dir: String,
+    zip_path: String,
+    keep_newer_hubcloud: bool,
+    update_dist: bool,
+    update_providers: bool,
+) -> Result<Vec<String>, String> {
     let mut logs = Vec::new();
-    let base_dir = get_installation_path()?;
-    let backup_dir = base_dir.join("backup");
-    let temp_dir = base_dir.join("temp");
+    let base_path = PathBuf::from(&base_dir);
+    let backup_dir = base_path.join("backup");
+    let temp_dir = base_path.join("temp");
 
-    let dist_target = base_dir.join("dist");
-    let providers_target = base_dir.join("providers");
+    let dist_target = base_path.join("dist");
+    let providers_target = base_path.join("providers");
 
     // 1. Create backups
     fs::create_dir_all(&backup_dir)
@@ -180,20 +190,20 @@ pub fn backup_and_extract_repo_zip(zip_path: String, keep_newer_hubcloud: bool) 
         let _ = fs::remove_dir_all(&providers_backup);
     }
 
-    if dist_target.exists() {
+    if update_dist && dist_target.exists() {
         copy_dir_all(&dist_target, &dist_backup)
             .map_err(|e| format!("Failed to back up dist folder: {}", e))?;
     }
-    if providers_target.exists() {
+    if update_providers && providers_target.exists() {
         copy_dir_all(&providers_target, &providers_backup)
             .map_err(|e| format!("Failed to back up providers folder: {}", e))?;
     }
 
     // 2. Clear targets
-    if dist_target.exists() {
+    if update_dist && dist_target.exists() {
         let _ = fs::remove_dir_all(&dist_target);
     }
-    if providers_target.exists() {
+    if update_providers && providers_target.exists() {
         let _ = fs::remove_dir_all(&providers_target);
     }
 
@@ -221,6 +231,13 @@ pub fn backup_and_extract_repo_zip(zip_path: String, keep_newer_hubcloud: bool) 
             continue;
         }
 
+        if folder_name == "dist" && !update_dist {
+            continue;
+        }
+        if folder_name == "providers" && !update_providers {
+            continue;
+        }
+
         // Relative path inside the target directory (e.g. dist/... or manifest.json)
         let relative_path = parts[1..].join("/");
         
@@ -229,7 +246,7 @@ pub fn backup_and_extract_repo_zip(zip_path: String, keep_newer_hubcloud: bool) 
             continue;
         }
 
-        let outpath = base_dir.join(relative_path);
+        let outpath = base_path.join(relative_path);
 
         if file.is_dir() {
             let _ = fs::create_dir_all(&outpath);
@@ -240,19 +257,19 @@ pub fn backup_and_extract_repo_zip(zip_path: String, keep_newer_hubcloud: bool) 
             let mut outfile = match fs::File::create(&outpath) {
                 Ok(f) => f,
                 Err(e) => {
-                    let _ = rollback(&base_dir);
+                    let _ = rollback(&base_path);
                     return Err(format!("Failed to extract file: {}", e));
                 }
             };
             if let Err(e) = io::copy(&mut file, &mut outfile) {
-                let _ = rollback(&base_dir);
+                let _ = rollback(&base_path);
                 return Err(format!("Failed to write extracted file: {}", e));
             }
         }
     }
 
     // 4. Restore hubcloud.ts from backup if it existed
-    if !keep_newer_hubcloud {
+    if !keep_newer_hubcloud && update_providers {
         let hubcloud_backup = providers_backup.join("extractors").join("hubcloud.ts");
         if hubcloud_backup.exists() {
             let hubcloud_target = providers_target.join("extractors").join("hubcloud.ts");
@@ -279,11 +296,11 @@ pub fn backup_and_extract_repo_zip(zip_path: String, keep_newer_hubcloud: bool) 
 }
 
 #[tauri::command]
-pub fn open_folder(folder_type: String) -> Result<(), String> {
-    let base_dir = get_installation_path()?;
+pub fn open_folder(base_dir: String, folder_type: String) -> Result<(), String> {
+    let base_path = PathBuf::from(base_dir);
     let path = match folder_type.as_str() {
-        "install" => base_dir,
-        "backup" => base_dir.join("backup"),
+        "install" => base_path,
+        "backup" => base_path.join("backup"),
         _ => return Err("Invalid folder type".to_string()),
     };
 
@@ -335,9 +352,9 @@ pub fn kill_processes() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub fn launch_app(app_type: String) -> Result<(), String> {
-    let base_dir = get_installation_path()?;
-    let bin_dir = base_dir.join("bin");
+pub fn launch_app(base_dir: String, app_type: String) -> Result<(), String> {
+    let base_path = PathBuf::from(base_dir);
+    let bin_dir = base_path.join("bin");
 
     let exe_path = match app_type.as_str() {
         "orbix" => bin_dir.join("orbixlite-v3.exe"),
@@ -347,10 +364,10 @@ pub fn launch_app(app_type: String) -> Result<(), String> {
 
     if !exe_path.exists() {
         // Fallback to checking root directory if not in bin/
-        let root_fallback = base_dir.join(exe_path.file_name().unwrap());
+        let root_fallback = base_path.join(exe_path.file_name().unwrap());
         if root_fallback.exists() {
             Command::new(&root_fallback)
-                .current_dir(&base_dir)
+                .current_dir(&base_path)
                 .spawn()
                 .map_err(|e| format!("Failed to launch process: {}", e))?;
             return Ok(());
@@ -367,15 +384,15 @@ pub fn launch_app(app_type: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn restore_backup() -> Result<(), String> {
-    let base_dir = get_installation_path()?;
-    rollback(&base_dir)
+pub fn restore_backup(base_dir: String) -> Result<(), String> {
+    let base_path = PathBuf::from(base_dir);
+    rollback(&base_path)
 }
 
 #[tauri::command]
-pub fn clear_cache() -> Result<(), String> {
-    let base_dir = get_installation_path()?;
-    let temp_dir = base_dir.join("temp");
+pub fn clear_cache(base_dir: String) -> Result<(), String> {
+    let base_path = PathBuf::from(base_dir);
+    let temp_dir = base_path.join("temp");
     
     if temp_dir.exists() {
         fs::remove_dir_all(&temp_dir).map_err(|e| format!("Failed to clear cache: {}", e))?;
@@ -391,9 +408,9 @@ pub struct LocalManifestInfo {
 }
 
 #[tauri::command]
-pub fn verify_local_manifest() -> Result<LocalManifestInfo, String> {
-    let base_dir = get_installation_path()?;
-    let manifest_path = base_dir.join("manifest.json");
+pub fn verify_local_manifest(base_dir: String) -> Result<LocalManifestInfo, String> {
+    let base_path = PathBuf::from(base_dir);
+    let manifest_path = base_path.join("manifest.json");
 
     if !manifest_path.exists() {
         return Err("Local manifest.json not found after update.".to_string());
@@ -427,4 +444,15 @@ pub fn verify_local_manifest() -> Result<LocalManifestInfo, String> {
         version: max_version_str,
         providers_count: parsed.len(),
     })
+}
+
+#[tauri::command]
+pub async fn select_directory(app_handle: AppHandle) -> Result<Option<String>, String> {
+    let folder_path = app_handle.dialog()
+        .file()
+        .blocking_pick_folder();
+
+    Ok(folder_path.and_then(|fp| {
+        fp.into_path().ok().map(|path| path.to_string_lossy().to_string())
+    }))
 }
