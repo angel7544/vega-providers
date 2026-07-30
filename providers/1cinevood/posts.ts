@@ -1,5 +1,6 @@
 import { Post, ProviderContext } from "../types";
 import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
 
 async function getWithWAF(
   url: string,
@@ -21,7 +22,12 @@ async function getWithWAF(
         force: true,
       });
       return await axios.get(url, {
-        headers: { ...headers, Referer: baseUrl, Cookie: wafResult.cookie },
+        headers: {
+          ...headers,
+          Referer: baseUrl,
+          "User-Agent": wafResult.userAgent || headers["User-Agent"],
+          Cookie: wafResult.cookies || wafResult.cookie,
+        },
       });
     }
     throw error;
@@ -151,10 +157,10 @@ async function fetchPosts({
 
     return catalog.slice(0, 100);
   } catch (err) {
-    console.error(
-      "HDMovie2 fetchPosts error:",
-      err instanceof Error ? err.message : String(err),
+    throwProviderError(
+      "1CineVood",
+      query && query.trim() ? "search posts" : "posts",
+      err,
     );
-    return [];
   }
 }

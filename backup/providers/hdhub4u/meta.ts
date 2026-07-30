@@ -1,4 +1,5 @@
 import { Info, Link, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 const hdbHeaders = {
   Cookie: "xla=s4t",
@@ -15,7 +16,8 @@ export const getMeta = async function ({
 }): Promise<Info> {
   try {
     const { axios, cheerio } = providerContext;
-    const url = link;
+    const baseUrl = await getBaseUrl("hdhub");
+    const url = new URL(link, `${baseUrl}/`).href;
     const res = await axios.get(url, { headers: hdbHeaders });
     const data = res.data;
     const $ = cheerio.load(data);
@@ -27,7 +29,7 @@ export const getMeta = async function ({
         ?.split("/")[4] || "";
     const title = container
       .find(
-        'h2[data-ved="2ahUKEwjL0NrBk4vnAhWlH7cAHRCeAlwQ3B0oATAfegQIFBAM"],h2[data-ved="2ahUKEwiP0pGdlermAhUFYVAKHV8tAmgQ3B0oATAZegQIDhAM"]'
+        'h2[data-ved="2ahUKEwjL0NrBk4vnAhWlH7cAHRCeAlwQ3B0oATAfegQIFBAM"],h2[data-ved="2ahUKEwiP0pGdlermAhUFYVAKHV8tAmgQ3B0oATAZegQIDhAM"]',
       )
       .text();
     const type = title.toLocaleLowerCase().includes("season")
@@ -87,7 +89,7 @@ export const getMeta = async function ({
     if (directLink.length === 0) {
       container
         .find(
-          'a:contains("480"),a:contains("720"),a:contains("1080"),a:contains("2160"),a:contains("4K")'
+          'a:contains("480"),a:contains("720"),a:contains("1080"),a:contains("2160"),a:contains("4K")',
         )
         .map((i, element) => {
           const quality =
@@ -108,7 +110,7 @@ export const getMeta = async function ({
         });
     }
 
-    // console.log('drive meta', title, synopsis, image, imdbId, type, links);
+    console.log("drive meta", title, synopsis, image, imdbId, type, links[0]);
     return {
       title,
       synopsis,
@@ -116,6 +118,7 @@ export const getMeta = async function ({
       imdbId,
       type,
       linkList: links,
+      webUrl: url,
     };
   } catch (err) {
     console.error(err);

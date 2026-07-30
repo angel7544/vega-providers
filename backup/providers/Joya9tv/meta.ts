@@ -1,4 +1,5 @@
 import { Info, Link, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 // Headers
 const headers = {
@@ -30,8 +31,8 @@ export const getMeta = async function ({
   providerContext: ProviderContext;
 }): Promise<Info> {
   const { cheerio } = providerContext;
-  const url = link;
-  const baseUrl = url.split("/").slice(0, 3).join("/");
+  const baseUrl = await getBaseUrl("joya9tv");
+  const url = new URL(link, `${baseUrl}/`).href;
 
   const emptyResult: Info = {
     title: "",
@@ -65,7 +66,7 @@ export const getMeta = async function ({
     // Check for 'S' or 'Season' in the main heading
     if (
       /S\d+|Season \d+|TV Series\/Shows/i.test(
-        infoContainer.find("h1").text() + $(".sgeneros").text()
+        infoContainer.find("h1").text() + $(".sgeneros").text(),
       )
     ) {
       result.type = "series";
@@ -151,6 +152,7 @@ export const getMeta = async function ({
     });
 
     result.linkList = links;
+    result.webUrl = url;
     return result;
   } catch (err) {
     console.log("getMeta error:", err);

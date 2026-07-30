@@ -1,4 +1,5 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 export const getPosts = async function ({
   filter,
@@ -12,10 +13,10 @@ export const getPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl, axios, cheerio } = providerContext;
+  const { axios, cheerio } = providerContext;
   const baseUrl = await getBaseUrl("Moviesmod");
   const url = `${baseUrl + filter}/page/${page}/`;
-  return posts({ url, signal, axios, cheerio });
+  return posts({ baseUrl, url, signal, axios, cheerio });
 };
 
 export const getSearchPosts = async function ({
@@ -30,18 +31,20 @@ export const getSearchPosts = async function ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> {
-  const { getBaseUrl, axios, cheerio } = providerContext;
+  const { axios, cheerio } = providerContext;
   const baseUrl = await getBaseUrl("Moviesmod");
   const url = `${baseUrl}/search/${searchQuery}/page/${page}/`;
-  return posts({ url, signal, axios, cheerio });
+  return posts({ baseUrl, url, signal, axios, cheerio });
 };
 
 async function posts({
+  baseUrl,
   url,
   signal,
   axios,
   cheerio,
 }: {
+  baseUrl: string;
   url: string;
   signal: AbortSignal;
   axios: ProviderContext["axios"];
@@ -59,9 +62,10 @@ async function posts({
         const link = $(element).find("a").attr("href");
         const image = $(element).find("img").attr("src");
         if (title && link && image) {
+          const postUrl = new URL(link, `${baseUrl}/`);
           catalog.push({
             title: title,
-            link: link,
+            link: `${postUrl.pathname}${postUrl.search}${postUrl.hash}`,
             image: image,
           });
         }

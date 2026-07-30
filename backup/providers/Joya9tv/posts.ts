@@ -1,4 +1,5 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 const defaultHeaders = {
   Referer: "https://www.google.com",
@@ -62,7 +63,7 @@ async function fetchPosts({
   providerContext: ProviderContext;
 }): Promise<Post[]> {
   try {
-    const baseUrl = await providerContext.getBaseUrl("joya9tv");
+    const baseUrl = await getBaseUrl("joya9tv");
     let url: string;
 
     if (
@@ -101,7 +102,8 @@ async function fetchPosts({
 
       let link = card.find("div.data h3 a").attr("href") || "";
       if (!link) return;
-      link = resolveUrl(link);
+      const postUrl = new URL(link, `${baseUrl}/`);
+      link = `${postUrl.pathname}${postUrl.search}${postUrl.hash}`;
       if (seen.has(link)) return;
 
       let title = card.find("div.data h3 a").text().trim();
@@ -120,7 +122,8 @@ async function fetchPosts({
 
       let link = card.find("a").attr("href") || "";
       if (!link) return;
-      link = resolveUrl(link);
+      const postUrl = new URL(link, `${baseUrl}/`);
+      link = `${postUrl.pathname}${postUrl.search}${postUrl.hash}`;
       if (seen.has(link)) return;
 
       let title =
@@ -141,7 +144,7 @@ async function fetchPosts({
   } catch (err) {
     console.error(
       "fetchPosts error:",
-      err instanceof Error ? err.message : String(err)
+      err instanceof Error ? err.message : String(err),
     );
     return [];
   }

@@ -1,5 +1,12 @@
 import { Info, Link, ProviderContext } from "../types";
 import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
+import {
+  applyCinemetaMeta,
+  enrichCinemetaEpisodes,
+  getCinemetaMeta,
+  getCinemetaSeason,
+} from "../getCinemetaMeta";
 
 const hdbHeaders = {
   Cookie: "xla=s4t",
@@ -111,24 +118,36 @@ export const getMeta = async function ({
     }
 
     console.log("drive meta", title, synopsis, image, imdbId, type, links[0]);
-    return {
+    const websiteInfo: Info = {
       title,
       synopsis,
       image,
-      imdbId,
+      imdbId: "",
       type,
       linkList: links,
       webUrl: url,
     };
+    if (!imdbId) return websiteInfo;
+
+    const cinemeta = await getCinemetaMeta(imdbId, type, providerContext);
+    if (type === "series" && cinemeta.type === "series") {
+      websiteInfo.linkList = websiteInfo.linkList.map((item) => {
+        if (!item.directLinks) return item;
+        const season =
+          getCinemetaSeason(item.title) || getCinemetaSeason(title);
+        if (!season) return item;
+        return {
+          ...item,
+          directLinks: enrichCinemetaEpisodes(
+            item.directLinks,
+            cinemeta.videos || [],
+            season,
+          ),
+        };
+      });
+    }
+    return applyCinemetaMeta(websiteInfo, cinemeta);
   } catch (err) {
-    console.error(err);
-    return {
-      title: "",
-      synopsis: "",
-      image: "",
-      imdbId: "",
-      type: "movie",
-      linkList: [],
-    };
+    throwProviderError("HDHub4u", "metadata", err);
   }
 };

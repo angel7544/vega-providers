@@ -1,5 +1,12 @@
 import { Info, Link, ProviderContext } from "../types";
 import { getBaseUrl } from "../getBaseUrl";
+import { throwProviderError } from "../providerErrors";
+import {
+  addCinemetaContext,
+  applyCinemetaMeta,
+  getCinemetaMeta,
+  getCinemetaSeason,
+} from "../getCinemetaMeta";
 
 const kmmHeaders = {
   "User-Agent":
@@ -225,11 +232,11 @@ export const getMeta = async function ({
         ? "series"
         : "movie";
 
-    return {
+    const websiteInfo: Info = {
       title,
       synopsis,
       image,
-      imdbId,
+      imdbId: "",
       type,
       tags,
       cast,
@@ -237,18 +244,23 @@ export const getMeta = async function ({
       linkList,
       webUrl: pageUrl,
     };
+    if (!imdbId) return websiteInfo;
+
+    const cinemeta = await getCinemetaMeta(imdbId, type, providerContext);
+    if (type === "series" && cinemeta.type === "series") {
+      websiteInfo.linkList = websiteInfo.linkList.map((item) => {
+        if (!item.episodesLink) return item;
+        const season =
+          getCinemetaSeason(item.title) || getCinemetaSeason(title);
+        if (!season) return item;
+        return {
+          ...item,
+          episodesLink: addCinemetaContext(item.episodesLink, imdbId, season),
+        };
+      });
+    }
+    return applyCinemetaMeta(websiteInfo, cinemeta);
   } catch (err) {
-    console.error("KMMOVIES getMeta error:", err);
-    return {
-      title: "",
-      synopsis: "",
-      image: "https://via.placeholder.com/300x450",
-      imdbId: "",
-      type: "movie",
-      tags: [],
-      cast: [],
-      rating: "",
-      linkList: [],
-    };
+    throwProviderError("KMMovies", "metadata", err);
   }
 };

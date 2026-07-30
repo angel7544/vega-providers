@@ -8,19 +8,10 @@ export const getMeta = async function ({
   providerContext: ProviderContext;
 }): Promise<Info> {
   try {
-    const { axios, cheerio, getBaseUrl } = providerContext;
+    const { axios, cheerio } = providerContext;
     const links: Link[] = [];
-    // this is just a proxy please host your own if you want to use this code:- https://github.com/himanshu8443/Cf-Workers/blob/main/src/dob-worker/index.js
-    const response = await fetch("https://dob-worker.1proxy.workers.dev", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        url: link,
-        method: "GET",
-      }),
-    });
+    const proxyUrl = `https://worker.zendax.me/api/moviebox?url=${encodeURIComponent(link)}`;
+    const response = await fetch(proxyUrl);
     const data = (await response.json()).data;
     console.log("data", data);
 
@@ -37,7 +28,7 @@ export const getMeta = async function ({
     dubs?.forEach((dub: any) => {
       const link: Link = {
         title: dub?.lanName,
-        episodesLink: `/wefeed-mobile-bff/subject-api/resource?subjectId=${dub?.subjectId}&page=1&perPage=20&all=0&startPosition=1&endPosition=1&pagerMode=0&resolution=1080&se=1&epFrom=1&epTo=1`,
+        episodesLink: `/wefeed-mobile-bff/subject-api/resource?subjectId=${dub?.subjectId}&page=1&perPage=20&all=0&startPosition=1&endPosition=1&pagerMode=0&resolution=1080&se=1&epFrom=1`,
       };
       links.push(link);
     });

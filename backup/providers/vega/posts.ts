@@ -1,4 +1,5 @@
 import { Post, ProviderContext } from "../types";
+import { getBaseUrl } from "../getBaseUrl";
 
 const headers = {
   Accept:
@@ -34,7 +35,7 @@ export const getPosts = async ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> => {
-  const { getBaseUrl, axios, cheerio } = providerContext;
+  const { axios, cheerio } = providerContext;
   const baseUrl = await getBaseUrl("Vega");
 
   console.log("vegaGetPosts baseUrl:", providerValue, baseUrl);
@@ -58,7 +59,7 @@ export const getSearchPosts = async ({
   signal: AbortSignal;
   providerContext: ProviderContext;
 }): Promise<Post[]> => {
-  const { getBaseUrl, axios, cheerio } = providerContext;
+  const { axios, cheerio } = providerContext;
   const baseUrl = await getBaseUrl("Vega");
 
   console.log("vegaGetPosts baseUrl:", providerValue, baseUrl);
@@ -80,11 +81,10 @@ export const getSearchPosts = async ({
     if (data?.hits) {
       data.hits.forEach((hit: any) => {
         const doc = hit.document;
+        const postUrl = new URL(doc.permalink, `${baseUrl}/`);
         const post = {
           title: doc.post_title.replace("Download", "").trim(),
-          link: doc.permalink.startsWith("http")
-            ? doc.permalink
-            : `${baseUrl}${doc.permalink}`,
+          link: `${postUrl.pathname}${postUrl.search}${postUrl.hash}`,
           image: doc.post_thumbnail,
         };
         posts.push(post);
@@ -118,6 +118,9 @@ async function posts(
     $(".blog-items,.post-list,#archive-container,.movies-grid")
       ?.children("article,.entry-list-item,a")
       ?.each((index, element) => {
+        const href =
+          $(element)?.find("a")?.attr("href") || $(element)?.attr("href") || "";
+        const postUrl = new URL(href, `${baseUrl}/`);
         const post = {
           title: (
             $(element)
@@ -133,10 +136,7 @@ async function posts(
             ""
           ).trim(),
 
-          link:
-            $(element)?.find("a")?.attr("href") ||
-            $(element)?.attr("href") ||
-            "",
+          link: `${postUrl.pathname}${postUrl.search}${postUrl.hash}`,
           image:
             $(element).find("a").find("img").attr("data-lazy-src") ||
             $(element).find("a").find("img").attr("data-src") ||
