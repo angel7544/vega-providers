@@ -36,8 +36,10 @@ export interface Stream {
 export interface Info {
   title: string;
   image: string;
+  logo?: string;
   synopsis: string;
   imdbId: string;
+  tmdbId?: string;
   type: string;
   tags?: string[];
   cast?: string[];
@@ -49,6 +51,8 @@ export interface Info {
 export interface EpisodeLink {
   title: string;
   link: string;
+  description?: string;
+  image?: string;
 }
 
 export interface Link {
@@ -59,6 +63,8 @@ export interface Link {
     title: string;
     link: string;
     type?: "movie" | "series";
+    description?: string;
+    image?: string;
   }[];
 }
 
