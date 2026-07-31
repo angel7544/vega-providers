@@ -2268,6 +2268,10 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
             }
         }
 
+        if (typeof window.renderDesktopSourceList === 'function') {
+            window.renderDesktopSourceList();
+        }
+
         // Set up the timeout for 10 seconds max load
         loadTimeout = setTimeout(() => {
             console.warn(`⏳ Source ${currentStreamIndex + 1} load timed out (10 seconds max).`);
@@ -2319,7 +2323,41 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
                 moreVideoAttr: {
                     referrerPolicy: 'no-referrer',
                 },
+                controls: [
+                    {
+                        name: 'backward-10',
+                        position: 'right',
+                        html: '<button class="art-icon art-icon-backward" style="display:flex;align-items:center;justify-content:center;background:none;border:none;color:#fff;cursor:pointer;padding:0 6px;" title="Rewind 10s"><i data-lucide="rotate-ccw" style="width:18px;height:18px;"></i><span style="font-size:10px;font-weight:bold;margin-left:2px;">10s</span></button>',
+                        tooltip: 'Backward 10s',
+                        click: function () {
+                            if (player) player.seek = Math.max(0, player.currentTime - 10);
+                        },
+                    },
+                    {
+                        name: 'forward-10',
+                        position: 'right',
+                        html: '<button class="art-icon art-icon-forward" style="display:flex;align-items:center;justify-content:center;background:none;border:none;color:#fff;cursor:pointer;padding:0 6px;" title="Forward 10s"><i data-lucide="rotate-cw" style="width:18px;height:18px;"></i><span style="font-size:10px;font-weight:bold;margin-left:2px;">10s</span></button>',
+                        tooltip: 'Forward 10s',
+                        click: function () {
+                            if (player) player.seek = Math.min(player.duration || 0, player.currentTime + 10);
+                        },
+                    },
+                ],
                 settings: [
+                    {
+                        html: 'Player Engine',
+                        icon: '<i data-lucide="tv" style="width:16px;height:16px;color:#3b82f6"></i>',
+                        selector: [
+                            { html: 'ArtPlayer (Player 1)', type: 1, default: currentPlayerType === 1 },
+                            { html: 'Native HTML5 (Player 2)', type: 2, default: currentPlayerType === 2 }
+                        ],
+                        onSelect: function (item) {
+                            if (item.type !== currentPlayerType) {
+                                window.switchPlayerType(item.type);
+                            }
+                            return item.html;
+                        }
+                    },
                     {
                         html: 'Video Source',
                         icon: '<i data-lucide="server" style="width:16px;height:16px"></i>',
@@ -2680,12 +2718,105 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
         startPlayback(currentTime);
     };
 
+    window.toggleDesktopSourcePanel = function() {
+        const panel = document.getElementById("desktopSourcePanel");
+        if (!panel) return;
+        const isVisible = panel.style.display !== "none";
+        if (isVisible) {
+            panel.style.display = "none";
+        } else {
+            panel.style.display = "flex";
+            if (typeof window.renderDesktopSourceList === 'function') {
+                window.renderDesktopSourceList();
+            }
+        }
+    };
+
+    window.renderDesktopSourceList = function() {
+        const list = document.getElementById("desktopSourceList");
+        const btnLabel = document.getElementById("desktopSrcBtnLabel");
+        if (!list) return;
+
+        if (btnLabel && Array.isArray(streams)) {
+            btnLabel.textContent = `Source (${currentStreamIndex + 1}/${streams.length})`;
+        }
+
+        list.innerHTML = "";
+        if (!Array.isArray(streams) || streams.length === 0) {
+            list.innerHTML = `<div style="padding: 12px; text-align: center; color: rgba(255,255,255,0.5); font-size: 13px;">No alternative sources</div>`;
+            return;
+        }
+
+        streams.forEach((s, i) => {
+            const url = extractStreamUrl(s);
+            const format = url.toLowerCase().includes('.m3u8') ? 'hls' : (url.toLowerCase().includes('.mp4') ? 'mp4' : 'mkv');
+            const serverName = s.server || s.source || s.name || `Source ${i + 1}`;
+            const isActive = i === currentStreamIndex;
+
+            const item = document.createElement("div");
+            item.className = `desktop-source-item${isActive ? ' active' : ''}`;
+            item.onclick = () => {
+                if (i === currentStreamIndex) return;
+                console.log(`📡 Desktop panel switching to Source ${i + 1}: ${serverName}`);
+                let currentTime = 0;
+                if (currentPlayerType === 1 && player) {
+                    currentTime = player.currentTime || 0;
+                } else if (currentPlayerType === 2) {
+                    const nativeVid = document.getElementById("native-player-app");
+                    if (nativeVid) currentTime = nativeVid.currentTime || 0;
+                }
+                currentStreamIndex = i;
+                const panel = document.getElementById("desktopSourcePanel");
+                if (panel) panel.style.display = "none";
+                startPlayback(currentTime);
+            };
+
+            item.innerHTML = `
+                <div class="desktop-source-num">${i + 1}</div>
+                <div class="desktop-source-info">
+                    <div class="desktop-source-name">${serverName}</div>
+                    <div class="desktop-source-badges">
+                        <span class="desktop-src-tag ${format}">${format.toUpperCase()}</span>
+                    </div>
+                </div>
+                ${isActive ? `<i data-lucide="check" style="width: 16px; height: 16px; color: var(--accent);"></i>` : `<i data-lucide="play" style="width: 14px; height: 14px; color: rgba(255,255,255,0.4);"></i>`}
+            `;
+            list.appendChild(item);
+        });
+        if (window.lucide) window.lucide.createIcons();
+    };
+
+    window.toggleDesktopPip = function() {
+        let targetVideo = null;
+        if (currentPlayerType === 1 && player && player.video) {
+            targetVideo = player.video;
+        } else if (currentPlayerType === 2) {
+            targetVideo = document.getElementById("native-player-app");
+        }
+
+        if (!targetVideo) return;
+
+        if (document.pictureInPictureElement) {
+            document.exitPictureInPicture().catch(() => {});
+        } else if (targetVideo.requestPictureInPicture) {
+            targetVideo.requestPictureInPicture().catch(err => {
+                console.warn("PiP failed:", err);
+            });
+        }
+    };
+
     startPlayback();
 }
 
 function closePlayer() {
-    // Clear switchPlayerType global wrapper
+    // Clear switchPlayerType and desktop helper global wrappers
     delete window.switchPlayerType;
+    delete window.toggleDesktopSourcePanel;
+    delete window.renderDesktopSourceList;
+    delete window.toggleDesktopPip;
+
+    const dPanel = document.getElementById("desktopSourcePanel");
+    if (dPanel) dPanel.style.display = "none";
 
     const isMobilePage = document.body.classList.contains('mobile-body');
 
