@@ -2988,6 +2988,34 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
                 clearTimeout(loadTimeout);
             });
 
+            // --- Native HTML5 Video AudioTracks listener (Direct Dual Language / No Transcoder) ---
+            if (player.video && player.video.audioTracks) {
+                const onNativeAudioChange = () => {
+                    const nTracks = player.video.audioTracks;
+                    if (nTracks && nTracks.length > 1) {
+                        console.log("🎵 ArtPlayer: Native dual audio tracks detected on video element:", nTracks.length);
+                        const nativeList = [];
+                        for (let i = 0; i < nTracks.length; i++) {
+                            const trk = nTracks[i];
+                            nativeList.push({
+                                index: i,
+                                language: trk.language || trk.label || `Track ${i + 1}`,
+                                title: trk.label || trk.language || `Audio ${i + 1}`,
+                                codec: 'NATIVE',
+                                isSupported: true,
+                                enabled: trk.enabled
+                            });
+                        }
+                        currentAvailableAudioTracks = nativeList;
+                        if (typeof window.renderDesktopAudioList === 'function') {
+                            window.renderDesktopAudioList();
+                        }
+                    }
+                };
+                player.video.audioTracks.addEventListener('addtrack', onNativeAudioChange);
+                player.video.audioTracks.addEventListener('change', onNativeAudioChange);
+            }
+
             // Detect Audio Tracks and check browser codec capabilities for 1080p and all streams
             if (!isM3u8) {
                 const audioInfoUrl = `${getApiUrl()}/audio-info?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent(streamUrl)}`;
@@ -3002,62 +3030,51 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
 
                             const primaryTrack = data.audioTracks[0];
                             const isPrimarySupported = isAudioCodecSupportedByBrowser(primaryTrack.codec);
-                            
-                            // Find Hindi track if available as default preference
-                            const hindiTrack = data.audioTracks.find(t => 
-                                t.title?.toLowerCase().includes('hindi') || 
-                                t.language?.toLowerCase().includes('hi') || 
-                                t.language?.toLowerCase().includes('hin')
-                            );
 
-                            if (currentAudioTrack === null) {
-                                if (hindiTrack && hindiTrack.index !== primaryTrack.index) {
-                                    console.log("🧡 Auto-switching standard stream to Hindi audio track...");
-                                    isTranscoding = true;
-                                    currentAudioTrack = hindiTrack.index;
-                                    startPlayback(player ? player.currentTime : 0);
-                                    return;
-                                } else if (!isPrimarySupported && !isTranscoding) {
-                                    // Primary track uses a codec NOT supported natively by browser (e.g. EAC3 on Chrome)
-                                    // Auto-enable AAC transcoding so 1080p stream plays with crystal clear sound
-                                    console.log(`🔊 Primary track (${primaryTrack.codec}) is not natively supported by browser. Auto-enabling AAC Transcode...`);
-                                    isTranscoding = true;
-                                    currentAudioTrack = primaryTrack.index;
-                                    startPlayback(player ? player.currentTime : 0);
-                                    return;
-                                }
-                            }
-
-                            // Add Audio Tracks & Codecs selector in ArtPlayer settings
+                            // Add Dual Audio & Language selector in ArtPlayer settings (Direct / No Transcoder by default)
                             if (player && player.setting) {
-                                const selectorItems = data.audioTracks.map((track) => {
+                                const selectorItems = data.audioTracks.map((track, idx) => {
                                     const supported = isAudioCodecSupportedByBrowser(track.codec);
                                     const codecLabel = track.codec ? track.codec.toUpperCase() : 'AUDIO';
-                                    const capabilityBadge = supported ? ' [Browser Native]' : ' [AAC Transcoded]';
+                                    const capabilityBadge = supported ? ' [Direct No Transcode]' : ' [AAC Transcoded]';
                                     const titleLabel = track.title || track.language || `Track ${track.index}`;
                                     
                                     return {
                                         html: `${titleLabel} (${codecLabel})${capabilityBadge}`,
                                         audioIndex: track.index,
+                                        trackPos: idx,
                                         codec: track.codec,
                                         isSupported: supported,
-                                        default: currentAudioTrack !== null ? track.index === currentAudioTrack : track.index === primaryTrack.index
+                                        default: currentAudioTrack !== null ? track.index === currentAudioTrack : idx === 0
                                     };
                                 });
 
                                 player.setting.add({
                                     name: 'audio-tracks-manual',
-                                    html: 'Audio Tracks & Codecs',
+                                    html: 'Dual Audio & Languages',
                                     icon: '<i data-lucide="languages" style="width:16px;height:16px;color:#a855f7"></i>',
                                     selector: selectorItems,
                                     onSelect: function (item) {
-                                        console.log(`🎵 Selected audio track ${item.audioIndex} (${item.codec}, browser support: ${item.isSupported})`);
+                                        console.log(`🎵 ArtPlayer selecting audio track ${item.audioIndex} (${item.codec})`);
                                         currentAudioTrack = item.audioIndex;
-                                        if (item.audioIndex !== primaryTrack.index || !item.isSupported) {
-                                            isTranscoding = true;
-                                        } else {
-                                            isTranscoding = false;
+
+                                        // 1. Try direct native video.audioTracks switch first (Zero Transcoding!)
+                                        if (player.video && player.video.audioTracks && player.video.audioTracks.length > 1) {
+                                            console.log(`🎵 ArtPlayer: direct client-side switch on video.audioTracks without transcoder`);
+                                            for (let j = 0; j < player.video.audioTracks.length; j++) {
+                                                player.video.audioTracks[j].enabled = (j === item.trackPos);
+                                            }
+                                            return item.html;
                                         }
+
+                                        // 2. If browser natively decodes codec, play directly without transcoder
+                                        if (item.isSupported && !isTranscoding) {
+                                            console.log("🎵 Playing audio track natively without transcoder");
+                                            return item.html;
+                                        }
+
+                                        // 3. Transcode fallback for unsupported audio formats
+                                        isTranscoding = true;
                                         startPlayback(player ? player.currentTime : 0);
                                         return item.html;
                                     },
@@ -3362,21 +3379,53 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
 
             item.onclick = () => {
                 currentAudioTrack = track.index;
-                if (!supported) {
-                    isTranscoding = true;
-                } else {
-                    isTranscoding = (track.index !== currentAvailableAudioTracks[0]?.index);
-                }
                 const panel = document.getElementById("desktopAudioPanel");
                 if (panel) panel.style.display = "none";
                 if (btnLabel) btnLabel.textContent = langTitle;
+
+                // 1. Direct HLS audio track switch in ArtPlayer without transcode
+                if (currentPlayerType === 1 && player && player.hls && player.hls.audioTracks && player.hls.audioTracks.length > 0) {
+                    console.log(`🎵 ArtPlayer: switching HLS audio track ${track.index} directly (Zero Transcoding)`);
+                    player.hls.audioTrack = track.index;
+                    return;
+                }
+
+                // 2. Direct HTML5 audioTracks switch in ArtPlayer without transcode
+                if (currentPlayerType === 1 && player && player.video && player.video.audioTracks && player.video.audioTracks.length > 0) {
+                    console.log(`🎵 ArtPlayer: switching native video.audioTracks ${i} directly (Zero Transcoding)`);
+                    for (let j = 0; j < player.video.audioTracks.length; j++) {
+                        player.video.audioTracks[j].enabled = (j === i);
+                    }
+                    return;
+                }
+
+                // 3. Direct Native Player HLS audio track switch
+                const v = document.getElementById("native-player-app");
+                if (currentPlayerType === 2 && v && v.hls && v.hls.audioTracks && v.hls.audioTracks.length > 0) {
+                    console.log(`🎵 Native Player: switching HLS audio track ${track.index} directly (Zero Transcoding)`);
+                    v.hls.audioTrack = track.index;
+                    return;
+                }
+
+                // 4. Direct Native Player HTML5 audioTracks switch
+                if (currentPlayerType === 2 && v && v.audioTracks && v.audioTracks.length > 0) {
+                    console.log(`🎵 Native Player: switching native audioTracks ${i} directly (Zero Transcoding)`);
+                    for (let j = 0; j < v.audioTracks.length; j++) {
+                        v.audioTracks[j].enabled = (j === i);
+                    }
+                    return;
+                }
+
+                // 5. Fallback stream proxy if needed for unsupported codecs
+                if (!supported) {
+                    isTranscoding = true;
+                } else {
+                    isTranscoding = false;
+                }
                 
                 let ct = 0;
                 if (currentPlayerType === 1 && player) ct = player.currentTime || 0;
-                else if (currentPlayerType === 2) {
-                    const v = document.getElementById("native-player-app");
-                    if (v) ct = v.currentTime || 0;
-                }
+                else if (currentPlayerType === 2 && v) ct = v.currentTime || 0;
                 startPlayback(ct);
             };
 

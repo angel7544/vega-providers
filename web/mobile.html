@@ -594,21 +594,31 @@
             document.getElementById("audioSelectorPanel").style.display = "none";
 
             const video = document.getElementById("mobileVideoPlayer");
-            const currentTime = video ? (video.currentTime || 0) : 0;
 
-            // If HLS with native audio tracks
+            // 1. Direct HLS audio track switch (Zero Transcoding!)
             if (_mobileHls && _mobileHls.audioTracks && _mobileHls.audioTracks.length > 0) {
-                const hlsIdx = _mobileHls.audioTracks.findIndex(t => t.id === trackIndex || t.name === codec);
+                const hlsIdx = _mobileHls.audioTracks.findIndex(t => t.id === trackIndex || t.index === trackIndex || t.name === codec);
                 if (hlsIdx !== -1) {
+                    console.log(`🎵 Mobile: Switching HLS audio to track ${hlsIdx} directly without transcoder`);
                     _mobileHls.audioTrack = hlsIdx;
                     return;
                 }
             }
 
-            // For standard streams, route through /stream proxy with audioIndex
+            // 2. Direct HTML5 video.audioTracks switch (Zero Transcoding!)
+            if (video && video.audioTracks && video.audioTracks.length > 0) {
+                console.log(`🎵 Mobile: Switching native video.audioTracks directly without transcoder`);
+                for (let j = 0; j < video.audioTracks.length; j++) {
+                    video.audioTracks[j].enabled = (j === trackIndex);
+                }
+                return;
+            }
+
+            // 3. Fallback to stream proxy for unsupported codecs
+            const currentTime = video ? (video.currentTime || 0) : 0;
             const baseUrl = (typeof getApiUrl === "function" ? getApiUrl() : window.location.origin);
             const supported = isAudioCodecSupportedByBrowser(codec);
-            const transcodeParam = !supported ? "&transcode=true" : "&transcode=true";
+            const transcodeParam = !supported ? "&transcode=true" : "";
             const proxiedUrl = `${baseUrl}/stream?url=${encodeURIComponent(_currentStreamRawUrl)}&audioIndex=${trackIndex}${transcodeParam}&referer=${encodeURIComponent(_currentStreamRawUrl)}&start=${currentTime}`;
 
             if (video) {
