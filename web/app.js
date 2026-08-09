@@ -473,14 +473,13 @@ function loadWishlist() {
 }
 
 function updateActiveNav(index) {
-    const desktopLinks = document.querySelectorAll('.nav-links .nav-link');
+    const desktopWishlist = document.getElementById('navWishlist');
+    if (desktopWishlist) {
+        if (index === 1) desktopWishlist.classList.add('active');
+        else desktopWishlist.classList.remove('active');
+    }
+    
     const mobileLinks = document.querySelectorAll('.mobile-bottom-nav .mobile-nav-link');
-    
-    desktopLinks.forEach((l, i) => {
-        if (i === index) l.classList.add('active');
-        else l.classList.remove('active');
-    });
-    
     mobileLinks.forEach((l, i) => {
         // i=0 is Home, i=1 is Browse, i=2 is Wishlist, i=3 is Settings
         let shouldBeActive = false;
@@ -2161,6 +2160,60 @@ async function resolveDownload(link, provider, title) {
 }
 
 // ============================
+// 🔊 AUDIO CODEC BROWSER CAPABILITY DETECTION
+// ============================
+function isAudioCodecSupportedByBrowser(codecName) {
+    if (!codecName) return true;
+    const c = String(codecName).toLowerCase().trim();
+    const v = document.createElement('video');
+    
+    // AAC (Standard MP4 AAC-LC / HE-AAC) - natively supported by all modern browsers
+    if (c.includes('aac') || c.includes('mp4a')) {
+        return true;
+    }
+    // MP3 / MPEG Audio
+    if (c.includes('mp3') || c.includes('mpeg')) {
+        return !!(v.canPlayType('audio/mpeg') || v.canPlayType('audio/mp3'));
+    }
+    // Opus
+    if (c.includes('opus')) {
+        return !!(v.canPlayType('audio/ogg; codecs="opus"') || v.canPlayType('audio/webm; codecs="opus"') || v.canPlayType('video/mp4; codecs="opus"'));
+    }
+    // FLAC
+    if (c.includes('flac')) {
+        return !!(v.canPlayType('audio/flac') || v.canPlayType('video/mp4; codecs="flac"'));
+    }
+    // Vorbis
+    if (c.includes('vorbis')) {
+        return !!(v.canPlayType('audio/ogg; codecs="vorbis"') || v.canPlayType('audio/webm; codecs="vorbis"'));
+    }
+    // Dolby Digital Plus (E-AC-3 / DDP / EC-3)
+    if (c.includes('eac3') || c.includes('ec-3') || c.includes('ec3') || c.includes('ddp') || c.includes('dd+') || c.includes('dolby digital plus')) {
+        const canPlay = v.canPlayType('audio/mp4; codecs="ec-3"') || v.canPlayType('video/mp4; codecs="ec-3"');
+        const isMse = !!(window.MediaSource && MediaSource.isTypeSupported && (
+            MediaSource.isTypeSupported('audio/mp4; codecs="ec-3"') || 
+            MediaSource.isTypeSupported('video/mp4; codecs="avc1.4d401f, ec-3"')
+        ));
+        return !!(canPlay === 'probably' || canPlay === 'maybe' || isMse);
+    }
+    // Dolby Digital (AC-3 / AC3 / DD)
+    if (c.includes('ac3') || c.includes('ac-3') || c.includes('dolby digital') || c.includes('dd5.1') || c.includes('dd 5.1')) {
+        const canPlay = v.canPlayType('audio/mp4; codecs="ac-3"') || v.canPlayType('video/mp4; codecs="ac-3"');
+        const isMse = !!(window.MediaSource && MediaSource.isTypeSupported && (
+            MediaSource.isTypeSupported('audio/mp4; codecs="ac-3"') || 
+            MediaSource.isTypeSupported('video/mp4; codecs="avc1.4d401f, ac-3"')
+        ));
+        return !!(canPlay === 'probably' || canPlay === 'maybe' || isMse);
+    }
+    // DTS, DTS-HD, TrueHD - Browsers do not support native decode in HTML5 video elements without transcode
+    if (c.includes('dts') || c.includes('truehd')) {
+        return false;
+    }
+    
+    return true;
+}
+
+// ============================
 // 🎬 PLAYER
 // ============================
 function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
@@ -2525,46 +2578,83 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
                 clearTimeout(loadTimeout);
             });
 
-            // Detect Audio Tracks for non-HLS streams via Backend
-            if (!isM3u8 && !isTranscoding) {
+            // Detect Audio Tracks and check browser codec capabilities for 1080p and all streams
+            if (!isM3u8) {
                 const audioInfoUrl = `${getApiUrl()}/audio-info?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent(streamUrl)}`;
                 fetch(audioInfoUrl)
                     .then(r => r.json())
                     .then(data => {
-                        if (data.audioTracks && data.audioTracks.length > 1) {
-                            // Default to Hindi if found
+                        if (data.audioTracks && data.audioTracks.length > 0) {
+                            console.log("🎵 Audio tracks detected:", data.audioTracks);
+                            
+                            const primaryTrack = data.audioTracks[0];
+                            const isPrimarySupported = isAudioCodecSupportedByBrowser(primaryTrack.codec);
+                            
+                            // Find Hindi track if available as default preference
                             const hindiTrack = data.audioTracks.find(t => 
                                 t.title?.toLowerCase().includes('hindi') || 
                                 t.language?.toLowerCase().includes('hi') || 
                                 t.language?.toLowerCase().includes('hin')
                             );
 
-                            if (hindiTrack && currentAudioTrack === null) {
-                                console.log("🧡 Auto-switching standard stream to Hindi audio via Transcode...");
-                                isTranscoding = true;
-                                currentAudioTrack = hindiTrack.index;
-                                startPlayback(player.currentTime || 0); // Restart with Hindi
-                                return;
+                            if (currentAudioTrack === null) {
+                                if (hindiTrack && hindiTrack.index !== primaryTrack.index) {
+                                    console.log("🧡 Auto-switching standard stream to Hindi audio track...");
+                                    isTranscoding = true;
+                                    currentAudioTrack = hindiTrack.index;
+                                    startPlayback(player ? player.currentTime : 0);
+                                    return;
+                                } else if (!isPrimarySupported && !isTranscoding) {
+                                    // Primary track uses a codec NOT supported natively by browser (e.g. EAC3 on Chrome)
+                                    // Auto-enable AAC transcoding so 1080p stream plays with crystal clear sound
+                                    console.log(`🔊 Primary track (${primaryTrack.codec}) is not natively supported by browser. Auto-enabling AAC Transcode...`);
+                                    isTranscoding = true;
+                                    currentAudioTrack = primaryTrack.index;
+                                    startPlayback(player ? player.currentTime : 0);
+                                    return;
+                                }
                             }
 
-                            player.setting.add({
-                                name: 'audio-tracks-manual',
-                                html: 'Select Audio Track',
-                                icon: '<i data-lucide="mic" style="width:16px;height:16px"></i>',
-                                selector: data.audioTracks.map(track => ({
-                                    html: `${track.title} (${track.codec})`,
-                                    audioIndex: track.index,
-                                })),
-                                onSelect: function (item) {
-                                    isTranscoding = true; // Must transcode to switch specific tracks on non-HLS
-                                    currentAudioTrack = item.audioIndex;
-                                    startPlayback();
-                                    return item.html;
-                                },
-                            });
-                            lucide.createIcons();
+                            // Add Audio Tracks & Codecs selector in ArtPlayer settings
+                            if (player && player.setting) {
+                                const selectorItems = data.audioTracks.map((track) => {
+                                    const supported = isAudioCodecSupportedByBrowser(track.codec);
+                                    const codecLabel = track.codec ? track.codec.toUpperCase() : 'AUDIO';
+                                    const capabilityBadge = supported ? ' [Browser Native]' : ' [AAC Transcoded]';
+                                    const titleLabel = track.title || track.language || `Track ${track.index}`;
+                                    
+                                    return {
+                                        html: `${titleLabel} (${codecLabel})${capabilityBadge}`,
+                                        audioIndex: track.index,
+                                        codec: track.codec,
+                                        isSupported: supported,
+                                        default: currentAudioTrack !== null ? track.index === currentAudioTrack : track.index === primaryTrack.index
+                                    };
+                                });
+
+                                player.setting.add({
+                                    name: 'audio-tracks-manual',
+                                    html: 'Audio Tracks & Codecs',
+                                    icon: '<i data-lucide="mic" style="width:16px;height:16px;color:#a855f7"></i>',
+                                    selector: selectorItems,
+                                    onSelect: function (item) {
+                                        console.log(`🎵 Selected audio track ${item.audioIndex} (${item.codec}, browser support: ${item.isSupported})`);
+                                        currentAudioTrack = item.audioIndex;
+                                        if (item.audioIndex !== primaryTrack.index || !item.isSupported) {
+                                            isTranscoding = true;
+                                        } else {
+                                            isTranscoding = false;
+                                        }
+                                        startPlayback(player ? player.currentTime : 0);
+                                        return item.html;
+                                    },
+                                });
+                                if (window.lucide) lucide.createIcons();
+                            }
                         }
-                    }).catch(() => {});
+                    }).catch((err) => {
+                        console.warn("Audio probe skipped:", err);
+                    });
             }
 
             // Handle Seeks in Transcoding Mode
@@ -2866,9 +2956,59 @@ function setStatus(text, color = "#22c55e") {
     }
 }
 
+// ============================
+// 🔍 THREE-CHARACTER LIVE FILTERING SEARCH
+// ============================
+let searchDebounceTimer = null;
+
+function initSearchEvents() {
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', () => {
+        const val = searchInput.value.trim();
+        if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+
+        if (val.length >= 3) {
+            // Live 3-character filtering/searching
+            searchDebounceTimer = setTimeout(() => {
+                console.log(`🔎 Live 3-character filtering for: "${val}"`);
+                fetchData(val, true);
+            }, 350);
+        } else if (val.length === 0) {
+            // Input cleared -> reset to home browse catalog
+            searchDebounceTimer = setTimeout(() => {
+                if (currentSearch) {
+                    console.log("🔄 Search cleared, resetting to home...");
+                    loadHome();
+                }
+            }, 250);
+        }
+    });
+
+    searchInput.addEventListener('search', () => {
+        if (!searchInput.value.trim()) {
+            if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+            loadHome();
+        }
+    });
+}
+
 function search() {
+    if (!searchInput) return;
     const q = searchInput.value.trim();
-    if (q) fetchData(q, true);
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+
+    if (q.length >= 3) {
+        fetchData(q, true);
+    } else if (q.length > 0) {
+        if (typeof showScrollToast === 'function') {
+            showScrollToast("Type at least 3 characters to search");
+        } else {
+            setStatus("Type at least 3 characters", "#f59e0b");
+        }
+    } else {
+        loadHome();
+    }
 }
 
 // Mobile responsive search expand
@@ -3080,7 +3220,7 @@ function showNoticeToast() {
             <div>
                 <strong style="font-size: 0.95rem; display: block; margin-bottom: 4px;">Important Notice</strong>
                 <p style="margin: 0; font-size: 0.8rem; color: var(--text-dim); line-height: 1.5;">
-                    Browser only streams up to 1080p (2K/4K lack audio support on web). Pixeldrain API links are fully supported on our Android and Desktop apps. <span style="color:var(--accent);">@team_orbixplay</span>
+                    Video players use browser audio capabilities (AAC, E-AC3, AC3, Opus) for 1080p streaming with auto-transcode fallback. Pixeldrain API links are fully supported on our Android and Desktop apps. <span style="color:var(--accent);">@team_orbixplay</span>
                 </p>
             </div>
             <button class="toast-close" style="flex-shrink:0;"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
@@ -3295,6 +3435,7 @@ async function refreshWishlistData() {
 
 // 🚀 START
 initTheme();
+initSearchEvents();
 updateWishlistBadge();
 window._providersReady = loadProviders();
 setTimeout(() => showNoticeToast(), 1500);

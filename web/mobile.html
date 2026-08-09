@@ -557,6 +557,29 @@
             loadVideoUrl(url, title);
         }
 
+        // Check if browser natively supports audio codec
+        function isAudioCodecSupportedByBrowser(codecName) {
+            if (!codecName) return true;
+            const c = String(codecName).toLowerCase().trim();
+            const v = document.createElement("video");
+            if (c.includes("aac") || c.includes("mp4a")) return true;
+            if (c.includes("mp3") || c.includes("mpeg")) return !!(v.canPlayType("audio/mpeg") || v.canPlayType("audio/mp3"));
+            if (c.includes("opus")) return !!(v.canPlayType('audio/ogg; codecs="opus"') || v.canPlayType('video/mp4; codecs="opus"'));
+            if (c.includes("flac")) return !!(v.canPlayType("audio/flac") || v.canPlayType('video/mp4; codecs="flac"'));
+            if (c.includes("eac3") || c.includes("ec-3") || c.includes("ec3") || c.includes("ddp") || c.includes("dd+")) {
+                const canPlay = v.canPlayType('audio/mp4; codecs="ec-3"') || v.canPlayType('video/mp4; codecs="ec-3"');
+                const isMse = !!(window.MediaSource && MediaSource.isTypeSupported && MediaSource.isTypeSupported('video/mp4; codecs="avc1.4d401f, ec-3"'));
+                return !!(canPlay === "probably" || canPlay === "maybe" || isMse);
+            }
+            if (c.includes("ac3") || c.includes("ac-3") || c.includes("dolby digital")) {
+                const canPlay = v.canPlayType('audio/mp4; codecs="ac-3"') || v.canPlayType('video/mp4; codecs="ac-3"');
+                const isMse = !!(window.MediaSource && MediaSource.isTypeSupported && MediaSource.isTypeSupported('video/mp4; codecs="avc1.4d401f, ac-3"'));
+                return !!(canPlay === "probably" || canPlay === "maybe" || isMse);
+            }
+            if (c.includes("dts") || c.includes("truehd")) return false;
+            return true;
+        }
+
         function loadVideoUrl(streamUrl, title) {
             const video = document.getElementById("mobileVideoPlayer");
             const overlay = document.getElementById("playerOverlay");
@@ -572,15 +595,18 @@
             const fmt = detectFormat(streamUrl);
             const isHls = (fmt === "m3u8");
 
-            // MKV / non-streamable formats: open in browser download or new tab
+            // MKV / non-streamable formats: try transcode proxy first if available
             if (fmt === "mkv" || fmt === "avi") {
-                if (badge) badge.style.display = "none";
-                // Try setting src anyway (some browsers can play MKV)
-                video.src = streamUrl;
+                const baseUrl = (typeof getApiUrl === "function" ? getApiUrl() : window.location.origin);
+                const proxiedUrl = `${baseUrl}/stream?url=${encodeURIComponent(streamUrl)}&transcode=true&referer=${encodeURIComponent(streamUrl)}`;
+                video.src = proxiedUrl;
                 video.play().catch(() => {
-                    // Fallback: open in new tab
-                    window.open(streamUrl, "_blank");
+                    video.src = streamUrl;
+                    video.play().catch(() => {
+                        window.open(streamUrl, "_blank");
+                    });
                 });
+                video.oncanplay = () => { if (badge) badge.style.display = "none"; };
                 return;
             }
 
@@ -609,7 +635,7 @@
                 video.play().catch(() => {});
                 if (badge) badge.style.display = "none";
             } else {
-                // MP4, WebM, TS, auto — direct src
+                // MP4, WebM, TS, auto — direct src with browser audio decoding
                 video.src = streamUrl;
                 video.play().catch(() => {});
                 video.oncanplay = () => { if (badge) badge.style.display = "none"; };

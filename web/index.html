@@ -43,9 +43,6 @@
 
             <!-- NAV LINKS -->
             <nav class="nav-links">
-                <a href="#" class="nav-link active" onclick="loadHome()" id="navHome">
-                    <i data-lucide="home" style="width:16px;height:16px;"></i>
-                </a>
                 <div class="custom-dropdown" id="categoriesDropdownContainer">
                     <select id="categoriesDropdown" class="nav-dropdown-hidden" onchange="onCategorySelect(this.value)" style="display: none;">
                         <option value="" disabled selected>Categories</option>
@@ -126,17 +123,17 @@
                 <div class="footer-items-row">
                     <div class="footer-item">
                         <i data-lucide="monitor" class="footer-icon" style="width:16px;height:16px;"></i>
-                        <span class="footer-title">1080p Web Only</span>
+                        <span class="footer-title">1080p Stream Ready</span>
                     </div>
                     <div class="footer-separator"></div>
                     <div class="footer-item">
-                        <i data-lucide="volume-x" class="footer-icon" style="width:16px;height:16px;"></i>
-                        <span class="footer-title">No Audio <span class="footer-subtitle">(2K/4K)</span></span>
+                        <i data-lucide="volume-2" class="footer-icon" style="width:16px;height:16px;"></i>
+                        <span class="footer-title">Browser Codec Decoded <span class="footer-subtitle">(AAC/E-AC3/AC3)</span></span>
                     </div>
                     <div class="footer-separator"></div>
                     <div class="footer-item">
                         <i data-lucide="shield-check" class="footer-icon" style="width:16px;height:16px;"></i>
-                        <span class="footer-title">Browser Only</span>
+                        <span class="footer-title">Browser Capabilities</span>
                     </div>
                     <div class="footer-separator"></div>
                     <div class="footer-item">
@@ -630,7 +627,7 @@
                     
                     <div style="background: rgba(147, 51, 234, 0.06); border: 1px solid rgba(147, 51, 234, 0.2); padding: 12px; border-radius: var(--radius-md); display: flex; gap: 10px; align-items: flex-start; font-size: 12px; color: var(--text-dim); line-height: 1.5;">
                          <i data-lucide="help-circle" style="width: 16px; height: 16px; color: var(--accent); flex-shrink: 0; margin-top: 2px;"></i>
-                         <span><strong>2K/4K Streams:</strong> Browser players only support up to 1080p audio natively. For 2K/4K, please use the <strong>Download</strong> option to get the full audio track.</span>
+                         <span><strong>Audio Codec Engine:</strong> Video players dynamically utilize browser native audio codec capabilities (AAC, E-AC3, AC3, Opus) with auto-transcoding fallback for crystal-clear 1080p playback.</span>
                     </div>
                 </div>
             </div>
