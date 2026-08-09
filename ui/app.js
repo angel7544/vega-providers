@@ -134,7 +134,18 @@ function renderCards(data, containerId = 'card-grid', isLandscape = false) {
   const grid = document.getElementById(containerId);
   grid.innerHTML = '';
   if (!data.length) {
-    grid.innerHTML = '<p style="color:var(--txt-2);padding:20px">No results found.</p>';
+    grid.innerHTML = `
+      <div style="grid-column: 1/-1; text-align: center; padding: 40px 20px; max-width: 520px; margin: 0 auto; color: var(--txt-2);">
+        <p style="font-size: 1.15rem; font-weight: 700; color: var(--txt-1); margin-bottom: 8px;">No results found</p>
+        <p style="font-size: 0.9rem; color: var(--txt-2); margin-bottom: 16px;">We couldn't find any media matching your search or filter.</p>
+        <div style="background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; text-align: left; font-size: 0.85rem; line-height: 1.6; color: var(--txt-2);">
+          <strong style="color: var(--accent); display: block; margin-bottom: 6px;">💡 Search Tips & Notes:</strong>
+          • Try searching the desired title by its full name or with at least 3 characters.<br>
+          • Sometimes posters and providers run out of bandwidth or experience temporary connection issues.<br>
+          • Try switching to another provider from the provider dropdown.
+        </div>
+      </div>
+    `;
     return;
   }
 

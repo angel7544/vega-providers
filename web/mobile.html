@@ -349,6 +349,10 @@
         <div class="m-player-header">
             <span class="m-player-title" id="playerMediaTitle">Now Playing</span>
             <div style="display:flex;gap:8px;align-items:center;">
+                <button class="m-player-ctrl-btn" id="audioToggleBtn" onclick="toggleAudioPanel()" title="Audio Tracks & Languages">
+                    <i data-lucide="languages" style="width:16px;height:16px;"></i>
+                    <span id="audioBtnLabel">Audio</span>
+                </button>
                 <button class="m-player-ctrl-btn" id="srcToggleBtn" onclick="toggleSourcePanel()" title="Switch Source">
                     <i data-lucide="layers" style="width:16px;height:16px;"></i>
                     <span id="srcBtnLabel">Source</span>
@@ -384,6 +388,16 @@
                 <button class="source-panel-close" onclick="toggleSourcePanel()">&#10005;</button>
             </div>
             <div id="sourceSelectorList" class="source-list"></div>
+        </div>
+
+        <!-- AUDIO TRACKS SELECTOR PANEL (slides up inside player) -->
+        <div id="audioSelectorPanel" class="source-panel" style="display:none;">
+            <div class="source-panel-handle"></div>
+            <div class="source-panel-header">
+                <span class="source-panel-title">Select Audio Track / Language</span>
+                <button class="source-panel-close" onclick="toggleAudioPanel()">&#10005;</button>
+            </div>
+            <div id="audioSelectorList" class="source-list"></div>
         </div>
 
         <!-- Fallback artplayer container (desktop compat) -->
@@ -445,12 +459,16 @@
                 if (chevron) chevron.style.transform = "rotate(0deg)";
             }
         });
+
         // =============================================
         // MOBILE NATIVE PLAYER
         // =============================================
         let _mobileHls = null;
         let _mobileStreams = [];  // all resolved streams
         let _currentSrcIndex = -1;
+        let _mobileAudioTracks = []; // all detected audio tracks
+        let _currentAudioIndex = -1;
+        let _currentStreamRawUrl = "";
 
         // Detect format from URL string
         function detectFormat(url) {
@@ -501,6 +519,8 @@
             if (overlay) overlay.style.display = "none";
             teardownPlayer();
             document.getElementById("sourceSelectorPanel").style.display = "none";
+            const aPanel = document.getElementById("audioSelectorPanel");
+            if (aPanel) aPanel.style.display = "none";
             try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch(e) {}
         }
 
@@ -509,6 +529,92 @@
             if (!panel) return;
             const open = panel.style.display !== "none";
             panel.style.display = open ? "none" : "block";
+            const aPanel = document.getElementById("audioSelectorPanel");
+            if (aPanel) aPanel.style.display = "none";
+        }
+
+        function toggleAudioPanel() {
+            const panel = document.getElementById("audioSelectorPanel");
+            if (!panel) return;
+            const open = panel.style.display !== "none";
+            panel.style.display = open ? "none" : "block";
+            const sPanel = document.getElementById("sourceSelectorPanel");
+            if (sPanel) sPanel.style.display = "none";
+            if (typeof renderAudioList === "function") {
+                renderAudioList(_mobileAudioTracks, _currentAudioIndex);
+            }
+        }
+
+        function renderAudioList(audioTracks, activeTrackIndex) {
+            const list = document.getElementById("audioSelectorList");
+            const btn = document.getElementById("audioBtnLabel");
+            if (!list) return;
+            list.innerHTML = "";
+
+            if (!audioTracks || audioTracks.length === 0) {
+                list.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No alternative audio tracks detected for this stream.</div>`;
+                if (btn) btn.textContent = "Audio";
+                return;
+            }
+
+            if (btn) {
+                const activeTrack = audioTracks.find(t => t.index === activeTrackIndex) || audioTracks[0];
+                btn.textContent = activeTrack?.title || activeTrack?.language || "Audio";
+            }
+
+            audioTracks.forEach((track, i) => {
+                const isActive = activeTrackIndex !== -1 ? track.index === activeTrackIndex : i === 0;
+                const item = document.createElement("div");
+                item.className = "source-item" + (isActive ? " active" : "");
+                const langTitle = track.title || track.language || `Track ${track.index}`;
+                const codecLabel = (track.codec || "AUDIO").toUpperCase();
+                const supported = isAudioCodecSupportedByBrowser(track.codec);
+                const badge = supported ? "Native" : "AAC Transcode";
+
+                item.onclick = () => switchMobileAudioTrack(track.index, track.codec);
+                item.innerHTML = `
+                    <div class="source-item-num">${i + 1}</div>
+                    <div class="source-item-info">
+                        <div class="source-item-server">${langTitle}</div>
+                        <div class="source-item-tags">
+                            <span class="src-fmt-badge src-fmt-mp4">${codecLabel}</span>
+                            <span class="src-quality-badge">${badge}</span>
+                        </div>
+                    </div>
+                    <button class="source-item-play" title="Select audio track">
+                        ${isActive ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>` : `<svg width="12" height="12" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>`}
+                    </button>`;
+                list.appendChild(item);
+            });
+        }
+
+        function switchMobileAudioTrack(trackIndex, codec) {
+            _currentAudioIndex = trackIndex;
+            renderAudioList(_mobileAudioTracks, trackIndex);
+            document.getElementById("audioSelectorPanel").style.display = "none";
+
+            const video = document.getElementById("mobileVideoPlayer");
+            const currentTime = video ? (video.currentTime || 0) : 0;
+
+            // If HLS with native audio tracks
+            if (_mobileHls && _mobileHls.audioTracks && _mobileHls.audioTracks.length > 0) {
+                const hlsIdx = _mobileHls.audioTracks.findIndex(t => t.id === trackIndex || t.name === codec);
+                if (hlsIdx !== -1) {
+                    _mobileHls.audioTrack = hlsIdx;
+                    return;
+                }
+            }
+
+            // For standard streams, route through /stream proxy with audioIndex
+            const baseUrl = (typeof getApiUrl === "function" ? getApiUrl() : window.location.origin);
+            const supported = isAudioCodecSupportedByBrowser(codec);
+            const transcodeParam = !supported ? "&transcode=true" : "&transcode=true";
+            const proxiedUrl = `${baseUrl}/stream?url=${encodeURIComponent(_currentStreamRawUrl)}&audioIndex=${trackIndex}${transcodeParam}&referer=${encodeURIComponent(_currentStreamRawUrl)}&start=${currentTime}`;
+
+            if (video) {
+                video.src = proxiedUrl;
+                video.play().catch(() => {});
+            }
         }
 
         function renderSourceList(streams, activeIdx) {
@@ -588,6 +694,10 @@
             if (!video || !overlay) return;
 
             teardownPlayer();
+            _currentStreamRawUrl = streamUrl;
+            _currentAudioIndex = -1;
+            _mobileAudioTracks = [];
+
             if (titleEl) titleEl.textContent = title || "Now Playing";
             overlay.style.display = "flex";
             if (badge) { badge.style.display = "block"; badge.textContent = "Loading stream..."; }
@@ -595,9 +705,25 @@
             const fmt = detectFormat(streamUrl);
             const isHls = (fmt === "m3u8");
 
+            // Probe audio tracks
+            const baseUrl = (typeof getApiUrl === "function" ? getApiUrl() : window.location.origin);
+            fetch(`${baseUrl}/audio-info?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent(streamUrl)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.audioTracks && data.audioTracks.length > 0) {
+                        _mobileAudioTracks = data.audioTracks;
+                        renderAudioList(_mobileAudioTracks, data.audioTracks[0]?.index || 0);
+                    } else {
+                        renderAudioList([], -1);
+                    }
+                })
+                .catch(err => {
+                    console.warn("Mobile audio probe skipped:", err);
+                    renderAudioList([], -1);
+                });
+
             // MKV / non-streamable formats: try transcode proxy first if available
             if (fmt === "mkv" || fmt === "avi") {
-                const baseUrl = (typeof getApiUrl === "function" ? getApiUrl() : window.location.origin);
                 const proxiedUrl = `${baseUrl}/stream?url=${encodeURIComponent(streamUrl)}&transcode=true&referer=${encodeURIComponent(streamUrl)}`;
                 video.src = proxiedUrl;
                 video.play().catch(() => {
@@ -621,6 +747,16 @@
                 _mobileHls.attachMedia(video);
                 _mobileHls.on(Hls.Events.MANIFEST_PARSED, () => {
                     if (badge) badge.style.display = "none";
+                    if (_mobileHls.audioTracks && _mobileHls.audioTracks.length > 0) {
+                        const hlsTracks = _mobileHls.audioTracks.map((t, idx) => ({
+                            index: idx,
+                            codec: "HLS",
+                            language: t.lang || t.name || `Track ${idx + 1}`,
+                            title: t.name || t.lang || `Track ${idx + 1}`
+                        }));
+                        _mobileAudioTracks = hlsTracks;
+                        renderAudioList(_mobileAudioTracks, _mobileHls.audioTrack);
+                    }
                     video.play().catch(() => {});
                 });
                 _mobileHls.on(Hls.Events.ERROR, (event, data) => {

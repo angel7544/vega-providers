@@ -107,6 +107,21 @@
         
         <!-- HOME / BROWSE PAGE -->
         <div id="pageBrowse" class="page-view active">
+            <!-- CONTINUE WATCHING SHELF -->
+            <section id="continueWatchingSection" class="continue-watching-section" style="display: none;">
+                <div class="cw-header">
+                    <div class="cw-title-wrap">
+                        <i data-lucide="play-circle" style="width: 20px; height: 20px; color: var(--accent);"></i>
+                        <span class="cw-title">Continue Watching</span>
+                        <span id="cwCountBadge" class="cw-badge">0</span>
+                    </div>
+                    <button class="cw-clear-btn" onclick="clearContinueWatching()" title="Clear watch history">
+                        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Clear All
+                    </button>
+                </div>
+                <div id="cwCarousel" class="cw-carousel"></div>
+            </section>
+
             <!-- GENRE / CATALOG BAR -->
             <div id="catalogContainer" class="catalog-bar"></div>
 
@@ -123,7 +138,7 @@
                 <div class="footer-items-row">
                     <div class="footer-item">
                         <i data-lucide="monitor" class="footer-icon" style="width:16px;height:16px;"></i>
-                        <span class="footer-title">1080p Stream Ready</span>
+                        <span class="footer-title">1080p / 4K Ultra HD <span class="footer-subtitle">(Edge & Safari Native)</span></span>
                     </div>
                     <div class="footer-separator"></div>
                     <div class="footer-item">
@@ -133,7 +148,7 @@
                     <div class="footer-separator"></div>
                     <div class="footer-item">
                         <i data-lucide="shield-check" class="footer-icon" style="width:16px;height:16px;"></i>
-                        <span class="footer-title">Browser Capabilities</span>
+                        <span class="footer-title">1080p/4k only on Edge browser and Safari</span>
                     </div>
                     <div class="footer-separator"></div>
                     <div class="footer-item">
@@ -357,6 +372,11 @@
                     </button>
                 </div>
 
+                <button class="player-ctrl-btn" id="desktopAudioBtn" onclick="toggleDesktopAudioPanel()" title="Audio Tracks & Languages">
+                    <i data-lucide="languages" style="width: 15px; height: 15px;"></i>
+                    <span id="desktopAudioBtnLabel">Audio</span>
+                </button>
+
                 <button class="player-ctrl-btn" id="nativeSourceBtn" onclick="toggleDesktopSourcePanel()" title="Switch Source">
                     <i data-lucide="layers" style="width: 15px; height: 15px;"></i>
                     <span id="desktopSrcBtnLabel">Source</span>
@@ -370,6 +390,37 @@
         
         <div id="artplayer-app" class="artplayer-container"></div>
         <video id="native-player-app" class="artplayer-container" style="display: none; background: #000; object-fit: contain;" controls autoplay playsinline referrerpolicy="no-referrer"></video>
+
+        <!-- UP NEXT EPISODE OVERLAY (BINGE MODE) -->
+        <div id="upNextOverlay" class="up-next-overlay" style="display: none;">
+            <div class="up-next-top-row">
+                <div class="up-next-header-title">
+                    <i data-lucide="fast-forward" style="width: 14px; height: 14px;"></i> Up Next
+                </div>
+                <div id="upNextCountdownBadge" class="up-next-countdown-badge">10s</div>
+            </div>
+            <div class="up-next-body">
+                <div id="upNextEpTitle" class="up-next-ep-title">Next Episode</div>
+                <div id="upNextShowName" class="up-next-show-name"></div>
+            </div>
+            <div class="up-next-actions">
+                <button id="upNextPlayNowBtn" class="up-next-play-btn" onclick="triggerNextEpisodeNow()">
+                    <i data-lucide="play" style="width: 14px; height: 14px; fill: currentColor;"></i> Play Now
+                </button>
+                <button id="upNextCancelBtn" class="up-next-cancel-btn" onclick="cancelAutoNext()">
+                    Cancel
+                </button>
+            </div>
+        </div>
+
+        <!-- DESKTOP AUDIO SELECTOR PANEL -->
+        <div id="desktopAudioPanel" class="desktop-source-panel" style="display: none;">
+            <div class="desktop-source-header">
+                <span>Select Audio Track / Language</span>
+                <button onclick="toggleDesktopAudioPanel()" class="desktop-source-close"><i data-lucide="x" style="width: 16px; height: 16px;"></i></button>
+            </div>
+            <div id="desktopAudioList" class="desktop-source-list"></div>
+        </div>
 
         <!-- DESKTOP SOURCE SELECTOR PANEL -->
         <div id="desktopSourcePanel" class="desktop-source-panel" style="display: none;">

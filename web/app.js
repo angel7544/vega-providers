@@ -106,6 +106,20 @@ let currentFilter = "";
 let currentSearch = "";
 let currentCatalogItems = []; // Stores the current provider's catalog options
 
+// Episode & Binge State
+let currentEpisodesList = [];
+let currentEpisodeIndex = -1;
+let currentEpisodeTitle = "";
+let currentProviderForEpisodes = "";
+let upNextTimer = null;
+let upNextCountdownSeconds = 10;
+let isUpNextActive = false;
+let autoNextDismissedForCurrent = false;
+let lastSavedWatchTime = 0;
+
+// Client-Side Catalog Cache TTL (10 Minutes)
+const CATALOG_CACHE_TTL = 10 * 60 * 1000;
+
 // Infinite Scroll State
 let currentPage = 1;
 let isFetchingNextPage = false;
@@ -128,6 +142,251 @@ const pagePlayer = document.getElementById('pagePlayer');
 
 // Settings Elements
 const settingsModal = document.getElementById('settingsModal');
+
+// ============================
+// 🧹 FUZZY SEARCH & TITLE NORMALIZATION
+// ============================
+function normalizeSearchQuery(query) {
+    if (!query || typeof query !== 'string') return "";
+    let q = query.trim();
+    // Remove special punctuation that confuses provider scrapers
+    q = q.replace(/[:\-–—&|/\\_*[\]()]/g, ' ');
+    // Remove noise suffixes/keywords commonly entered by users
+    q = q.replace(/\b(season\s*\d+|part\s*\d+|s\d{1,2}|vol(?:ume)?\s*\d+|complete\s*edition|full\s*movie|web[- ]?dl|hindi\s*dub(?:bed)?)\b/gi, ' ');
+    // Collapse multiple whitespace
+    q = q.replace(/\s+/g, ' ').trim();
+    return q;
+}
+
+// ============================
+// ⚡ CLIENT-SIDE CATALOG CACHING (10-Min TTL)
+// ============================
+function getCachedCatalog(key) {
+    try {
+        const raw = sessionStorage.getItem(`orbix_cat_${key}`);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (Date.now() - parsed.timestamp < CATALOG_CACHE_TTL) {
+            return parsed.data;
+        }
+        sessionStorage.removeItem(`orbix_cat_${key}`);
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+function setCachedCatalog(key, data) {
+    try {
+        if (!data || (Array.isArray(data) && data.length === 0)) return;
+        sessionStorage.setItem(`orbix_cat_${key}`, JSON.stringify({
+            timestamp: Date.now(),
+            data: data
+        }));
+    } catch (e) {
+        console.warn("Catalog caching failed:", e);
+    }
+}
+
+// ============================
+// 🎬 CONTINUE WATCHING STORAGE & UI
+// ============================
+function getWatchHistory() {
+    try {
+        return JSON.parse(localStorage.getItem('orbix_watch_history') || "[]");
+    } catch {
+        return [];
+    }
+}
+
+function saveWatchProgress(itemData) {
+    if (!itemData || !itemData.link) return;
+    try {
+        let history = getWatchHistory();
+        history = history.filter(h => h.link !== itemData.link && h.url !== itemData.link);
+        
+        const ct = Math.floor(itemData.currentTime || 0);
+        const dur = Math.floor(itemData.duration || 1);
+        const progressPct = Math.min(100, Math.max(0, Math.round((ct / dur) * 100)));
+
+        history.unshift({
+            link: itemData.link,
+            provider: itemData.provider || currentProvider,
+            title: itemData.title || "Untitled",
+            episodeTitle: itemData.episodeTitle || "",
+            poster: itemData.poster || "",
+            tmdbId: itemData.tmdbId || null,
+            type: itemData.type || "movie",
+            currentTime: ct,
+            duration: dur,
+            progress: progressPct,
+            updatedAt: Date.now()
+        });
+
+        if (history.length > 20) history = history.slice(0, 20);
+        localStorage.setItem('orbix_watch_history', JSON.stringify(history));
+        renderContinueWatchingShelf();
+    } catch (e) {
+        console.warn("Failed to save watch progress:", e);
+    }
+}
+
+function renderContinueWatchingShelf() {
+    const section = document.getElementById("continueWatchingSection");
+    const carousel = document.getElementById("cwCarousel");
+    const badge = document.getElementById("cwCountBadge");
+    if (!section || !carousel) return;
+
+    if (currentSearch || currentFilter === "wishlist") {
+        section.style.display = "none";
+        return;
+    }
+
+    const history = getWatchHistory();
+    const activeItems = history.filter(h => h.progress >= 2 && h.progress <= 96);
+
+    if (!activeItems.length) {
+        section.style.display = "none";
+        return;
+    }
+
+    section.style.display = "block";
+    if (badge) badge.textContent = activeItems.length;
+    carousel.innerHTML = "";
+
+    activeItems.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "cw-card";
+
+        const posterSrc = item.poster || "missing.jpg";
+        const epLabel = item.episodeTitle ? item.episodeTitle : (item.type === "series" ? "In Progress" : "Feature Film");
+        const safeTitle = (item.title || "Untitled").replace(/'/g, "\\'").replace(/"/g, "&quot;");
+        const safeLink = (item.link || "").replace(/'/g, "\\'");
+        const safeEp = (item.episodeTitle || "").replace(/'/g, "\\'");
+        const resumeTime = item.currentTime || 0;
+
+        card.innerHTML = `
+            <div class="cw-poster-box">
+                <img class="cw-poster-img" src="${posterSrc}" loading="lazy" referrerpolicy="no-referrer" onerror="handleImageError(this, '${safeTitle}')">
+                <div class="cw-poster-overlay">
+                    <div class="cw-play-badge">
+                        <i data-lucide="play" style="width: 20px; height: 20px; fill: currentColor; margin-left: 2px;"></i>
+                    </div>
+                </div>
+                <div class="cw-progress-bar-bg">
+                    <div class="cw-progress-bar-fill" style="width: ${item.progress}%;"></div>
+                </div>
+            </div>
+            <div class="cw-info">
+                <div class="cw-card-title" title="${item.title}">${item.title}</div>
+                <div class="cw-card-meta">
+                    <span class="cw-ep-tag">${epLabel}</span>
+                    <span>${item.progress}%</span>
+                </div>
+                <div class="cw-card-actions">
+                    <button class="cw-resume-btn" onclick="event.stopPropagation(); resumeWatchItem('${safeLink}', '${item.provider}', ${resumeTime}, '${safeTitle}', '${safeEp}')">
+                        <i data-lucide="play" style="width: 12px; height: 12px; fill: currentColor;"></i> Resume
+                    </button>
+                    <button class="cw-remove-card-btn" title="Remove from Continue Watching" onclick="event.stopPropagation(); removeWatchHistoryItem('${safeLink}')">
+                        <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        card.onclick = () => {
+            resumeWatchItem(item.link, item.provider, resumeTime, item.title, item.episodeTitle);
+        };
+
+        carousel.appendChild(card);
+    });
+
+    if (window.lucide) lucide.createIcons();
+}
+
+window.clearContinueWatching = function() {
+    if (confirm("Clear all continue watching history?")) {
+        localStorage.removeItem('orbix_watch_history');
+        renderContinueWatchingShelf();
+    }
+};
+
+window.removeWatchHistoryItem = function(link) {
+    let history = getWatchHistory();
+    history = history.filter(h => h.link !== link && h.url !== link);
+    localStorage.setItem('orbix_watch_history', JSON.stringify(history));
+    renderContinueWatchingShelf();
+};
+
+window.resumeWatchItem = async function(link, provider, resumeTime, title, episodeTitle) {
+    if (!link) return;
+    showDetails(link, provider || currentProvider, null, null, null, null, title);
+};
+
+// ============================
+// ⏱️ AUTO-NEXT EPISODE & BINGE OVERLAY
+// ============================
+function showUpNextOverlay(nextEp, countdown = 10) {
+    if (isUpNextActive || autoNextDismissedForCurrent || !nextEp) return;
+    isUpNextActive = true;
+    upNextCountdownSeconds = countdown;
+
+    const overlay = document.getElementById("upNextOverlay");
+    const epTitleEl = document.getElementById("upNextEpTitle");
+    const showNameEl = document.getElementById("upNextShowName");
+    const badgeEl = document.getElementById("upNextCountdownBadge");
+
+    if (!overlay) return;
+
+    if (epTitleEl) epTitleEl.textContent = nextEp.title || `Episode ${currentEpisodeIndex + 2}`;
+    if (showNameEl) showNameEl.textContent = currentMeta?.title || "OrbixPlay";
+    if (badgeEl) badgeEl.textContent = `${upNextCountdownSeconds}s`;
+
+    overlay.style.display = "flex";
+    if (window.lucide) lucide.createIcons();
+
+    if (upNextTimer) clearInterval(upNextTimer);
+    upNextTimer = setInterval(() => {
+        upNextCountdownSeconds--;
+        if (badgeEl) badgeEl.textContent = `${upNextCountdownSeconds}s`;
+
+        if (upNextCountdownSeconds <= 0) {
+            clearInterval(upNextTimer);
+            upNextTimer = null;
+            triggerNextEpisodeNow();
+        }
+    }, 1000);
+}
+
+window.cancelAutoNext = function() {
+    if (upNextTimer) {
+        clearInterval(upNextTimer);
+        upNextTimer = null;
+    }
+    isUpNextActive = false;
+    autoNextDismissedForCurrent = true;
+    const overlay = document.getElementById("upNextOverlay");
+    if (overlay) overlay.style.display = "none";
+};
+
+window.triggerNextEpisodeNow = function() {
+    if (upNextTimer) {
+        clearInterval(upNextTimer);
+        upNextTimer = null;
+    }
+    isUpNextActive = false;
+    const overlay = document.getElementById("upNextOverlay");
+    if (overlay) overlay.style.display = "none";
+
+    if (currentEpisodesList && currentEpisodeIndex >= 0 && currentEpisodeIndex < currentEpisodesList.length - 1) {
+        const nextIdx = currentEpisodeIndex + 1;
+        const nextEp = currentEpisodesList[nextIdx];
+        currentEpisodeIndex = nextIdx;
+        autoNextDismissedForCurrent = false;
+        console.log("🎬 Auto-playing next episode:", nextEp);
+        playStream(nextEp.link || nextEp.url, currentProviderForEpisodes || currentProvider, nextEp.title);
+    }
+};
 // ============================
 // 🎭 CUSTOM SELECT DROPDOWN HANDLER
 // ============================
@@ -546,6 +805,11 @@ async function loadProviders() {
         const enabledProviders = providers.filter(p => !disabledProviders.includes(p.value));
 
         if (providerSelect) {
+            const allOpt = document.createElement('option');
+            allOpt.value = "all";
+            allOpt.textContent = "🌐 All Providers (Multi-Search)";
+            providerSelect.appendChild(allOpt);
+
             enabledProviders.forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.value;
@@ -555,7 +819,7 @@ async function loadProviders() {
         }
 
         const isCurrentProviderDisabled = disabledProviders.includes(currentProvider);
-        if (!currentProvider || currentProvider === "__all__" || !providersMap[currentProvider] || isCurrentProviderDisabled) {
+        if (!currentProvider || (!providersMap[currentProvider] && currentProvider !== "all") || isCurrentProviderDisabled) {
             currentProvider = enabledProviders[0]?.value || "";
             localStorage.setItem('orbix_last_provider', currentProvider);
         }
@@ -607,6 +871,17 @@ async function loadCatalog() {
 
         // Hide legacy catalog buttons container
         if (catalogContainer) catalogContainer.style.display = "none";
+
+        if (currentProvider === "all") {
+            const firstProv = allProviders.find(p => p.value !== "all")?.value || "vega";
+            const resp = await fetch(`${getApiUrl()}/catalog?provider=${firstProv}`);
+            if (resp.ok) {
+                const data = await resp.json();
+                currentCatalogItems = [...(data.catalog || []), ...(data.genres || [])];
+                renderCatalog(data.catalog || [], data.genres || []);
+                return;
+            }
+        }
 
         const resp = await fetch(`${getApiUrl()}/catalog?provider=${currentProvider}`);
         if (!resp.ok) throw new Error();
@@ -674,6 +949,75 @@ function renderCatalog(catalog, genres) {
 }
 
 // ============================
+// 🌐 PARALLEL MULTI-PROVIDER SEARCH
+// ============================
+async function fetchAllProvidersSearch(searchQuery) {
+    const disabledProviders = JSON.parse(localStorage.getItem('orbix_disabled_providers') || '[]');
+    const targetProviders = (allProviders.length ? allProviders : Object.values(providersMap))
+        .filter(p => !disabledProviders.includes(p.value) && p.value !== "all");
+
+    if (!targetProviders.length) {
+        renderGrid([]);
+        setStatus("No providers available", "#ef4444");
+        return;
+    }
+
+    setStatus(`Searching across ${targetProviders.length} providers...`, "#8b5cf6");
+
+    const cleanedQuery = normalizeSearchQuery(searchQuery) || searchQuery;
+
+    // Concurrently query each provider with an 8-second individual timeout
+    const fetchPromises = targetProviders.map(async (prov) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        try {
+            const resp = await fetch(`${getApiUrl()}/fetch`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    provider: prov.value,
+                    functionName: "getSearchPosts",
+                    params: { searchQuery: cleanedQuery, page: 1 }
+                }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            if (!resp.ok) return { provider: prov.value, providerName: prov.display_name, items: [] };
+            const data = await resp.json();
+            const items = Array.isArray(data) ? data : (data.items || []);
+            // Attach provider metadata to each item
+            items.forEach(it => {
+                it.__provider = prov.value;
+                it.providerName = prov.display_name;
+            });
+            return { provider: prov.value, providerName: prov.display_name, items };
+        } catch (e) {
+            clearTimeout(timeoutId);
+            return { provider: prov.value, providerName: prov.display_name, items: [] };
+        }
+    });
+
+    const resultsArray = await Promise.allSettled(fetchPromises);
+    const groups = [];
+    let totalItems = 0;
+
+    resultsArray.forEach(res => {
+        if (res.status === "fulfilled" && res.value && res.value.items && res.value.items.length > 0) {
+            groups.push(res.value);
+            totalItems += res.value.items.length;
+        }
+    });
+
+    if (groups.length > 0) {
+        renderGrid({ isGrouped: true, groups });
+        setStatus(`Found ${totalItems} result${totalItems === 1 ? '' : 's'} across ${groups.length} provider${groups.length === 1 ? '' : 's'}`);
+    } else {
+        renderGrid([]);
+        setStatus("No results found across providers");
+    }
+}
+
+// ============================
 // 🔍 FETCH DATA
 // ============================
 async function fetchData(filter, search = false, append = false) {
@@ -696,16 +1040,34 @@ async function fetchData(filter, search = false, append = false) {
         `;
     }
 
+    if (search && currentProvider === "all") {
+        return await fetchAllProvidersSearch(filter);
+    }
+
+    const cacheKey = `${currentProvider}_${filter || 'home'}_p${currentPage}`;
+    if (!search && !append && currentProvider !== "all") {
+        const cachedData = getCachedCatalog(cacheKey);
+        if (cachedData && cachedData.length > 0) {
+            renderGrid(cachedData, false);
+            setStatus("Online (Cached)");
+            renderContinueWatchingShelf();
+            return;
+        }
+    }
+
     try {
+        const cleanedFilter = search ? normalizeSearchQuery(filter) : filter;
         const func = search ? "getSearchPosts" : "getPosts";
         const params = search
-            ? { searchQuery: filter, page: currentPage }
+            ? { searchQuery: cleanedFilter || filter, page: currentPage }
             : { filter, page: currentPage };
+
+        const targetProvider = currentProvider === "all" ? (allProviders.find(p => p.value !== "all")?.value || "vega") : currentProvider;
 
         const resp = await fetch(`${getApiUrl()}/fetch`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ provider: currentProvider, functionName: func, params })
+            body: JSON.stringify({ provider: targetProvider, functionName: func, params })
         });
 
         const results = await resp.json();
@@ -718,6 +1080,9 @@ async function fetchData(filter, search = false, append = false) {
         if (results && results.length > 0) {
             renderGrid(results, append);
             setStatus("Online");
+            if (!search && currentProvider !== "all") {
+                setCachedCatalog(cacheKey, results);
+            }
         } else {
             if (append) {
                 hasMore = false;
@@ -742,6 +1107,7 @@ async function fetchData(filter, search = false, append = false) {
         if (append) {
             isFetchingNextPage = false;
         }
+        renderContinueWatchingShelf();
     }
 }
 
@@ -830,13 +1196,39 @@ function renderGrid(data, append = false) {
 
     if (!data || (data.isGrouped && data.groups.length === 0) || (!data.isGrouped && data.length === 0)) {
         if (!append) {
-            contentGrid.innerHTML = `
-                <div style="grid-column: 1/-1; text-align:center; padding: 40px; color: var(--text-dim);">
-                    <i data-lucide="ghost" style="width: 48px; height: 48px; margin-bottom: 16px;"></i>
-                    <p>No results found</p>
-                </div>
-            `;
-            lucide.createIcons();
+            if (currentFilter === "wishlist") {
+                contentGrid.innerHTML = `
+                    <div style="grid-column: 1/-1; text-align:center; padding: 48px 20px; color: var(--text-dim);">
+                        <i data-lucide="heart" style="width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.5;"></i>
+                        <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-main, #fff); margin-bottom: 8px;">Your Wishlist is Empty</h3>
+                        <p style="font-size: 0.95rem; color: var(--text-dim);">Items you add to your wishlist will appear here.</p>
+                    </div>
+                `;
+            } else {
+                contentGrid.innerHTML = `
+                    <div class="empty-state-container" style="grid-column: 1/-1; text-align: center; padding: 48px 20px; max-width: 560px; margin: 0 auto; color: var(--text-dim);">
+                        <div style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; background: var(--surface-light, rgba(255,255,255,0.05)); border: 1px solid var(--glass-border, rgba(255,255,255,0.1)); margin-bottom: 18px; color: var(--accent, #a855f7);">
+                            <i data-lucide="ghost" style="width: 32px; height: 32px;"></i>
+                        </div>
+                        <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--text-main, #fff); margin-bottom: 8px;">No Results Found</h3>
+                        <p style="font-size: 0.95rem; color: var(--text-dim); line-height: 1.5; margin-bottom: 20px;">
+                            We couldn't find any content matching your search or selected filter.
+                        </p>
+                        <div style="background: rgba(147, 51, 234, 0.08); border: 1px solid rgba(147, 51, 234, 0.25); border-radius: 12px; padding: 16px 20px; text-align: left; font-size: 0.88rem; line-height: 1.6; color: var(--text-main, #f8fafc);">
+                            <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #c084fc; margin-bottom: 8px;">
+                                <i data-lucide="info" style="width: 18px; height: 18px; flex-shrink: 0;"></i>
+                                <span>Search & Availability Notes:</span>
+                            </div>
+                            <ul style="margin: 0; padding-left: 18px; color: var(--text-dim, #cbd5e1);">
+                                <li style="margin-bottom: 6px;">You may search your desired title by its full name or with at least 3 characters.</li>
+                                <li style="margin-bottom: 6px;">Sometimes posters and providers run out of bandwidth or experience temporary delays.</li>
+                                <li>Try selecting a different provider from the provider dropdown above to explore alternate sources.</li>
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+            if (window.lucide) lucide.createIcons();
         }
         return;
     }
@@ -1851,6 +2243,9 @@ function renderEpisodeList(episodes, provider, fallbackUrl = "") {
     if (!container) return;
     
     const safeEpisodes = Array.isArray(episodes) ? episodes : [];
+    currentEpisodesList = safeEpisodes;
+    currentProviderForEpisodes = provider;
+
     const epBadge = document.getElementById("currentEpisodeBadge");
     const epCountBadge = document.getElementById("episodesCountBadge");
     // Mobile card layout is rendered exclusively on mobile.html; Desktop Web UI is rendered on index.html / details.html
@@ -2064,6 +2459,21 @@ async function tryHybridExtraction(link, provider) {
 
 async function playStream(link, provider, episodeTitle = "") {
     setStatus("Extracting stream...", "#8b5cf6");
+
+    if (currentEpisodesList && currentEpisodesList.length > 0) {
+        currentEpisodeIndex = currentEpisodesList.findIndex(e => (e.link === link || e.url === link || e.title === episodeTitle));
+    } else {
+        currentEpisodeIndex = -1;
+    }
+    currentEpisodeTitle = episodeTitle;
+    isUpNextActive = false;
+    autoNextDismissedForCurrent = false;
+    if (upNextTimer) {
+        clearInterval(upNextTimer);
+        upNextTimer = null;
+    }
+    const upNextOverlay = document.getElementById("upNextOverlay");
+    if (upNextOverlay) upNextOverlay.style.display = "none";
 
     const streams = await getResolvedStreams(link, provider);
     console.log("🎥 RESOLVED STREAMS:", streams);
@@ -2585,8 +2995,11 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
                     .then(r => r.json())
                     .then(data => {
                         if (data.audioTracks && data.audioTracks.length > 0) {
-                            console.log("🎵 Audio tracks detected:", data.audioTracks);
-                            
+                            currentAvailableAudioTracks = data.audioTracks;
+                            if (typeof window.renderDesktopAudioList === 'function') {
+                                window.renderDesktopAudioList();
+                            }
+
                             const primaryTrack = data.audioTracks[0];
                             const isPrimarySupported = isAudioCodecSupportedByBrowser(primaryTrack.codec);
                             
@@ -2635,7 +3048,7 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
                                 player.setting.add({
                                     name: 'audio-tracks-manual',
                                     html: 'Audio Tracks & Codecs',
-                                    icon: '<i data-lucide="mic" style="width:16px;height:16px;color:#a855f7"></i>',
+                                    icon: '<i data-lucide="languages" style="width:16px;height:16px;color:#a855f7"></i>',
                                     selector: selectorItems,
                                     onSelect: function (item) {
                                         console.log(`🎵 Selected audio track ${item.audioIndex} (${item.codec}, browser support: ${item.isSupported})`);
@@ -2651,9 +3064,18 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
                                 });
                                 if (window.lucide) lucide.createIcons();
                             }
+                        } else {
+                            currentAvailableAudioTracks = [];
+                            if (typeof window.renderDesktopAudioList === 'function') {
+                                window.renderDesktopAudioList();
+                            }
                         }
                     }).catch((err) => {
                         console.warn("Audio probe skipped:", err);
+                        currentAvailableAudioTracks = [];
+                        if (typeof window.renderDesktopAudioList === 'function') {
+                            window.renderDesktopAudioList();
+                        }
                     });
             }
 
@@ -2672,6 +3094,41 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
                 handlePlaybackError();
             });
 
+            // Save progress periodically and check Up Next binge overlay
+            player.on('video:timeupdate', () => {
+                const ct = player.currentTime || 0;
+                const dur = player.duration || 0;
+                if (dur > 0 && Math.abs(ct - lastSavedWatchTime) > 4) {
+                    lastSavedWatchTime = ct;
+                    saveWatchProgress({
+                        link: currentMeta?.__link || currentMeta?.link || "",
+                        provider: currentProvider,
+                        title: currentMeta?.title || "Video",
+                        episodeTitle: currentEpisodeTitle || (currentEpisodesList[currentEpisodeIndex]?.title || ""),
+                        poster: currentMeta?.image || currentMeta?.poster || "",
+                        tmdbId: currentMeta?.tmdbId || null,
+                        type: currentMeta?.type || "movie",
+                        currentTime: ct,
+                        duration: dur
+                    });
+                }
+
+                if (currentEpisodesList && currentEpisodesList.length > 0 && currentEpisodeIndex >= 0 && currentEpisodeIndex < currentEpisodesList.length - 1) {
+                    const remaining = dur - ct;
+                    if (remaining <= 45 && remaining > 0 && dur > 60 && !isUpNextActive && !autoNextDismissedForCurrent) {
+                        const nextEp = currentEpisodesList[currentEpisodeIndex + 1];
+                        showUpNextOverlay(nextEp, Math.min(10, Math.max(3, Math.floor(remaining))));
+                    }
+                }
+            });
+
+            // On video ended, auto transition to next episode
+            player.on('video:ended', () => {
+                if (currentEpisodesList && currentEpisodesList.length > 0 && currentEpisodeIndex >= 0 && currentEpisodeIndex < currentEpisodesList.length - 1) {
+                    triggerNextEpisodeNow();
+                }
+            });
+
         } else if (currentPlayerType === 2) {
             // PLAYER 2: NATIVE HTML5 / HLS.JS PLAYER
             document.getElementById('artplayer-app').style.display = 'none';
@@ -2684,6 +3141,8 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
                     nativeVideo.removeEventListener('playing', onPlaying);
                     nativeVideo.removeEventListener('canplay', onPlaying);
                     nativeVideo.removeEventListener('error', onError);
+                    nativeVideo.removeEventListener('timeupdate', onTimeUpdate);
+                    nativeVideo.removeEventListener('ended', onEnded);
                 };
 
                 const onPlaying = () => {
@@ -2698,9 +3157,44 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
                     handlePlaybackError();
                 };
 
+                const onTimeUpdate = () => {
+                    const ct = nativeVideo.currentTime || 0;
+                    const dur = nativeVideo.duration || 0;
+                    if (dur > 0 && Math.abs(ct - lastSavedWatchTime) > 4) {
+                        lastSavedWatchTime = ct;
+                        saveWatchProgress({
+                            link: currentMeta?.__link || currentMeta?.link || "",
+                            provider: currentProvider,
+                            title: currentMeta?.title || "Video",
+                            episodeTitle: currentEpisodeTitle || (currentEpisodesList[currentEpisodeIndex]?.title || ""),
+                            poster: currentMeta?.image || currentMeta?.poster || "",
+                            tmdbId: currentMeta?.tmdbId || null,
+                            type: currentMeta?.type || "movie",
+                            currentTime: ct,
+                            duration: dur
+                        });
+                    }
+
+                    if (currentEpisodesList && currentEpisodesList.length > 0 && currentEpisodeIndex >= 0 && currentEpisodeIndex < currentEpisodesList.length - 1) {
+                        const remaining = dur - ct;
+                        if (remaining <= 45 && remaining > 0 && dur > 60 && !isUpNextActive && !autoNextDismissedForCurrent) {
+                            const nextEp = currentEpisodesList[currentEpisodeIndex + 1];
+                            showUpNextOverlay(nextEp, Math.min(10, Math.max(3, Math.floor(remaining))));
+                        }
+                    }
+                };
+
+                const onEnded = () => {
+                    if (currentEpisodesList && currentEpisodesList.length > 0 && currentEpisodeIndex >= 0 && currentEpisodeIndex < currentEpisodesList.length - 1) {
+                        triggerNextEpisodeNow();
+                    }
+                };
+
                 nativeVideo.addEventListener('playing', onPlaying);
                 nativeVideo.addEventListener('canplay', onPlaying);
                 nativeVideo.addEventListener('error', onError);
+                nativeVideo.addEventListener('timeupdate', onTimeUpdate);
+                nativeVideo.addEventListener('ended', onEnded);
 
                 // Load source
                 if (isM3u8) {
@@ -2797,10 +3291,10 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
         // Save current timestamp
         let currentTime = 0;
         if (currentPlayerType === 1 && player) {
-            currentTime = player.currentTime;
+            currentTime = player.currentTime || 0;
         } else if (currentPlayerType === 2) {
             const nativeVideo = document.getElementById("native-player-app");
-            if (nativeVideo) currentTime = nativeVideo.currentTime;
+            if (nativeVideo) currentTime = nativeVideo.currentTime || 0;
         }
 
         currentPlayerType = type;
@@ -2816,10 +3310,90 @@ function initPlayer(streams, initialIndex = 0, episodeTitle = "") {
             panel.style.display = "none";
         } else {
             panel.style.display = "flex";
+            const aPanel = document.getElementById("desktopAudioPanel");
+            if (aPanel) aPanel.style.display = "none";
             if (typeof window.renderDesktopSourceList === 'function') {
                 window.renderDesktopSourceList();
             }
         }
+    };
+
+    window.toggleDesktopAudioPanel = function() {
+        const panel = document.getElementById("desktopAudioPanel");
+        if (!panel) return;
+        const isVisible = panel.style.display !== "none";
+        if (isVisible) {
+            panel.style.display = "none";
+        } else {
+            panel.style.display = "flex";
+            const sPanel = document.getElementById("desktopSourcePanel");
+            if (sPanel) sPanel.style.display = "none";
+            if (typeof window.renderDesktopAudioList === 'function') {
+                window.renderDesktopAudioList();
+            }
+        }
+    };
+
+    window.renderDesktopAudioList = function() {
+        const list = document.getElementById("desktopAudioList");
+        const btnLabel = document.getElementById("desktopAudioBtnLabel");
+        if (!list) return;
+
+        list.innerHTML = "";
+        if (!currentAvailableAudioTracks || currentAvailableAudioTracks.length === 0) {
+            list.innerHTML = `<div style="padding: 16px; text-align: center; color: rgba(255,255,255,0.5); font-size: 13px;">No alternative audio tracks detected</div>`;
+            if (btnLabel) btnLabel.textContent = "Audio";
+            return;
+        }
+
+        if (btnLabel) {
+            const active = currentAvailableAudioTracks.find(t => t.index === currentAudioTrack) || currentAvailableAudioTracks[0];
+            btnLabel.textContent = active?.title || active?.language || "Audio";
+        }
+
+        currentAvailableAudioTracks.forEach((track, i) => {
+            const isActive = currentAudioTrack !== null ? track.index === currentAudioTrack : i === 0;
+            const item = document.createElement("div");
+            item.className = `desktop-source-item${isActive ? ' active' : ''}`;
+            const langTitle = track.title || track.language || `Track ${track.index}`;
+            const codec = (track.codec || "AUDIO").toUpperCase();
+            const supported = isAudioCodecSupportedByBrowser(track.codec);
+            const badge = supported ? "Native" : "AAC Transcode";
+
+            item.onclick = () => {
+                currentAudioTrack = track.index;
+                if (!supported) {
+                    isTranscoding = true;
+                } else {
+                    isTranscoding = (track.index !== currentAvailableAudioTracks[0]?.index);
+                }
+                const panel = document.getElementById("desktopAudioPanel");
+                if (panel) panel.style.display = "none";
+                if (btnLabel) btnLabel.textContent = langTitle;
+                
+                let ct = 0;
+                if (currentPlayerType === 1 && player) ct = player.currentTime || 0;
+                else if (currentPlayerType === 2) {
+                    const v = document.getElementById("native-player-app");
+                    if (v) ct = v.currentTime || 0;
+                }
+                startPlayback(ct);
+            };
+
+            item.innerHTML = `
+                <div class="desktop-source-num">${i + 1}</div>
+                <div class="desktop-source-info">
+                    <div class="desktop-source-name">${langTitle}</div>
+                    <div class="desktop-source-badges">
+                        <span class="desktop-src-tag mp4">${codec}</span>
+                        <span class="desktop-src-tag" style="background: rgba(147, 51, 234, 0.2); color: #c084fc;">${badge}</span>
+                    </div>
+                </div>
+                ${isActive ? `<i data-lucide="check" style="width: 16px; height: 16px; color: var(--accent);"></i>` : `<i data-lucide="play" style="width: 14px; height: 14px; color: rgba(255,255,255,0.4);"></i>`}
+            `;
+            list.appendChild(item);
+        });
+        if (window.lucide) window.lucide.createIcons();
     };
 
     window.renderDesktopSourceList = function() {
@@ -2903,10 +3477,24 @@ function closePlayer() {
     delete window.switchPlayerType;
     delete window.toggleDesktopSourcePanel;
     delete window.renderDesktopSourceList;
+    delete window.toggleDesktopAudioPanel;
+    delete window.renderDesktopAudioList;
     delete window.toggleDesktopPip;
+
+    if (upNextTimer) {
+        clearInterval(upNextTimer);
+        upNextTimer = null;
+    }
+    isUpNextActive = false;
+    autoNextDismissedForCurrent = false;
+    const upNextOverlay = document.getElementById("upNextOverlay");
+    if (upNextOverlay) upNextOverlay.style.display = "none";
 
     const dPanel = document.getElementById("desktopSourcePanel");
     if (dPanel) dPanel.style.display = "none";
+
+    const dAudioPanel = document.getElementById("desktopAudioPanel");
+    if (dAudioPanel) dAudioPanel.style.display = "none";
 
     const isMobilePage = document.body.classList.contains('mobile-body');
 
